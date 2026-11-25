@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -41,7 +43,8 @@ class MainActivity : ComponentActivity() {
                 var selectedTab by remember { mutableStateOf(PrimaryTab.HOME) }
                 var subRoute by remember { mutableStateOf<String?>(null) }
 
-                if (firebaseUser == null) {
+                val fbUser = firebaseUser
+                if (fbUser == null) {
                     LoginScreen(
                         isLoading = isLoading,
                         errorMessage = errorMessage,
@@ -63,22 +66,43 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 } else {
-                    val userProfile by authRepository.observeUserProfile(firebaseUser!!.uid)
-                        .collectAsState(initial = UserProfile(uid = firebaseUser!!.uid, name = firebaseUser!!.displayName ?: "Member"))
+                    val uid = fbUser.uid
 
-                    val activeFamilyId = userProfile?.activeFamilyId.orEmpty()
-                    val family by familyRepository.observeFamily(activeFamilyId).collectAsState(initial = null)
-                    val members by familyRepository.observeMembers(activeFamilyId).collectAsState(initial = emptyList())
-                    val events by familyRepository.observeEvents(activeFamilyId).collectAsState(initial = emptyList())
-                    val transactions by familyRepository.observeTransactions(activeFamilyId).collectAsState(initial = emptyList())
-                    val tasks by familyRepository.observeTasks(activeFamilyId).collectAsState(initial = emptyList())
-                    val trips by familyRepository.observeTrips(activeFamilyId).collectAsState(initial = emptyList())
+                    // The profile document may be missing (e.g. the app was closed right after the first sign-in).
+                    LaunchedEffect(uid) { familyRepository.ensureUserProfile(fbUser) }
 
-                    val currentMember = members.firstOrNull { it.uid == firebaseUser!!.uid }
-                        ?: FamilyMember(uid = firebaseUser!!.uid, name = userProfile?.name ?: "Member", role = FamilyRole.ADULT)
-                    val isAdmin = currentMember.role == FamilyRole.OWNER || family?.ownerUid == firebaseUser!!.uid
-                    val documents by familyRepository.observeDocuments(activeFamilyId, firebaseUser!!.uid, isAdmin)
-                        .collectAsState(initial = emptyList())
+                    // Flows are remembered per key so they are not recreated on every recomposition.
+                    val profileFlow = remember(uid) { authRepository.observeUserProfile(uid) }
+                    val storedProfile by profileFlow.collectAsState(initial = null)
+                    val profile = storedProfile ?: UserProfile(
+                        uid = uid,
+                        name = fbUser.displayName ?: "Member",
+                        email = fbUser.email.orEmpty(),
+                        photoUrl = fbUser.photoUrl?.toString().orEmpty()
+                    )
+
+                    val activeFamilyId = profile.activeFamilyId
+                    val familyFlow = remember(activeFamilyId) { familyRepository.observeFamily(activeFamilyId) }
+                    val membersFlow = remember(activeFamilyId) { familyRepository.observeMembers(activeFamilyId) }
+                    val eventsFlow = remember(activeFamilyId) { familyRepository.observeEvents(activeFamilyId) }
+                    val transactionsFlow = remember(activeFamilyId) { familyRepository.observeTransactions(activeFamilyId) }
+                    val tasksFlow = remember(activeFamilyId) { familyRepository.observeTasks(activeFamilyId) }
+                    val tripsFlow = remember(activeFamilyId) { familyRepository.observeTrips(activeFamilyId) }
+
+                    val family by familyFlow.collectAsState(initial = null)
+                    val members by membersFlow.collectAsState(initial = emptyList())
+                    val events by eventsFlow.collectAsState(initial = emptyList())
+                    val transactions by transactionsFlow.collectAsState(initial = emptyList())
+                    val tasks by tasksFlow.collectAsState(initial = emptyList())
+                    val trips by tripsFlow.collectAsState(initial = emptyList())
+
+                    val currentMember = members.firstOrNull { it.uid == uid }
+                        ?: FamilyMember(uid = uid, name = profile.name, role = FamilyRole.ADULT)
+                    val isAdmin = currentMember.role == FamilyRole.OWNER || family?.ownerUid == uid
+                    val documentsFlow = remember(activeFamilyId, uid, isAdmin) {
+                        familyRepository.observeDocuments(activeFamilyId, uid, isAdmin)
+                    }
+                    val documents by documentsFlow.collectAsState(initial = emptyList())
 
                     Scaffold(
                         bottomBar = {
@@ -98,10 +122,18 @@ class MainActivity : ComponentActivity() {
                         }
                     ) { innerPadding ->
                         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                            if (activeFamilyId.isBlank() || family == null) {
+                            val currentFamily = family
+                            if (activeFamilyId.isBlank() || currentFamily == null) {
                                 var groupName by remember { mutableStateOf("") }
                                 var inviteCode by remember { mutableStateOf("") }
-                                Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                var setupBusy by remember { mutableStateOf(false) }
+                                var setupMessage by remember { mutableStateOf<String?>(null) }
+                                Column(
+                                    modifier = Modifier
+                                        .verticalScroll(rememberScrollState())
+                                        .padding(24.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
                                     Text("Set Up Your Family Group", style = MaterialTheme.typography.headlineSmall)
                                     OutlinedTextField(
                                         value = groupName,
@@ -110,15 +142,22 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     Button(
+                                        enabled = !setupBusy,
                                         onClick = {
                                             if (groupName.isNotBlank()) {
+                                                setupBusy = true
+                                                setupMessage = null
                                                 scope.launch {
-                                                    familyRepository.createFamilyGroup(userProfile!!, groupName)
+                                                    familyRepository.createFamilyGroup(profile, groupName)
+                                                        .onFailure { setupMessage = "Could not create the family: ${it.message}" }
+                                                    setupBusy = false
                                                 }
+                                            } else {
+                                                setupMessage = "Enter a family name first."
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth()
-                                    ) { Text("Create Family Group") }
+                                    ) { Text(if (setupBusy) "Please wait..." else "Create Family Group") }
 
                                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                                     OutlinedTextField(
@@ -128,27 +167,46 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     OutlinedButton(
+                                        enabled = !setupBusy,
                                         onClick = {
                                             if (inviteCode.isNotBlank()) {
+                                                setupBusy = true
+                                                setupMessage = null
                                                 scope.launch {
-                                                    familyRepository.joinFamilyByCode(userProfile!!, inviteCode, "Family Member")
+                                                    familyRepository.joinFamilyByCode(profile, inviteCode, "Family Member")
+                                                        .onFailure { setupMessage = "Could not join the family: ${it.message}" }
+                                                    setupBusy = false
                                                 }
+                                            } else {
+                                                setupMessage = "Enter an invite code first."
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth()
                                     ) { Text("Join Existing Family") }
+
+                                    if (setupMessage != null) {
+                                        Text(
+                                            text = setupMessage!!,
+                                            color = MaterialTheme.colorScheme.error,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+
+                                    TextButton(onClick = { scope.launch { authRepository.signOutAndSwitchAccount(context) } }) {
+                                        Text("Sign out / switch Google account")
+                                    }
                                 }
                             } else if (subRoute != null) {
                                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Text("Module: ${subRoute!!.replace("_", " ").uppercase()}", style = MaterialTheme.typography.titleLarge)
-                                    Text("Connected to ${family!!.name} • Invite Code: ${family!!.inviteCode}")
+                                    Text("Connected to ${currentFamily.name} • Invite Code: ${currentFamily.inviteCode}")
                                     Button(onClick = { subRoute = null }) { Text("Back") }
                                 }
                             } else {
                                 when (selectedTab) {
                                     PrimaryTab.HOME -> HomeDashboardScreen(
-                                        family = family!!,
-                                        currentUser = userProfile!!,
+                                        family = currentFamily,
+                                        currentUser = profile,
                                         currentMember = currentMember,
                                         members = members,
                                         events = events,
@@ -160,9 +218,9 @@ class MainActivity : ComponentActivity() {
                                     )
                                     PrimaryTab.MORE -> MoreHubGrid(onNavigate = { route -> subRoute = route })
                                     else -> Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Text("${selectedTab.label} — ${family!!.name}", style = MaterialTheme.typography.headlineSmall)
-                                        Text("Active Family ID: ${family!!.id}")
-                                        Text("Invite Code: ${family!!.inviteCode}")
+                                        Text("${selectedTab.label} — ${currentFamily.name}", style = MaterialTheme.typography.headlineSmall)
+                                        Text("Active Family ID: ${currentFamily.id}")
+                                        Text("Invite Code: ${currentFamily.inviteCode}")
                                         OutlinedButton(onClick = { scope.launch { authRepository.signOutAndSwitchAccount(context) } }) {
                                             Text("Switch Google Account / Sign Out")
                                         }
