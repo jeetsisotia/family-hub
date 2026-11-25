@@ -43,6 +43,10 @@ jobs:
               exit 1
             fi
             tar -xzf "$f" -C .
+            if [ -f .fhbundle/changes.patch ]; then
+              git apply --whitespace=nowarn .fhbundle/changes.patch
+              rm -f .fhbundle/changes.patch
+            fi
             git rm -q -- "$f"
           done
           msg="Apply code bundle"
