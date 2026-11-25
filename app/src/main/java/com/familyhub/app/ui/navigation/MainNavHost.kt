@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import com.familyhub.app.core.theme.GlassCard
+import com.familyhub.app.core.theme.tileBrush
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -95,7 +96,7 @@ fun MoreHubGrid(onNavigate: (String) -> Unit) {
                             modifier = Modifier
                                 .size(46.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Brush.linearGradient(listOf(Color(0xFF8A9A55), Color(0xFF4A5724)))),
+                                .background(tileBrush(index)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
