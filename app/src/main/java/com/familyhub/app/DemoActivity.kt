@@ -68,7 +68,16 @@ class DemoActivity : FragmentActivity() {
                     Box(modifier = Modifier.fillMaxSize()) {
                         val def = ModuleByRoute[route]
                         when {
-                            route == "assistant" -> AssistantScreen(env, autoAsk = ask)
+                            route == "assistant" -> AssistantScreen(
+                                env,
+                                autoAsk = ask,
+                                autoAsks = listOf(
+                                    "Add the Rs. 40 in expense of travel today from HDFC bank via UPI to Rajesh",
+                                    "Start my periods from today with heavy flow and cramps",
+                                    "Weight 63.5 kg and BP 118/76, walked 30 minutes",
+                                    "Book an Uber to Bangalore airport and find Android developer jobs in Gurugram on LinkedIn"
+                                )
+                            )
                             route == "import" -> com.familyhub.app.ui.money.ImportScreen(env, demoTexts = DemoData.SAMPLE_SMS)
                             route == "home" -> com.familyhub.app.ui.screens.HomeDashboardScreen(
                                 family = env.family,

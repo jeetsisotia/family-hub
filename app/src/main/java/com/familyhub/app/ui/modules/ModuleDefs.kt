@@ -119,7 +119,7 @@ data class ModuleDef(
 val PAYMENT_METHODS = listOf("UPI", "Cash", "Debit card", "Credit card", "Net banking", "Wallet", "Other")
 
 val financeCategories = listOf(
-    "Groceries", "Rent", "Utilities", "Education", "Health", "Transport", "Fuel",
+    "Groceries", "Rent", "Utilities", "Education", "Health", "Transport", "Travel", "Fuel",
     "Dining", "Shopping", "Entertainment", "EMI", "Insurance", "Salary", "Other"
 )
 

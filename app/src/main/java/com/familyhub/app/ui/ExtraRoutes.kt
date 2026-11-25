@@ -44,7 +44,7 @@ fun Rec.stringList(key: String): List<String> = (this[key] as? List<*>)?.mapNotN
 
 /** Routes handled here instead of by the generic record screen. */
 val ExtraRouteIds: Set<String> = setOf(
-    "profile", "families", "arrange", "assistant", "health_hub", "periods", "insights", "cards", "import"
+    "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos"
 )
 
 @Composable
@@ -85,6 +85,8 @@ fun ExtraRoute(route: String, env: AppEnv) {
             onBack = env.onBack
         )
         "assistant" -> AssistantScreen(env)
+        "assistant_voice" -> AssistantScreen(env, startVoice = true)
+        "sos" -> com.familyhub.app.ui.sos.SosScreen(env)
         "health_hub" -> HealthScreen(env)
         "periods" -> PeriodScreen(env)
         "insights" -> InsightsScreen(env)

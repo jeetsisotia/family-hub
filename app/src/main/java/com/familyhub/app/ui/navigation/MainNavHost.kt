@@ -41,6 +41,7 @@ data class SecondaryDestination(val route: String, val title: String, val icon: 
 /** Screens that are not plain record lists (profile, families, health, money insights, AI). */
 val ExtraDestinations: List<SecondaryDestination> = listOf(
     SecondaryDestination("assistant", "AI Assistant", Icons.Rounded.AutoAwesome),
+    SecondaryDestination("sos", "SOS", Icons.Rounded.Warning),
     SecondaryDestination("health_hub", "Health & Fitness", Icons.Rounded.FavoriteBorder),
     SecondaryDestination("periods", "Period Tracker", Icons.Rounded.WaterDrop),
     SecondaryDestination("insights", "Money Insights", Icons.Rounded.PieChart),

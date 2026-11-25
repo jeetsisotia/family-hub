@@ -52,6 +52,12 @@ object TxnParser {
         ),
         Regex("""(?i)\binfo[:\s]+([A-Za-z0-9&.*\- ]{3,40})""")
     )
+    /** "...; RELIANCE RETAIL credited" style debits name the payee before "credited". */
+    private val payeeCreditedRx = Regex("""(?i)[;,]\s*([A-Za-z0-9&.'\- ]{3,40}?)\s+credited""")
+    /** Credits name the payer after "from", e.g. "by NEFT from ACME PVT LTD". */
+    private val payerRx = Regex(
+        """(?i)\bfrom\s+([A-Za-z0-9&.'*\- ]{3,40}?)(?=\s+(?:on|via|ref|upi|using|avl|avail|txn|to|is|was|dated|with)\b|[.,;:(]|$)"""
+    )
 
     private val categoryWords: List<Pair<String, List<String>>> = listOf(
         "Dining" to listOf("swiggy", "zomato", "restaurant", "cafe", "domino", "pizza", "mcdonald", "kfc", "starbucks", "burger", "eatsure", "food"),
@@ -96,7 +102,7 @@ object TxnParser {
             "wallet" in lower -> "Wallet"
             else -> "Other"
         }
-        val merchant = findMerchant(t, amountMatch.range.last)
+        val merchant = findMerchant(t, amountMatch.range.last, isCredit)
         val category = when {
             isTransfer -> "Other"
             else -> guessCategory("$merchant $lower") ?: if (isCredit) "Other" else "Other"
@@ -118,7 +124,12 @@ object TxnParser {
         )
     }
 
-    private fun findMerchant(t: String, afterIndex: Int): String {
+    private fun findMerchant(t: String, afterIndex: Int, isCredit: Boolean): String {
+        if (isCredit) {
+            payerRx.findAll(t).firstOrNull { looksLikeName(it.groupValues[1]) }?.let { return tidy(it.groupValues[1]) }
+        } else {
+            payeeCreditedRx.find(t)?.let { m -> if (looksLikeName(m.groupValues[1])) return tidy(m.groupValues[1]) }
+        }
         vpaRx.find(t)?.let { m ->
             val handle = m.groupValues[1].substringBefore('@')
             if (handle.any { it.isLetter() }) return tidy(handle.replace('.', ' ').replace('-', ' ').replace('_', ' '))
@@ -134,7 +145,10 @@ object TxnParser {
     private fun looksLikeName(s: String): Boolean {
         val x = s.trim().lowercase(Locale.ROOT)
         if (x.length < 3 || x.count { it.isLetter() } < 3) return false
-        val bad = listOf("your", "a/c", "account", "card", "bank", "the ", "rs", "inr", "available", "limit", "balance", "xx")
+        val bad = listOf(
+            "your", "a/c", "account", "card", "bank", "the ", "rs", "inr", "available", "limit", "balance", "xx",
+            "dispute", "call", "customer", "not you", "help", "ref", "neft", "imps", "rtgs", "upi", "transaction"
+        )
         return bad.none { x.startsWith(it) }
     }
 

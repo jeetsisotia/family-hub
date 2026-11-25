@@ -29,27 +29,19 @@ import com.familyhub.app.core.theme.IosBlue
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.common.ScreenTopBar
 import com.familyhub.app.ui.common.dayKey
-import com.familyhub.app.ui.common.formatDate
-import com.familyhub.app.ui.money.inr
-import com.familyhub.app.ui.modules.localNoon
+import com.familyhub.app.ui.modules.str
 import kotlinx.coroutines.launch
-import org.json.JSONObject
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
 
-/** Something the assistant offers to add; added only when the user taps Add. */
-data class AiAction(
-    val kind: String,
-    val title: String,
-    val dateMillis: Long?,
-    val time: String,
-    val amount: Double?,
-    val category: String,
-    var state: String = "new" // new, added, dismissed, failed
+/**
+ * One chat line. [aiText] is what the AI may see of it: null for health commands, which are
+ * understood on the phone and never sent.
+ */
+data class ChatMsg(
+    val fromUser: Boolean,
+    val text: String,
+    val actions: List<AiAction> = emptyList(),
+    val aiText: String? = text
 )
-
-data class ChatMsg(val fromUser: Boolean, val text: String, val actions: List<AiAction> = emptyList())
 
 /** The conversation stays while the app is open, so moving between screens does not lose it. */
 object AssistantMemory {
@@ -57,114 +49,34 @@ object AssistantMemory {
 }
 
 private val SUGGESTIONS = listOf(
-    "What's due this week?",
-    "How much did we spend this month?",
-    "Where can we save money?",
+    "Add ₹40 travel expense today via UPI from HDFC to Rajesh",
+    "Book an Uber to the airport",
+    "Find Java developer jobs in Gurugram on LinkedIn",
+    "Period started today, heavy flow",
+    "Weight 63.5 kg, BP 120/80",
     "Add milk, eggs and bread to shopping",
-    "Remind me to pay rent on the 1st at 9 am",
-    "Plan healthy dinners for this week"
+    "Remind me to pay rent on the 1st at 9 am every month",
+    "What's due this week?",
+    "How much did we spend this month?"
 )
 
-fun parseAiDate(s: String): Long? {
-    if (s.isBlank()) return null
-    return try {
-        val f = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-        f.parse(s.trim())?.time?.let { localNoon(it) }
-    } catch (e: Exception) {
-        null
-    }
-}
-
-fun parseAiReply(text: String): ChatMsg {
-    val raw = text.trim().removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
-    return try {
-        val o = JSONObject(raw)
-        val acts = ArrayList<AiAction>()
-        val arr = o.optJSONArray("actions")
-        if (arr != null) {
-            for (i in 0 until arr.length()) {
-                val a = arr.optJSONObject(i) ?: continue
-                val kind = a.optString("kind").lowercase(Locale.ROOT)
-                val title = a.optString("title").trim()
-                if (title.isBlank() || kind !in setOf("shopping", "task", "event", "reminder", "expense", "note")) continue
-                acts.add(
-                    AiAction(
-                        kind = kind,
-                        title = title.take(120),
-                        dateMillis = parseAiDate(a.optString("date")),
-                        time = a.optString("time").trim().take(5),
-                        amount = a.optDouble("amount").takeIf { !it.isNaN() && it > 0 },
-                        category = a.optString("category").trim()
-                    )
-                )
-            }
+/** History for the AI: only what it may see, starting with the user and alternating roles. */
+private fun aiTurns(messages: List<ChatMsg>): List<GeminiClient.Turn> {
+    val turns = ArrayList<GeminiClient.Turn>()
+    for (m in messages.takeLast(14)) {
+        val t = m.aiText?.takeIf { it.isNotBlank() } ?: continue
+        if (turns.isNotEmpty() && turns.last().fromUser == m.fromUser) {
+            turns[turns.size - 1] = GeminiClient.Turn(m.fromUser, turns.last().text + "\n" + t)
+        } else {
+            turns.add(GeminiClient.Turn(m.fromUser, t))
         }
-        ChatMsg(false, o.optString("reply").ifBlank { if (acts.isEmpty()) raw else "Here's what I can add:" }, acts.take(12))
-    } catch (e: Exception) {
-        ChatMsg(false, raw)
     }
-}
-
-/** Adds one confirmed action to Family Hub. Reminders and notes are "Only me"; the rest go to the family. */
-suspend fun applyAction(env: AppEnv, a: AiAction) {
-    val now = System.currentTimeMillis()
-    val day = a.dateMillis ?: localNoon(now)
-    when (a.kind) {
-        "shopping" -> env.repo.saveScoped(env.familyId, env.uid, "tasks", null,
-            mapOf("type" to "SHOPPING", "title" to a.title, "isCompleted" to false, "createdAt" to now), false)
-        "task" -> env.repo.saveScoped(env.familyId, env.uid, "tasks", null,
-            mapOf("type" to "TASK", "title" to a.title, "isCompleted" to false, "assignedToName" to "",
-                "dueDateMillis" to a.dateMillis, "createdAt" to now), false)
-        "event" -> {
-            val start = com.familyhub.app.ui.common.parseTimes(a.time).firstOrNull()
-                ?.let { (h, m) -> com.familyhub.app.ui.common.atTime(com.familyhub.app.ui.modules.startOfDay(day), h, m) } ?: day
-            env.repo.saveScoped(env.familyId, env.uid, "events", null,
-                mapOf("title" to a.title, "category" to (a.category.ifBlank { "Family" }), "startTimeMillis" to start,
-                    "endTimeMillis" to start + 3_600_000L, "recurrence" to "NONE", "isDeleted" to false,
-                    "reminderMinutesBefore" to 30L, "createdByUid" to env.uid, "notes" to ""), false)
-        }
-        "reminder" -> env.repo.saveScoped(env.familyId, env.uid, "items", null,
-            mapOf("type" to "reminder", "title" to a.title, "dateMillis" to day, "time" to a.time,
-                "repeat" to "None", "done" to false, "notes" to ""), true)
-        "expense" -> env.repo.saveScoped(env.familyId, env.uid, "expenses", null,
-            mapOf("type" to "EXPENSE", "title" to a.title, "amountInr" to (a.amount ?: 0.0),
-                "category" to a.category.ifBlank { "Other" }, "dateMillis" to day, "paymentMethod" to "",
-                "isPaid" to true, "isDeleted" to false, "memberUid" to env.uid, "memberName" to env.profile.name,
-                "createdAt" to now), false)
-        "note" -> env.repo.saveScoped(env.familyId, env.uid, "items", null,
-            mapOf("type" to "note", "title" to a.title, "category" to (a.category.ifBlank { "General" }),
-                "notes" to "", "createdAt" to now), true)
-    }
-}
-
-private fun actionLabel(a: AiAction): String {
-    val what = when (a.kind) {
-        "shopping" -> "Shopping"
-        "task" -> "Task"
-        "event" -> "Calendar"
-        "reminder" -> "Reminder"
-        "expense" -> "Expense"
-        else -> "Note"
-    }
-    val extra = listOfNotNull(
-        a.dateMillis?.let { formatDate(it) },
-        a.time.takeIf { it.isNotBlank() },
-        a.amount?.let { inr(it) }
-    ).joinToString(" • ")
-    return "$what: ${a.title}" + if (extra.isNotBlank()) "  ($extra)" else ""
-}
-
-private fun actionIcon(kind: String) = when (kind) {
-    "shopping" -> Icons.Rounded.ShoppingCart
-    "task" -> Icons.Rounded.TaskAlt
-    "event" -> Icons.Rounded.CalendarMonth
-    "reminder" -> Icons.Rounded.Alarm
-    "expense" -> Icons.Rounded.CurrencyRupee
-    else -> Icons.Rounded.StickyNote2
+    while (turns.isNotEmpty() && !turns.first().fromUser) turns.removeAt(0)
+    return turns
 }
 
 @Composable
-fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
+fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = false, autoAsks: List<String> = emptyList()) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages = AssistantMemory.messages
@@ -173,25 +85,131 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
     val listState = rememberLazyListState()
     var refresh by remember { mutableStateOf(0) }
 
-    fun send(text: String) {
+    suspend fun handle(text: String) {
         val q = text.trim()
-        if (q.isEmpty() || busy) return
-        input = ""
-        messages.add(ChatMsg(true, q))
+        if (q.isEmpty()) return
         busy = true
+        try {
+            val items = env.data["items"].orEmpty()
+            val meds = items.filter { it.str("type") == "medicine" }
+            val health = HealthCommands.parse(q, meds, currentPeriod(items) != null)
+            messages.add(ChatMsg(true, q, aiText = health.rest.ifBlank { null }))
+            if (health.actions.isNotEmpty() || health.notUnderstood.isNotEmpty()) {
+                val reply = buildString {
+                    if (health.actions.isNotEmpty()) append("Saved on your phone only, never sent to the AI. Tap Add to confirm:")
+                    if (health.notUnderstood.isNotEmpty()) {
+                        if (isNotEmpty()) append("\n\n")
+                        append(
+                            "I couldn't read \"" + health.notUnderstood.joinToString("; ") + "\". Health details stay on your phone, " +
+                                "so try a short form like \"period started today, heavy flow\", \"weight 63.5 kg\", \"BP 120/80\", " +
+                                "\"walked 30 minutes\" or \"2 glasses of water\"."
+                        )
+                    }
+                }
+                messages.add(ChatMsg(false, reply, health.actions, aiText = null))
+            }
+            if (health.rest.isNotBlank()) {
+                if (!GeminiClient.isConfigured()) {
+                    messages.add(ChatMsg(false, "⚠️ The AI part is not switched on in this version of the app.", aiText = null))
+                } else {
+                    val system = AiContext.systemPrompt(env, AiContext.build(env))
+                    val reply = GeminiClient.generate(system, aiTurns(messages), json = true)
+                    val parsed = parseAiReply(reply)
+                    messages.add(parsed.copy(aiText = parsed.text))
+                }
+            }
+        } catch (e: AiException) {
+            messages.add(ChatMsg(false, "⚠️ " + (e.message ?: "Something went wrong."), aiText = null))
+        } catch (e: Exception) {
+            messages.add(ChatMsg(false, "⚠️ Something went wrong: ${e.message}", aiText = null))
+        }
+        busy = false
+    }
+
+    fun send(text: String) {
+        if (text.isBlank() || busy) return
+        input = ""
+        scope.launch { handle(text) }
+    }
+
+    fun add(a: AiAction) {
         scope.launch {
             try {
-                val system = AiContext.systemPrompt(env, AiContext.build(env))
-                val turns = messages.takeLast(12).map { GeminiClient.Turn(it.fromUser, it.text) }
-                val reply = GeminiClient.generate(system, turns, json = true)
-                messages.add(parseAiReply(reply))
-            } catch (e: AiException) {
-                messages.add(ChatMsg(false, "⚠️ " + (e.message ?: "Something went wrong.")))
+                applyAction(env, context, a)
+                a.state = "added"
             } catch (e: Exception) {
-                messages.add(ChatMsg(false, "⚠️ Something went wrong: ${e.message}"))
+                a.state = "failed"
+                a.error = e.message ?: "Could not save"
             }
-            busy = false
+            refresh++
         }
+    }
+
+    // Open the official app or website for "open" suggestions. UPI payments report back whether they went through.
+    var pendingUpi by remember { mutableStateOf<AiAction?>(null) }
+    val upiLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { res ->
+        val a = pendingUpi
+        pendingUpi = null
+        if (a != null) {
+            val r = (res.data?.getStringExtra("response") ?: res.data?.getStringExtra("Status") ?: "").lowercase()
+            if ("status=success" in r || r == "success") {
+                a.state = "added"
+                messages.add(
+                    ChatMsg(
+                        false, "Payment done. Add it to Finance?",
+                        listOf(
+                            AiAction(
+                                kind = "expense", title = a.payee.ifBlank { "UPI payment" }, amount = a.amount, method = "UPI",
+                                payee = a.payee, category = normalizeCategory("", a.query + " " + a.payee),
+                                dateMillis = com.familyhub.app.ui.modules.localNoon(System.currentTimeMillis())
+                            )
+                        ),
+                        aiText = null
+                    )
+                )
+            } else {
+                messages.add(ChatMsg(false, "The payment app did not confirm a successful payment. If you did pay, add it as an expense.", aiText = null))
+            }
+            refresh++
+        }
+    }
+
+    fun openAction(a: AiAction) {
+        val t = SmartLinks.target(a, env.members, env.userDoc)
+        if (t == null) {
+            a.state = "failed"
+            a.error = when (a.service) {
+                "upi" -> "Needs the payee's UPI ID, for example name@okhdfcbank."
+                "call", "whatsapp", "sms" -> "No phone number found for ${a.payee.ifBlank { a.phone }}. Add it in My Profile or the member's profile."
+                else -> "Not enough details to open this."
+            }
+            refresh++
+            return
+        }
+        if (t.isUpi) {
+            pendingUpi = a
+            try {
+                upiLauncher.launch(t.intent)
+            } catch (e: Exception) {
+                pendingUpi = null
+                a.state = "failed"
+                a.error = "No UPI app found on this phone."
+            }
+        } else {
+            val err = SmartLinks.open(context, t)
+            if (err != null) {
+                a.state = "failed"
+                a.error = err
+            } else {
+                a.state = "added"
+                if (t.copyText.isNotBlank()) {
+                    android.widget.Toast.makeText(context, "\"${t.copyText}\" copied. Paste it in the app.", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+        refresh++
     }
 
     // Speak instead of typing (uses the phone's own speech recognition, in any language it supports).
@@ -204,7 +222,7 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
     fun listen() {
         val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask Family Hub")
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Say what to add or ask")
         }
         try {
             voice.launch(i)
@@ -213,8 +231,10 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
         }
     }
 
-    LaunchedEffect(autoAsk) {
-        if (!autoAsk.isNullOrBlank() && messages.isEmpty()) send(autoAsk)
+    LaunchedEffect(Unit) {
+        val queue = listOfNotNull(autoAsk) + autoAsks
+        if (queue.isNotEmpty() && messages.isEmpty()) queue.forEach { handle(it) }
+        if (startVoice) listen()
     }
 
     LaunchedEffect(messages.size, busy) {
@@ -226,15 +246,6 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
             if (messages.isNotEmpty()) {
                 IconButton(onClick = { messages.clear() }) { Icon(Icons.Rounded.DeleteSweep, contentDescription = "Clear chat") }
             }
-        }
-        if (!GeminiClient.isConfigured()) {
-            GlassCard(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                Text(
-                    "The AI assistant is not switched on in this version of the app. Everything else works as usual.",
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
-            return@Column
         }
         LazyColumn(
             state = listState,
@@ -252,10 +263,12 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
                         ) { Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = Color.White) }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text("Ask about your family's plans, bills and spending, or ask me to add things.",
-                                style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Private: ID numbers, health, medicines, periods, vitals and notes are never sent to the AI.",
+                                "Type or speak to add expenses, tasks, reminders, events and health entries, or ask about your family's plans and spending.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                "Private: health entries are understood on your phone. ID numbers, health, medicines, periods, vitals and notes are never sent to the AI.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 modifier = Modifier.padding(top = 4.dp)
@@ -267,30 +280,22 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
             if (messages.isEmpty()) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SUGGESTIONS.forEach { s ->
-                            SuggestionChip(onClick = { send(s) }, label = { Text(s) })
-                        }
+                        SUGGESTIONS.forEach { s -> SuggestionChip(onClick = { send(s) }, label = { Text(s) }) }
                     }
                 }
             }
-            itemsIndexed(messages) { index, m ->
+            itemsIndexed(messages) { _, m ->
                 key(refresh) {
-                    MessageBubble(m, onAction = { a, add ->
-                        if (!add) {
-                            a.state = "dismissed"
-                            refresh++
-                        } else {
-                            scope.launch {
-                                a.state = try {
-                                    applyAction(env, a)
-                                    "added"
-                                } catch (e: Exception) {
-                                    "failed"
-                                }
+                    MessageBubble(
+                        m,
+                        onAction = { a, keep ->
+                            if (keep && a.kind == "open") openAction(a) else if (keep) add(a) else {
+                                a.state = "dismissed"
                                 refresh++
                             }
-                        }
-                    })
+                        },
+                        onAddAll = { m.actions.filter { it.state == "new" && it.kind != "open" }.forEach { add(it) } }
+                    )
                 }
             }
             if (busy) {
@@ -310,7 +315,7 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                placeholder = { Text("Ask, or tap the mic to speak…") },
+                placeholder = { Text("Type, or tap the mic to speak…") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(22.dp),
                 maxLines = 4
@@ -330,7 +335,7 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
 }
 
 @Composable
-private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit) {
+private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onAddAll: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (m.fromUser) Alignment.End else Alignment.Start
@@ -348,14 +353,23 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit) {
             AnimatedVisibility(visible = a.state != "dismissed") {
                 GlassCard(modifier = Modifier.padding(top = 6.dp).widthIn(max = 340.dp), shape = RoundedCornerShape(16.dp)) {
                     Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(actionIcon(a.kind), contentDescription = null, tint = IosBlue, modifier = Modifier.size(20.dp))
+                        Icon(
+                            actionIcon(a.kind), contentDescription = null,
+                            tint = if (a.local) Color(0xFFFF2D55) else IosBlue, modifier = Modifier.size(20.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(actionLabel(a), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(actionLabel(a), style = MaterialTheme.typography.bodySmall)
+                            if (a.state == "failed" && a.error.isNotBlank()) {
+                                Text(a.error, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF3B30))
+                            }
+                        }
                         when (a.state) {
-                            "added" -> Text("Added ✓", color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold)
-                            "failed" -> Text("Failed", color = Color(0xFFFF3B30))
+                            "added" -> Text(if (a.kind == "open") "Opened ✓" else "Added ✓", color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold)
                             else -> {
-                                TextButton(onClick = { onAction(a, true) }) { Text("Add") }
+                                TextButton(onClick = { onAction(a, true) }) {
+                                    Text(if (a.state == "failed") "Retry" else if (a.kind == "open") "Open" else "Add")
+                                }
                                 IconButton(onClick = { onAction(a, false) }, modifier = Modifier.size(32.dp)) {
                                     Icon(Icons.Rounded.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
                                 }
@@ -363,6 +377,14 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit) {
                         }
                     }
                 }
+            }
+        }
+        val pending = m.actions.count { it.state == "new" && it.kind != "open" }
+        if (pending >= 2) {
+            FilledTonalButton(onClick = onAddAll, modifier = Modifier.padding(top = 6.dp)) {
+                Icon(Icons.Rounded.DoneAll, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Add all $pending")
             }
         }
     }
@@ -408,14 +430,16 @@ fun AiBriefCard(env: AppEnv, modifier: Modifier = Modifier) {
         if (brief == null && hasData) load()
     }
 
-    if (brief == null && !loading && error == null) return
     GlassCard(modifier = modifier.fillMaxWidth(), onClick = { env.navigate("assistant") }) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = Color(0xFF5E5CE6), modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Today's brief", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                if (!loading) {
+                Text(
+                    if (brief != null || loading) "Today's brief" else "AI Assistant",
+                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)
+                )
+                if (!loading && hasData) {
                     IconButton(onClick = { brief = null; load() }, modifier = Modifier.size(28.dp)) {
                         Icon(Icons.Rounded.Refresh, contentDescription = "Refresh brief", modifier = Modifier.size(18.dp))
                     }
@@ -425,14 +449,23 @@ fun AiBriefCard(env: AppEnv, modifier: Modifier = Modifier) {
             when {
                 loading && brief == null -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 brief != null -> Text(brief.orEmpty(), style = MaterialTheme.typography.bodyMedium)
-                else -> Text(error.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                error != null -> Text(error.orEmpty(), style = MaterialTheme.typography.bodySmall)
+                else -> Text("Say or type things like \"₹40 auto fare today via UPI\" or \"period started today\".",
+                    style = MaterialTheme.typography.bodySmall)
             }
-            Text(
-                "Ask AI →",
-                color = IosBlue,
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                Text(
+                    "Ask or add →",
+                    color = IosBlue,
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.weight(1f)
+                )
+                FilledTonalButton(onClick = { env.navigate("assistant_voice") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
+                    Icon(Icons.Rounded.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Speak")
+                }
+            }
         }
     }
 }

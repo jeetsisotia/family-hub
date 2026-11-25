@@ -219,6 +219,8 @@ fun HomeDashboardScreen(
         // Everyday shortcuts, like app icons on a phone's home screen.
         item {
             val shortcuts: List<Triple<String, String, ImageVector>> = listOf(
+                Triple("assistant_voice", "Speak", Icons.Rounded.Mic),
+                Triple("sos", "SOS", Icons.Rounded.Warning),
                 Triple("health_hub", "Health", Icons.Rounded.FavoriteBorder),
                 Triple("medicines", "Medicines", Icons.Rounded.Medication),
                 Triple("reminders", "Reminders", Icons.Rounded.Alarm),
@@ -235,7 +237,10 @@ fun HomeDashboardScreen(
                         modifier = Modifier.width(64.dp).clickable { onQuickNavigate(route) }
                     ) {
                         Box(
-                            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(tileBrush(i + 3)),
+                            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(
+                                if (route == "sos") androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFF453A), Color(0xFFC20F0F)))
+                                else tileBrush(i + 3)
+                            ),
                             contentAlignment = Alignment.Center
                         ) { Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp)) }
                         Spacer(modifier = Modifier.height(4.dp))
