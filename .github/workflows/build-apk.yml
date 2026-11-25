@@ -1,7 +1,9 @@
 name: Build APK
 
+
 on:
   workflow_dispatch:
+
 
 jobs:
   build:
@@ -10,11 +12,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+
 
       - name: Accept Android SDK Licenses & Install Platforms
         run: |
@@ -22,20 +26,25 @@ jobs:
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-35" "build-tools;35.0.0"
 
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
 
       - name: Restore Fixed Debug Keystore
         run: |
           mkdir -p ~/.android
           echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 --decode > ~/.android/debug.keystore
-          ls -l ~/.android/debug.keystore
+          cp ~/.android/debug.keystore "$RUNNER_TEMP/debug-ci.keystore"
+          echo "DEBUG_KEYSTORE_PATH=$RUNNER_TEMP/debug-ci.keystore" >> "$GITHUB_ENV"
           keytool -list -keystore ~/.android/debug.keystore -storepass android
+
 
       - name: Build Debug APK
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: gradle assembleDebug --no-daemon --stacktrace
+
 
       - name: Verify signing key and Web client ID
         env:
@@ -50,9 +59,11 @@ jobs:
           [ "$APK_SHA1" = "$EXPECTED_SHA1" ] && echo "SHA-1 MATCH" || echo "SHA-1 MISMATCH -> register the APK SHA-1 in Firebase"
           [ "$(echo -n "$GOOGLE_WEB_CLIENT_ID" | tr -d '[:space:]')" = "$EXPECTED_WEB" ] && echo "WEB CLIENT ID MATCH" || echo "WEB CLIENT ID MISMATCH or EMPTY -> fix the GOOGLE_WEB_CLIENT_ID secret"
 
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: family-hub-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
