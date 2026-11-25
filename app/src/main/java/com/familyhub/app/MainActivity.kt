@@ -11,11 +11,22 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -24,7 +35,10 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.familyhub.app.core.CrashLog
+import com.familyhub.app.core.theme.EntryIntro
 import com.familyhub.app.core.theme.FamilyHubTheme
+import com.familyhub.app.core.theme.GlassTab
+import com.familyhub.app.core.theme.GlassTabBar
 import com.familyhub.app.data.model.*
 import com.familyhub.app.data.remote.AuthRepository
 import com.familyhub.app.data.remote.FamilyRepository
@@ -58,6 +72,7 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 val scope = rememberCoroutineScope()
                 var lastCrash by remember { mutableStateOf(CrashLog.read(context)) }
+                var showIntro by rememberSaveable { mutableStateOf(true) }
                 val firebaseUser by authRepository.authStateFlow.collectAsState(initial = null)
                 var isLoading by remember { mutableStateOf(false) }
                 var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -67,6 +82,7 @@ class MainActivity : ComponentActivity() {
                 val fbUser = firebaseUser
                 if (fbUser == null) {
                     LoginScreen(
+                        enterDelayMillis = if (showIntro) 1100 else 0,
                         isLoading = isLoading,
                         errorMessage = errorMessage,
                         onGoogleSignInClick = {
@@ -224,25 +240,30 @@ class MainActivity : ComponentActivity() {
                     BackHandler(enabled = subRoute != null) { subRoute = null }
 
                     Scaffold(
+                        containerColor = Color.Transparent,
                         bottomBar = {
-                            NavigationBar {
-                                PrimaryTab.entries.forEach { tab ->
-                                    NavigationBarItem(
-                                        selected = selectedTab == tab && subRoute == null,
-                                        onClick = {
-                                            selectedTab = tab
-                                            subRoute = null
-                                        },
-                                        icon = { Icon(tab.icon, contentDescription = tab.label) },
-                                        label = { Text(tab.label) }
-                                    )
+                            GlassTabBar(
+                                tabs = PrimaryTab.entries.map { GlassTab(it.label, it.icon) },
+                                selectedIndex = selectedTab.ordinal,
+                                onSelect = { i ->
+                                    selectedTab = PrimaryTab.entries[i]
+                                    subRoute = null
                                 }
-                            }
+                            )
                         }
                     ) { innerPadding ->
                         Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                             val currentFamily = family
-                            val route = subRoute
+                            // Screens cross-fade and settle into place when switching tabs or opening a module.
+                            AnimatedContent(
+                                targetState = selectedTab to subRoute,
+                                modifier = Modifier.fillMaxSize(),
+                                transitionSpec = {
+                                    (fadeIn(tween(280)) + scaleIn(tween(280), initialScale = 0.97f)) togetherWith
+                                        fadeOut(tween(160))
+                                },
+                                label = "screen"
+                            ) { (shownTab, route) ->
                             val moduleDef = route?.let { ModuleByRoute[it] }
 
                             if (activeFamilyId.isBlank()) {
@@ -293,7 +314,7 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                             } else {
-                                when (selectedTab) {
+                                when (shownTab) {
                                     PrimaryTab.HOME -> Column(modifier = Modifier.fillMaxSize()) {
                                         AlertsStrip(
                                             alerts = alerts,
@@ -372,8 +393,18 @@ class MainActivity : ComponentActivity() {
                                     PrimaryTab.MORE -> MoreHubGrid(onNavigate = navigate)
                                 }
                             }
+                            }
                         }
                     }
+                }
+
+                // Opening animation shown once when the app starts.
+                AnimatedVisibility(
+                    visible = showIntro,
+                    enter = EnterTransition.None,
+                    exit = fadeOut(tween(450)) + scaleOut(tween(450), targetScale = 1.08f)
+                ) {
+                    EntryIntro(onFinished = { showIntro = false })
                 }
 
                 // If the app closed unexpectedly last time, show what went wrong so it can be shared.
