@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -28,7 +30,7 @@ android {
         val geminiKey = (project.findProperty("GEMINI_API_KEY")?.toString()
             ?: System.getenv("GEMINI_API_KEY")
             ?: "").trim()
-        val geminiEncoded = java.util.Base64.getEncoder().encodeToString(geminiKey.reversed().toByteArray())
+        val geminiEncoded = Base64.getEncoder().encodeToString(geminiKey.reversed().toByteArray())
         buildConfigField("String", "GEMINI_KEY_ENC", "\"$geminiEncoded\"")
     }
 
