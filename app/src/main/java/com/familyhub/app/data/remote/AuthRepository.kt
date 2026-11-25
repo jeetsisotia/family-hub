@@ -9,6 +9,9 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.familyhub.app.BuildConfig
 import com.familyhub.app.data.model.UserProfile
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import androidx.credentials.exceptions.NoCredentialException
+import androidx.credentials.exceptions.GetCredentialException
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
@@ -43,15 +46,16 @@ class AuthRepository @Inject constructor(
 
     suspend fun signInWithGoogle(context: Context): Result<UserProfile> {
         return try {
+            val webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
+            if (webClientId.isEmpty()) {
+                return Result.failure(IllegalStateException(
+                    "GOOGLE_WEB_CLIENT_ID is empty in this build. Add it under GitHub > Settings > Secrets > Actions and rebuild."))
+            }
             val credentialManager = CredentialManager.create(context)
-            val googleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-                .setAutoSelectEnabled(false)
-                .build()
-
+            // Explicit "Continue with Google" button flow: always shows the account chooser.
+            val signInOption = GetSignInWithGoogleOption.Builder(webClientId).build()
             val request = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
+                .addCredentialOption(signInOption)
                 .build()
 
             val result = credentialManager.getCredential(context = context, request = request)
@@ -84,8 +88,14 @@ class AuthRepository @Inject constructor(
             }
         } catch (e: GetCredentialCancellationException) {
             Result.failure(Exception("Sign-in cancelled."))
+        } catch (e: NoCredentialException) {
+            Result.failure(Exception(
+                "No Google credential (${e.type}). Usually the APK signing SHA-1 or the Web client ID " +
+                "does not match Firebase, or no Google account is added on this phone."))
+        } catch (e: GetCredentialException) {
+            Result.failure(Exception("${e.javaClass.simpleName} (${e.type}): ${e.message}"))
         } catch (e: Exception) {
-            Result.failure(e)
+            Result.failure(Exception("${e.javaClass.simpleName}: ${e.message}"))
         }
     }
 
