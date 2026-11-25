@@ -108,6 +108,11 @@ fun ModuleScreen(
     val all by flow.collectAsState(initial = emptyList<Rec>())
     val records = remember(all) { recordsFor(def, all) }
     val sorted = remember(records) { sortRecords(def, records) }
+    var query by remember { mutableStateOf("") }
+    val shown = remember(sorted, query) {
+        val q = query.trim()
+        if (q.isEmpty()) sorted else sorted.filter { r -> r.values.any { v -> v is String && v.contains(q, ignoreCase = true) } }
+    }
 
     var showForm by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Rec?>(null) }
@@ -199,7 +204,19 @@ fun ModuleScreen(
                 item {
                     ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget)
                 }
-                if (sorted.isEmpty()) {
+                if (records.size > 3) {
+                    item {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            placeholder = { Text("Search") },
+                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) }
+                        )
+                    }
+                }
+                if (shown.isEmpty()) {
                     item {
                         Text(
                             text = def.emptyText,
@@ -209,7 +226,7 @@ fun ModuleScreen(
                         )
                     }
                 }
-                items(sorted, key = { it.str("id") }) { rec ->
+                items(shown, key = { it.str("id") }) { rec ->
                     RecordCard(
                         def = def,
                         rec = rec,
