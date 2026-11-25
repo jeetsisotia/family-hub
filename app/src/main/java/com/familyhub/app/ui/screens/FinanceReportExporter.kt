@@ -12,8 +12,12 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 object FinanceReportExporter {
+    /** Keeps only letters and digits so names like "Yadav/Family" cannot break the file path. */
+    private fun safeName(name: String): String =
+        name.replace(Regex("[^A-Za-z0-9]+"), "_").trim('_').ifBlank { "Family" }
+
     fun exportToCsvAndShare(context: Context, familyName: String, transactions: List<FinanceTransaction>) {
-        val csvFile = File(context.cacheDir, "${familyName.replace(" ", "_")}_Finance_Report.csv")
+        val csvFile = File(context.cacheDir, "${safeName(familyName)}_Finance_Report.csv")
         val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         csvFile.bufferedWriter().use { out ->
             out.write("Date,Type,Title,Category,Member,Amount_INR,Status\n")
@@ -40,7 +44,7 @@ object FinanceReportExporter {
         }
         pdf.finishPage(page)
 
-        val pdfFile = File(context.cacheDir, "${familyName.replace(" ", "_")}_Finance_Report.pdf")
+        val pdfFile = File(context.cacheDir, "${safeName(familyName)}_Finance_Report.pdf")
         FileOutputStream(pdfFile).use { pdf.writeTo(it) }
         pdf.close()
         shareFile(context, pdfFile, "application/pdf")
