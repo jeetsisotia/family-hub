@@ -26,7 +26,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: gradle assembleDebug --no-daemon --stacktrace --info
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
