@@ -67,3 +67,81 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
 
+  # Installs the new APK on an Android emulator, opens it, taps "Continue with Google"
+  # and fails if the app crashes. The log shows what was on screen.
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: family-hub-apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Write test script
+        run: |
+          mkdir -p shots
+          cat > smoke.sh <<'SCRIPT'
+          #!/bin/bash
+          PKG=com.familyhub.app
+          screen_text() {
+            adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+            adb pull /sdcard/ui.xml "shots/$1.xml" >/dev/null 2>&1
+            echo "---- On screen ($1):"
+            grep -o 'text="[^"]\+"' "shots/$1.xml" | sort -u | head -40
+            adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png "shots/$1.png" >/dev/null 2>&1
+          }
+          adb install -r apk/app-debug.apk
+          adb logcat -c
+          adb shell am start -W -n $PKG/.MainActivity
+          sleep 20
+          screen_text 1-launch
+          B=$(grep -o 'text="Continue with Google"[^>]*bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' shots/1-launch.xml | grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' | head -1)
+          if [ -n "$B" ]; then
+            set -- $(echo "$B" | sed 's/\]\[/ /; s/[][]//g; s/,/ /g')
+            adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+            sleep 15
+            screen_text 2-after-tap
+          else
+            echo "Continue with Google button not found on screen"
+          fi
+          adb logcat -d > shots/logcat.txt
+          echo "---- App log lines:"
+          grep -iE "familyhub|FamilyRepository|RecordRepository|credential|GoogleId" shots/logcat.txt | tail -60
+          if grep -q "FATAL EXCEPTION" shots/logcat.txt; then
+            echo "RESULT: APP CRASHED"
+            grep -A 40 "FATAL EXCEPTION" shots/logcat.txt | head -80
+            exit 1
+          fi
+          if [ -z "$(adb shell pidof $PKG)" ]; then
+            echo "RESULT: APP IS NOT RUNNING"
+            exit 1
+          fi
+          echo "RESULT: NO CRASH"
+          SCRIPT
+          chmod +x smoke.sh
+
+      - name: Run app on emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./smoke.sh
+
+      - name: Upload screenshots and log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-test-results
+          path: shots
