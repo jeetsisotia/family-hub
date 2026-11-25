@@ -43,7 +43,27 @@ jobs:
       - name: Build Debug APK
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: gradle assembleDebug --no-daemon --stacktrace
+
+
+      - name: Check Gemini API key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set +e
+          if [ -z "$GEMINI_API_KEY" ]; then echo "GEMINI_API_KEY secret is empty"; exit 0; fi
+          API=https://generativelanguage.googleapis.com/v1beta
+          code=$(curl -s -o models.json -w "%{http_code}" -H "x-goog-api-key: $GEMINI_API_KEY" "$API/models?pageSize=200")
+          echo "List models: HTTP $code"
+          grep -o '"name": "models/[^"]*flash[^"]*"' models.json | head -25 || head -c 600 models.json
+          for m in gemini-flash-latest gemini-flash-lite-latest; do
+            code=$(curl -s -o gen.json -w "%{http_code}" -H "x-goog-api-key: $GEMINI_API_KEY" -H "Content-Type: application/json" \
+              -d '{"contents":[{"parts":[{"text":"Reply with the single word OK"}]}]}' "$API/models/$m:generateContent")
+            echo "generateContent $m: HTTP $code"
+            head -c 500 gen.json; echo
+          done
+          exit 0
 
 
       - name: Verify signing key and Web client ID
