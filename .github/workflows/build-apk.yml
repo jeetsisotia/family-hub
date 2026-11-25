@@ -125,7 +125,7 @@ jobs:
           shot() {
             adb shell screencap -p /sdcard/shot.png
             adb pull /sdcard/shot.png "shots/$1-full.png" >/dev/null 2>&1
-            convert "shots/$1-full.png" -resize 360x -quality 72 "shots/$1.jpg" 2>/dev/null && echo "SHOT_$1:$(base64 -w0 "shots/$1.jpg")"
+            convert "shots/$1-full.png" -resize 432x -quality 70 "shots/$1.jpg" 2>/dev/null && echo "SHOT_$1:$(base64 -w0 "shots/$1.jpg")"
           }
           adb install -r apk/app-debug.apk
           adb logcat -c
@@ -146,6 +146,30 @@ jobs:
           else
             echo "Continue with Google button not found on screen"
           fi
+          # Open every newer screen with sample data, photograph it and note any crash.
+          read SW SH <<< "$(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')"
+          demo() {
+            echo "DEMO_SCREEN: $1"
+            before=$(adb logcat -d | grep -c "FATAL EXCEPTION")
+            adb shell am start -W -n $PKG/.DemoActivity --es route "$1" --es ask "$2" >/dev/null 2>&1
+            sleep "$3"
+            shot "demo_$1"
+            if [ "$4" = "scroll" ]; then
+              for n in 2 3; do
+                adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 500
+                sleep 2
+                shot "demo_${1}_$n"
+              done
+            fi
+            after=$(adb logcat -d | grep -c "FATAL EXCEPTION")
+            [ "$after" != "$before" ] && echo "DEMO_CRASH: $1"
+            adb shell am force-stop $PKG
+          }
+          for r in more profile families arrange medicines workouts; do demo "$r" "" 5 no; done
+          for r in health_hub insights periods cards import; do demo "$r" "" 6 scroll; done
+          demo assistant "What_is_due_this_week_and_how_much_did_we_spend_this_month?" 30 no
+          adb shell am start -n $PKG/.MainActivity >/dev/null 2>&1
+          sleep 5
           adb logcat -d > shots/logcat.txt
           echo "---- App log lines:"
           grep -iE "familyhub|FamilyRepository|RecordRepository|credential|GoogleId" shots/logcat.txt | tail -60
