@@ -59,7 +59,8 @@ object PhotoCodec {
             val out = ByteArrayOutputStream()
             scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
             Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
+            // Includes running out of memory on a very large photo.
             null
         }
     }

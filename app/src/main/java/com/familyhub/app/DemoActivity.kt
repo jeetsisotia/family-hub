@@ -69,6 +69,19 @@ class DemoActivity : FragmentActivity() {
                         val def = ModuleByRoute[route]
                         when {
                             route == "assistant" -> AssistantScreen(env, autoAsk = ask)
+                            route == "home" -> com.familyhub.app.ui.screens.HomeDashboardScreen(
+                                family = env.family,
+                                currentUser = env.profile,
+                                currentMember = env.members.first(),
+                                members = env.members,
+                                events = emptyList(),
+                                transactions = emptyList(),
+                                documents = emptyList(),
+                                tasks = emptyList(),
+                                trips = emptyList(),
+                                onQuickNavigate = {},
+                                aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) }
+                            )
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
                             route in ExtraRouteIds -> ExtraRoute(route, env)
                             def != null -> ModuleScreen(

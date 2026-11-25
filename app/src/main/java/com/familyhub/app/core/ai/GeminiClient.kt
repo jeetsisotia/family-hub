@@ -20,7 +20,8 @@ class AiException(message: String) : Exception(message)
  */
 object GeminiClient {
     private const val API = "https://generativelanguage.googleapis.com/v1beta"
-    private val PREFERRED = listOf("gemini-flash-latest", "gemini-flash-lite-latest")
+    // The lite model answers fastest and has been the most available on the free tier.
+    private val PREFERRED = listOf("gemini-flash-lite-latest", "gemini-flash-latest")
 
     @Volatile
     private var workingModel: String? = null
@@ -90,7 +91,7 @@ object GeminiClient {
         (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = 15_000
-            readTimeout = 60_000
+            readTimeout = 45_000
             setRequestProperty("x-goog-api-key", apiKey)
             setRequestProperty("Content-Type", "application/json; charset=utf-8")
         }

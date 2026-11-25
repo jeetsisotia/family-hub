@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -211,6 +212,35 @@ fun HomeDashboardScreen(
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
                         style = MaterialTheme.typography.bodySmall
                     )
+                }
+            }
+        }
+
+        // Everyday shortcuts, like app icons on a phone's home screen.
+        item {
+            val shortcuts: List<Triple<String, String, ImageVector>> = listOf(
+                Triple("health_hub", "Health", Icons.Rounded.FavoriteBorder),
+                Triple("medicines", "Medicines", Icons.Rounded.Medication),
+                Triple("reminders", "Reminders", Icons.Rounded.Alarm),
+                Triple("insights", "Insights", Icons.Rounded.PieChart),
+                Triple("cards", "Card bills", Icons.Rounded.CreditCard),
+                Triple("assistant", "Ask AI", Icons.Rounded.AutoAwesome),
+                Triple("import", "Import", Icons.Rounded.MarkEmailRead),
+                Triple("periods", "Periods", Icons.Rounded.WaterDrop)
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.riseIn(4)) {
+                itemsIndexed(shortcuts) { i, (route, label, icon) ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.width(64.dp).clickable { onQuickNavigate(route) }
+                    ) {
+                        Box(
+                            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(tileBrush(i + 3)),
+                            contentAlignment = Alignment.Center
+                        ) { Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp)) }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                    }
                 }
             }
         }
