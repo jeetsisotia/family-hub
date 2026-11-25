@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -54,13 +56,17 @@ fun InsightsScreen(env: AppEnv) {
     var billed by rememberSaveable { mutableStateOf(false) }
     var scope by rememberSaveable { mutableStateOf("Everyone") }
     var categoryFilter by rememberSaveable { mutableStateOf<String?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
+    val startDay = monthStartDay(env.userDoc)
+    val budgets = categoryBudgets(env.userDoc)
+    fun bms(add: Int): Long = budgetMonthStart(now, startDay, add)
 
     // The period being looked at.
     val card = cards.firstOrNull { it.str("title") == cardName }
     val cycle = card?.let { CardCycle.of(it, now) }
     val (from, to) = when (mode) {
-        "Last month" -> monthStart(now, -1) to monthStart(now, 0) - 1
-        "Pick month" -> monthStart(now, monthOffset) to monthStart(now, monthOffset + 1) - 1
+        "Last month" -> bms(-1) to bms(0) - 1
+        "Pick month" -> bms(monthOffset) to bms(monthOffset + 1) - 1
         "Custom" -> {
             val f = customFrom ?: monthStart(now, 0)
             val t = customTo ?: now
@@ -68,10 +74,12 @@ fun InsightsScreen(env: AppEnv) {
         }
         "Card cycle" -> if (cycle == null) monthStart(now, 0) to now
         else if (billed) cycle.billedStart to cycle.billedEnd else cycle.currentStart to cycle.currentEnd
-        else -> monthStart(now, 0) to monthStart(now, 1) - 1
+        else -> bms(0) to bms(1) - 1
     }
-    val periodLabel = when (mode) {
-        "This month", "Last month", "Pick month" -> monthLabel(from)
+    val monthLike = mode == "This month" || mode == "Last month" || mode == "Pick month"
+    val periodLabel = when {
+        monthLike && startDay == 1 -> monthLabel(from)
+        monthLike -> monthLabel(if (startDay > 15) to else from) + " (${shortDate(from)} – ${shortDate(to)})"
         else -> "${shortDate(from)} – ${shortDate(to)}"
     }
 
@@ -106,18 +114,33 @@ fun InsightsScreen(env: AppEnv) {
         .filter { it.first.isNotBlank() }
         .sortedByDescending { it.second }.take(5)
 
-    val months = lastMonths(12, now)
-    val trend = months.map { m ->
-        val end = monthStart(m, 1) - 1
+    val months = (11 downTo 0).map { bms(-it) }
+    val trend = months.mapIndexed { i, m ->
+        val end = (if (i + 1 < months.size) months[i + 1] else bms(1)) - 1
         allExpenses.filter { isSpend(it) && inRange(it, m, end) && inScope(it) }.sumOf { amountOf(it) }
     }
-    val selectedMonthIndex = months.indexOfFirst { it == monthStart(from, 0) }.takeIf { mode in listOf("This month", "Last month", "Pick month") }
+    val selectedMonthIndex = months.indexOfFirst { it == from }.takeIf { monthLike && it >= 0 }
 
     val shown = periodSpends.filter { categoryFilter == null || it.str("category").ifBlank { "Other" } == categoryFilter }
         .sortedByDescending { it.lng("dateMillis") ?: 0L }
 
+    if (showSettings) {
+        BudgetSettingsDialog(
+            startDay = startDay,
+            budgets = budgets,
+            onDismiss = { showSettings = false },
+            onSave = { d, map ->
+                env.repo.updateUserDoc(env.uid, mapOf("monthStartDay" to d, "categoryBudgets" to map))
+                showSettings = false
+                monthOffset = 0
+            }
+        )
+    }
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenTopBar(title = "Money Insights", onBack = env.onBack) {
+            IconButton(onClick = { showSettings = true }) {
+                Icon(Icons.Rounded.Tune, contentDescription = "Month start and budgets")
+            }
             IconButton(onClick = { exportCsv(context, periodSpends + periodIncome, periodLabel) }) {
                 Icon(Icons.Rounded.Share, contentDescription = "Export as CSV")
             }
@@ -134,7 +157,7 @@ fun InsightsScreen(env: AppEnv) {
                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(6.dp)) {
                             IconButton(onClick = { monthOffset -= 1 }) { Icon(Icons.Rounded.ChevronLeft, "Previous month") }
-                            Text(monthLabel(from), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
+                            Text(periodLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                             IconButton(onClick = { if (monthOffset < 0) monthOffset += 1 }, enabled = monthOffset < 0) {
                                 Icon(Icons.Rounded.ChevronRight, "Next month")
@@ -230,6 +253,35 @@ fun InsightsScreen(env: AppEnv) {
                             DonutChart(byCategory, inrShort(spent), "${byCategory.size} categories")
                             Spacer(modifier = Modifier.height(12.dp))
                             DonutLegend(byCategory, onClick = { c -> categoryFilter = if (categoryFilter == c) null else c }, selected = categoryFilter)
+                        }
+                    }
+                }
+            }
+
+            // Category budgets
+            if (monthLike) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        SectionTitle("Budgets", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { showSettings = true }) { Text(if (budgets.isEmpty()) "Set budgets" else "Edit") }
+                    }
+                }
+                if (budgets.isNotEmpty()) {
+                    item {
+                        GlassCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                val spentBy = byCategory.toMap()
+                                budgets.entries.sortedByDescending { (spentBy[it.key] ?: 0.0) / it.value }.forEachIndexed { i, (cat, limit) ->
+                                    val used = spentBy[cat] ?: 0.0
+                                    val over = used > limit
+                                    HBar(
+                                        cat + if (over) "  • over by ${inr(used - limit)}" else "",
+                                        used, limit,
+                                        "${inr(used)} of ${inr(limit)}",
+                                        if (over) Color(0xFFFF3B30) else if (used > limit * 0.8) Color(0xFFFF9500) else chartColor(i)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -333,6 +385,53 @@ fun InsightsScreen(env: AppEnv) {
             }
         }
     }
+}
+
+@Composable
+private fun BudgetSettingsDialog(
+    startDay: Int,
+    budgets: Map<String, Double>,
+    onDismiss: () -> Unit,
+    onSave: (Int, Map<String, Double>) -> Unit
+) {
+    var day by remember { mutableStateOf(startDay) }
+    val values = remember {
+        mutableStateMapOf<String, String>().also { m ->
+            budgets.forEach { (k, v) -> m[k] = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString() }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Month and budgets") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("My month starts on day", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    "Use your salary date or card statement date, for example 25 for a month from the 25th to the 24th.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                ChoiceChips(listOf("1", "5", "7", "10", "15", "20", "25", "28"), day.toString(), { d -> d.toIntOrNull()?.let { day = it } })
+                Text("Monthly budget per category (₹)", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 6.dp))
+                com.familyhub.app.ui.modules.financeCategories.filter { it != "Salary" }.forEach { c ->
+                    TextInput(
+                        c, values[c].orEmpty(), { v -> values[c] = v.filter { ch -> ch.isDigit() || ch == '.' } },
+                        keyboard = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val map = HashMap<String, Double>()
+                com.familyhub.app.ui.modules.financeCategories.forEach { c -> map[c] = parseNumber(values[c].orEmpty()) ?: 0.0 }
+                onSave(day, map)
+            }) { Text("Save") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable

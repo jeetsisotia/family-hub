@@ -164,7 +164,7 @@ private fun actionIcon(kind: String) = when (kind) {
 }
 
 @Composable
-fun AssistantScreen(env: AppEnv) {
+fun AssistantScreen(env: AppEnv, autoAsk: String? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages = AssistantMemory.messages
@@ -192,6 +192,29 @@ fun AssistantScreen(env: AppEnv) {
             }
             busy = false
         }
+    }
+
+    // Speak instead of typing (uses the phone's own speech recognition, in any language it supports).
+    val voice = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { res ->
+        val heard = res.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (!heard.isNullOrBlank()) send(heard)
+    }
+    fun listen() {
+        val i = android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "Ask Family Hub")
+        }
+        try {
+            voice.launch(i)
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(context, "Voice input is not available on this phone.", android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(autoAsk) {
+        if (!autoAsk.isNullOrBlank() && messages.isEmpty()) send(autoAsk)
     }
 
     LaunchedEffect(messages.size, busy) {
@@ -287,14 +310,20 @@ fun AssistantScreen(env: AppEnv) {
             OutlinedTextField(
                 value = input,
                 onValueChange = { input = it },
-                placeholder = { Text("Ask or tell Family Hub…") },
+                placeholder = { Text("Ask, or tap the mic to speak…") },
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(22.dp),
                 maxLines = 4
             )
-            Spacer(modifier = Modifier.width(8.dp))
-            FilledIconButton(onClick = { send(input) }, enabled = !busy && input.isNotBlank()) {
-                Icon(Icons.Rounded.ArrowUpward, contentDescription = "Send")
+            Spacer(modifier = Modifier.width(6.dp))
+            if (input.isBlank()) {
+                FilledIconButton(onClick = { listen() }, enabled = !busy) {
+                    Icon(Icons.Rounded.Mic, contentDescription = "Speak")
+                }
+            } else {
+                FilledIconButton(onClick = { send(input) }, enabled = !busy) {
+                    Icon(Icons.Rounded.ArrowUpward, contentDescription = "Send")
+                }
             }
         }
     }

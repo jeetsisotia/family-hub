@@ -52,6 +52,7 @@ data class FamilyMember(
     val phone: String = "",
     val bloodGroup: String = "",
     val dobMillis: Long? = null,
+    val anniversaryMillis: Long? = null,
     val emergencyName: String = "",
     val emergencyPhone: String = "",
     val heightCm: Double? = null,

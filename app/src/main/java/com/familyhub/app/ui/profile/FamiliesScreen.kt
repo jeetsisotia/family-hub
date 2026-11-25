@@ -81,9 +81,13 @@ fun FamiliesScreen(
                     GlassCard(
                         onClick = if (active) null else ({
                             scope.launch {
-                                onSwitch(f.id)
-                                Toast.makeText(context, "Switched to ${f.name}", Toast.LENGTH_SHORT).show()
-                                onBack()
+                                try {
+                                    onSwitch(f.id)
+                                    Toast.makeText(context, "Switched to ${f.name}", Toast.LENGTH_SHORT).show()
+                                    onBack()
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Could not switch: ${e.message}", Toast.LENGTH_LONG).show()
+                                }
                             }
                         }),
                         modifier = Modifier.fillMaxWidth()

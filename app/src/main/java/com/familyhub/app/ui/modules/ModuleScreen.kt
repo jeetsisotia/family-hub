@@ -250,7 +250,7 @@ fun ModuleScreen(
                         )
                     }
                 }
-                items(shown, key = { it.str("id") }) { rec ->
+                items(shown, key = { (it[PRIVATE_FLAG] == true).toString() + it.str("id") }) { rec ->
                     Box(modifier = Modifier.animateItem()) {
                     RecordCard(
                         def = def,

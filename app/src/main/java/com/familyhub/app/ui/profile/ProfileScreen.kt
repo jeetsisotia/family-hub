@@ -32,11 +32,11 @@ private val TEXT_KEYS = listOf(
     "displayName", "gender", "bloodGroup", "phone", "altPhone", "address",
     "emergency1Name", "emergency1Relation", "emergency1Phone",
     "emergency2Name", "emergency2Relation", "emergency2Phone",
-    "allergies", "conditions",
-    "idAadhaar", "idPan", "idVoter", "idPassport", "idDl", "idAbha"
+    "allergies", "conditions", "occupation", "healthInsurer",
+    "idAadhaar", "idPan", "idVoter", "idPassport", "idDl", "idAbha", "idHealthPolicy"
 )
 private val NUMBER_KEYS = listOf("heightCm", "weightKg")
-private val DATE_KEYS = listOf("dobMillis", "idPassportExpiry", "idDlExpiry")
+private val DATE_KEYS = listOf("dobMillis", "anniversaryMillis", "idPassportExpiry", "idDlExpiry")
 private val SHARE_KEYS = mapOf(
     "sharePhoto" to true, "shareContact" to true, "shareDob" to true, "shareBlood" to true, "shareBody" to false
 )
@@ -47,7 +47,8 @@ private val ID_FIELDS = listOf(
     Triple("idVoter", "Voter ID (EPIC)", KeyboardType.Text),
     Triple("idPassport", "Passport number", KeyboardType.Text),
     Triple("idDl", "Driving licence", KeyboardType.Text),
-    Triple("idAbha", "ABHA health ID", KeyboardType.Number)
+    Triple("idAbha", "ABHA health ID", KeyboardType.Number),
+    Triple("idHealthPolicy", "Health insurance policy no.", KeyboardType.Text)
 )
 
 private val BLOOD_GROUPS = listOf("A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-")
@@ -127,6 +128,8 @@ fun ProfileScreen(
         card["emergencyName"] = if (contact) text["emergency1Name"].orEmpty().trim() else FieldValue.delete()
         card["emergencyPhone"] = if (contact) text["emergency1Phone"].orEmpty().trim() else FieldValue.delete()
         card["dobMillis"] = if (share["shareDob"] == true && dates["dobMillis"] != null) dates["dobMillis"] else FieldValue.delete()
+        card["anniversaryMillis"] =
+            if (share["shareDob"] == true && dates["anniversaryMillis"] != null) dates["anniversaryMillis"] else FieldValue.delete()
         card["bloodGroup"] = if (share["shareBlood"] == true) text["bloodGroup"].orEmpty() else FieldValue.delete()
         val body = share["shareBody"] == true
         card["heightCm"] = if (body && data["heightCm"] != null) data["heightCm"] else FieldValue.delete()
@@ -188,6 +191,8 @@ fun ProfileScreen(
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextInput("Name", text["displayName"].orEmpty(), { text["displayName"] = it })
                         DatePickField("Date of birth", dates["dobMillis"], { dates["dobMillis"] = it })
+                        DatePickField("Wedding anniversary (optional)", dates["anniversaryMillis"], { dates["anniversaryMillis"] = it })
+                        TextInput("Occupation (optional)", text["occupation"].orEmpty(), { text["occupation"] = it })
                         Text("Gender", style = MaterialTheme.typography.labelLarge)
                         ChoiceChips(listOf("Female", "Male", "Other"), text["gender"].orEmpty(), { text["gender"] = it })
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -206,8 +211,8 @@ fun ProfileScreen(
                             val bmi = w / ((h / 100) * (h / 100))
                             val label = when {
                                 bmi < 18.5 -> "underweight"
-                                bmi < 25 -> "healthy"
-                                bmi < 30 -> "overweight"
+                                bmi < 23 -> "healthy for Indian adults"
+                                bmi < 25 -> "overweight"
                                 else -> "obese"
                             }
                             Text(
@@ -261,6 +266,7 @@ fun ProfileScreen(
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextInput("Allergies", text["allergies"].orEmpty(), { text["allergies"] = it }, singleLine = false)
                         TextInput("Conditions", text["conditions"].orEmpty(), { text["conditions"] = it }, singleLine = false)
+                        TextInput("Health insurer (policy number goes in ID numbers)", text["healthInsurer"].orEmpty(), { text["healthInsurer"] = it })
                     }
                 }
             }
@@ -326,7 +332,7 @@ fun ProfileScreen(
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
                         ShareRow("Profile photo", "sharePhoto", share)
                         ShareRow("Phone and emergency contact", "shareContact", share)
-                        ShareRow("Birthday", "shareDob", share)
+                        ShareRow("Birthday and anniversary", "shareDob", share)
                         ShareRow("Blood group", "shareBlood", share)
                         ShareRow("Height and weight", "shareBody", share)
                     }

@@ -99,6 +99,21 @@ class MainActivity : FragmentActivity() {
                 var lastCrash by remember { mutableStateOf(CrashLog.read(context)) }
                 var showIntro by rememberSaveable { mutableStateOf(true) }
                 var unlocked by rememberSaveable { mutableStateOf(!AppLock.isEnabled(context)) }
+                // Lock again when the app comes back after more than a minute in the background.
+                val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    var stoppedAt = 0L
+                    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) stoppedAt = System.currentTimeMillis()
+                        if (event == androidx.lifecycle.Lifecycle.Event.ON_START && stoppedAt > 0L &&
+                            AppLock.isEnabled(context) && System.currentTimeMillis() - stoppedAt > 60_000L
+                        ) {
+                            unlocked = false
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
                 val firebaseUser by authRepository.authStateFlow.collectAsState(initial = null)
                 var isLoading by remember { mutableStateOf(false) }
                 var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -204,7 +219,9 @@ class MainActivity : FragmentActivity() {
                             "trips" to tripRecs
                         )
                     }
-                    val alerts = remember(recordData) { allAlerts(recordData) }
+                    val alerts = remember(recordData, userDoc, members) {
+                        (allAlerts(recordData) + profileAlerts(userDoc) + memberAlerts(members, uid)).sortedBy { it.dateMillis }
+                    }
 
                     // Exact-time alarms for medicines and reminders follow the records.
                     LaunchedEffect(itemRecs, activeFamilyId) {
@@ -259,6 +276,10 @@ class MainActivity : FragmentActivity() {
                             }
                             "finance" -> {
                                 selectedTab = PrimaryTab.FINANCE
+                                subRoute = null
+                            }
+                            "family" -> {
+                                selectedTab = PrimaryTab.FAMILY
                                 subRoute = null
                             }
                             else -> subRoute = r

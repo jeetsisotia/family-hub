@@ -117,7 +117,6 @@ object AlarmScheduler {
                 if (end != null && day > end) continue
                 for ((h, min) in times) {
                     val at = atTime(day, h, min)
-                    if (at <= now || at > horizon) continue
                     val slot = dayKey(day) + "_" + "%02d%02d".format(h, min)
                     if (taken?.get(slot) == true) continue
                     val text = listOf(
@@ -125,6 +124,23 @@ object AlarmScheduler {
                         m.str("food"),
                         m.str("memberName").takeIf { it.isNotBlank() }?.let { "for $it" }.orEmpty()
                     ).filter { it.isNotBlank() }.joinToString(" • ")
+                    // A second, gentle check 30 minutes later if it still is not marked as taken.
+                    val check = at + 30 * 60_000L
+                    if (check > now && check <= horizon) {
+                        out.add(
+                            Planned(
+                                code = (path + slot + "check").hashCode(),
+                                at = check,
+                                title = "Did you take " + m.str("title") + "?",
+                                text = "It was due at " + "%02d:%02d".format(h, min) + ". Tap Taken if you've had it.",
+                                kind = "medicine_check",
+                                path = path,
+                                slot = slot,
+                                hasStock = m.num("stock") != null
+                            )
+                        )
+                    }
+                    if (at <= now || at > horizon) continue
                     out.add(
                         Planned(
                             code = (path + slot).hashCode(),
@@ -165,7 +181,7 @@ object AlarmScheduler {
                 )
             )
         }
-        return out.sortedBy { it.at }.take(60)
+        return out.sortedBy { it.at }.take(80)
     }
 
     fun scheduleAll(ctx: Context, items: List<Rec>, familyId: String, uid: String) {
@@ -217,9 +233,36 @@ object AlarmScheduler {
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (!Notifier.canPost(ctx)) return
+        val kind = intent.getStringExtra(AlarmScheduler.EXTRA_KIND).orEmpty()
+        if (kind == "medicine_check") {
+            // Only remind again if the dose still is not marked as taken.
+            val path = intent.getStringExtra(AlarmScheduler.EXTRA_PATH).orEmpty()
+            val slot = intent.getStringExtra(AlarmScheduler.EXTRA_SLOT).orEmpty()
+            if (path.isBlank() || slot.isBlank()) return
+            val pending = goAsync()
+            try {
+                FirebaseFirestore.getInstance().document(path).get().addOnCompleteListener { task ->
+                    try {
+                        val doc = if (task.isSuccessful) task.result else null
+                        val taken = (doc?.get("taken") as? Map<*, *>)?.get(slot) == true
+                        if (doc != null && doc.exists() && !taken) show(ctx, intent)
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            } catch (e: Exception) {
+                pending.finish()
+            }
+            return
+        }
+        show(ctx, intent)
+    }
+
+    private fun show(ctx: Context, intent: Intent) {
         Notifier.ensureChannels(ctx)
         val code = intent.getIntExtra(AlarmScheduler.EXTRA_CODE, 0)
         val kind = intent.getStringExtra(AlarmScheduler.EXTRA_KIND).orEmpty()
+        val isMedicine = kind == "medicine" || kind == "medicine_check"
         val title = intent.getStringExtra(AlarmScheduler.EXTRA_TITLE).orEmpty()
         val text = intent.getStringExtra(AlarmScheduler.EXTRA_TEXT).orEmpty()
 
@@ -229,11 +272,11 @@ class AlarmReceiver : BroadcastReceiver() {
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setCategory(if (kind == "medicine") NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EVENT)
-            .setContentIntent(Notifier.openApp(ctx, if (kind == "medicine") "health_hub" else "reminders", code))
+            .setCategory(if (isMedicine) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EVENT)
+            .setContentIntent(Notifier.openApp(ctx, if (isMedicine) "health_hub" else "reminders", code))
             .setAutoCancel(true)
 
-        if (kind == "medicine") {
+        if (isMedicine) {
             builder.addAction(0, "Taken", actionIntent(ctx, intent, AlarmActionReceiver.ACTION_TAKEN, code + 1))
         }
         builder.addAction(0, "Snooze 10 min", actionIntent(ctx, intent, AlarmActionReceiver.ACTION_SNOOZE, code + 2))

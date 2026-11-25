@@ -600,7 +600,7 @@ val RemindersModule = ModuleDef(
 
 val VITAL_KINDS = listOf(
     "Weight (kg)", "Blood pressure", "Sugar fasting", "Sugar after food",
-    "Heart rate", "SpO2 (%)", "Temperature", "Other"
+    "Heart rate", "SpO2 (%)", "Temperature", "Sleep (hours)", "Other"
 )
 
 val VitalsModule = ModuleDef(
@@ -631,6 +631,29 @@ val HabitsModule = ModuleDef(
     emptyText = "Add habits you want to keep, then tick them off each day in Health."
 )
 
+val WORKOUT_KINDS = listOf("Walk", "Run", "Cycling", "Yoga", "Gym", "Swimming", "Sports", "Dance", "Other")
+
+val WorkoutsModule = ModuleDef(
+    route = "workouts", title = "Workouts", icon = Icons.Rounded.FitnessCenter,
+    collection = "items", typeValue = "workout", titleKey = "activity",
+    subtitleKeys = listOf("minutesText", "memberName", "notes"),
+    fields = listOf(
+        FieldDef("activity", "Activity", FieldType.CHOICE, WORKOUT_KINDS, required = true),
+        FieldDef("minutes", "Minutes", FieldType.NUMBER, required = true),
+        FieldDef("dateMillis", "Date", FieldType.DATE, required = true),
+        FieldDef("caloriesKcal", "Calories burned (optional)", FieldType.NUMBER),
+        FieldDef("memberName", "Who", FieldType.MEMBER),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("dateMillis", "Done on")), newestFirst = true, alerts = false,
+    privateByDefault = true,
+    postProcess = { m, _, _ ->
+        val mins = (m["minutes"] as? Number)?.toInt()
+        m["minutesText"] = if (mins != null) "$mins min" else ""
+    },
+    emptyText = "Log walks, yoga, gym and sports to see your active minutes each week in Health & Fitness."
+)
+
 val CardsModule = ModuleDef(
     route = "card_list", title = "Credit Cards", icon = Icons.Rounded.CreditCard,
     collection = "items", typeValue = "card",
@@ -655,11 +678,11 @@ val AllModules: List<ModuleDef> = listOf(
     SettleModule, MemoriesModule,
     MaintenanceModule, NotesModule, MealsModule, ChoresModule, BirthdaysModule,
     PetsModule, SchoolModule, GoalsModule,
-    MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule
+    MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule, WorkoutsModule
 )
 
 /** Modules reached from inside other screens rather than from the More grid. */
-val HiddenFromMore: Set<String> = setOf("card_list", "habits")
+val HiddenFromMore: Set<String> = setOf("card_list", "habits", "workouts")
 
 val ModuleByRoute: Map<String, ModuleDef> = AllModules.associateBy { it.route }
 

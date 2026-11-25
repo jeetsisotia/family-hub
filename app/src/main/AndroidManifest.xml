@@ -46,6 +46,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Sample-data screens used only by the automatic emulator test after each build. -->
+        <activity
+            android:name=".DemoActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.FamilyHub" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

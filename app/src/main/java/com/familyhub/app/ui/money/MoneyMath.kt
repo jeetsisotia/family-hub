@@ -78,3 +78,25 @@ fun lastMonths(count: Int, now: Long = System.currentTimeMillis()): List<Long> =
 fun daysBetween(from: Long, to: Long): Int = ((startOfDay(to) - startOfDay(from)) / DAY_MS).toInt()
 
 fun calendarYear(millis: Long): Int = Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.YEAR)
+
+/**
+ * Start of the "budget month" that is [add] months away from the one containing [now].
+ * With [startDay] 1 this is the calendar month; with 25 a month runs from the 25th to the 24th.
+ */
+fun budgetMonthStart(now: Long, startDay: Int, add: Int = 0): Long {
+    if (startDay <= 1) return monthStart(now, add)
+    val thisStart = startOfDay(dayInMonth(monthStart(now, 0), startDay))
+    val base = if (startOfDay(now) >= thisStart) monthStart(now, 0) else monthStart(now, -1)
+    return startOfDay(dayInMonth(monthStart(base, add), startDay))
+}
+
+/** The person's budget month start day (1 to 28) saved in their profile. */
+fun monthStartDay(userDoc: Rec): Int = ((userDoc["monthStartDay"] as? Number)?.toInt() ?: 1).coerceIn(1, 28)
+
+/** Per-category monthly budgets saved in the person's profile. */
+fun categoryBudgets(userDoc: Rec): Map<String, Double> =
+    (userDoc["categoryBudgets"] as? Map<*, *>)?.mapNotNull { (k, v) ->
+        val key = k as? String ?: return@mapNotNull null
+        val amount = (v as? Number)?.toDouble() ?: return@mapNotNull null
+        if (amount > 0) key to amount else null
+    }?.toMap().orEmpty()

@@ -11,8 +11,18 @@ import com.familyhub.app.health.StepService
 import com.familyhub.app.health.StepTracker
 import com.familyhub.app.money.SmsReader
 import com.familyhub.app.ui.modules.AlertItem
+import com.familyhub.app.data.model.FamilyMember
 import com.familyhub.app.ui.modules.allAlerts
 import com.familyhub.app.ui.modules.daysUntil
+import com.familyhub.app.ui.modules.memberAlerts
+import com.familyhub.app.ui.modules.profileAlerts
+import com.familyhub.app.ui.modules.str
+import com.familyhub.app.ui.money.amountOf
+import com.familyhub.app.ui.money.budgetMonthStart
+import com.familyhub.app.ui.money.categoryBudgets
+import com.familyhub.app.ui.money.inRange
+import com.familyhub.app.ui.money.isSpend
+import com.familyhub.app.ui.money.monthStartDay
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -30,6 +40,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         const val KEY_REFRESH_ONLY = "refreshOnly"
         private const val NOTIFICATION_ID = 1001
         private const val SMS_NOTIFICATION_ID = 1002
+        private const val BUDGET_NOTIFICATION_ID = 1003
         private const val PREFS = "family_hub_worker"
         private const val KEY_SMS_CHECKED = "smsCheckedAt"
         private val COLLECTIONS = listOf("items", "events", "expenses", "tasks", "trips")
@@ -68,9 +79,18 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             if (StepTracker.isEnabled(ctx)) StepService.sync(ctx)
 
             if (!inputData.getBoolean(KEY_REFRESH_ONLY, false)) {
-                val soon = allAlerts(data).filter { daysUntil(it.dateMillis) in -3..3 }
+                val profileData: Rec = profile.data ?: emptyMap()
+                val members = if (familyId.isBlank()) emptyList() else
+                    db.collection("families").document(familyId).collection("members").get().await()
+                        .documents.mapNotNull { d -> try { d.toObject(FamilyMember::class.java) } catch (e: Exception) { null } }
+                val soon = (allAlerts(data) + profileAlerts(profileData) + memberAlerts(members, user.uid))
+                    .filter { daysUntil(it.dateMillis) in -3..3 }
+                    .sortedBy { it.dateMillis }
                 if (soon.isNotEmpty()) notifyDue(soon)
                 checkBankSms(data["expenses"].orEmpty())
+                val familyBudget = if (familyId.isBlank()) 0.0 else
+                    db.collection("families").document(familyId).get().await().getDouble("monthlyBudget") ?: 0.0
+                checkBudgets(data["expenses"].orEmpty(), profileData, familyBudget)
             }
             Result.success()
         } catch (e: Exception) {
@@ -94,6 +114,50 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             .setAutoCancel(true)
             .build()
         nm.notify(NOTIFICATION_ID, notification)
+    }
+
+    /** Warns once a month when spending passes 80% and 100% of the family budget, and when a category budget is used up. */
+    private fun checkBudgets(expenses: List<Rec>, profileData: Rec, familyBudget: Double) {
+        val ctx = applicationContext
+        if (!Notifier.canPost(ctx)) return
+        val now = System.currentTimeMillis()
+        val from = budgetMonthStart(now, monthStartDay(profileData), 0)
+        val spends = expenses.filter { isSpend(it) && inRange(it, from, now) }
+        val total = spends.sumOf { amountOf(it) }
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val messages = ArrayList<String>()
+        if (familyBudget > 0) {
+            for (level in listOf(100, 80)) {
+                val key = "budget-$from-$level"
+                if (total >= familyBudget * level / 100.0 && !prefs.getBoolean(key, false)) {
+                    prefs.edit().putBoolean(key, true).putBoolean("budget-$from-80", true).apply()
+                    messages.add(
+                        if (level == 100) "Family budget used up: ₹%,.0f spent of ₹%,.0f.".format(total, familyBudget)
+                        else "%d%% of the family budget used: ₹%,.0f of ₹%,.0f.".format((total / familyBudget * 100).toInt(), total, familyBudget)
+                    )
+                    break
+                }
+            }
+        }
+        for ((cat, limit) in categoryBudgets(profileData)) {
+            val used = spends.filter { it.str("category").ifBlank { "Other" } == cat }.sumOf { amountOf(it) }
+            val key = "cat-$from-$cat"
+            if (used >= limit && !prefs.getBoolean(key, false)) {
+                prefs.edit().putBoolean(key, true).apply()
+                messages.add("$cat budget crossed: ₹%,.0f of ₹%,.0f.".format(used, limit))
+            }
+        }
+        if (messages.isEmpty()) return
+        Notifier.ensureChannels(ctx)
+        val n = NotificationCompat.Builder(ctx, Notifier.CH_GENERAL)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("Budget alert")
+            .setContentText(messages.first())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(messages.joinToString("\n")))
+            .setContentIntent(Notifier.openApp(ctx, "insights", BUDGET_NOTIFICATION_ID))
+            .setAutoCancel(true)
+            .build()
+        (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(BUDGET_NOTIFICATION_ID, n)
     }
 
     /** Counts bank alerts received since the last check that are not in Finance yet. */

@@ -135,6 +135,12 @@ fun HealthScreen(env: AppEnv) {
         .take(10).reversed()
 
     val habits = items.filter { it.str("type") == "habit" }
+    val weekAgo = todayStart - 6 * DAY_MS
+    val workouts = items.filter { it.str("type") == "workout" && (it.lng("dateMillis") ?: 0L) >= weekAgo }
+    val activeMinutes = workouts.sumOf { (it.num("minutes") ?: 0.0) }.toInt()
+    val healthMembers = env.members.filter {
+        it.status == "ACTIVE" && (it.bloodGroup.isNotBlank() || (it.heightCm != null && it.weightKg != null) || it.stepsWeek != null)
+    }
     val board = env.members.filter { it.stepsDate == today && (it.stepsToday ?: 0L) > 0 }
         .sortedByDescending { it.stepsToday ?: 0L }
 
@@ -237,6 +243,36 @@ fun HealthScreen(env: AppEnv) {
                                     chartColor(i + 1)
                                 )
                             }
+                        }
+                    }
+                }
+            }
+
+            // Workouts
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionTitle("Workouts this week", modifier = Modifier.weight(1f))
+                    TextButton(onClick = { env.navigate("workouts") }) { Text("Log") }
+                }
+            }
+            item {
+                GlassCard(modifier = Modifier.fillMaxWidth(), onClick = { env.navigate("workouts") }) {
+                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = Color(0xFFFF9500))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("$activeMinutes active minutes • ${workouts.size} workout(s)", fontWeight = FontWeight.SemiBold)
+                            LinearProgressIndicator(
+                                progress = { (activeMinutes / 150f).coerceIn(0f, 1f) },
+                                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                                color = Color(0xFFFF9500)
+                            )
+                            Text(
+                                "WHO suggests at least 150 minutes of activity a week.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
                         }
                     }
                 }
@@ -406,6 +442,49 @@ fun HealthScreen(env: AppEnv) {
                 }
             }
 
+            // Family health comparison (only what each person chose to share)
+            if (healthMembers.size > 1) {
+                item { SectionTitle("Family health") }
+                item {
+                    GlassCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row {
+                                Text("Member", modifier = Modifier.weight(1.4f), style = MaterialTheme.typography.labelSmall)
+                                Text("Blood", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.labelSmall)
+                                Text("BMI", modifier = Modifier.weight(0.7f), style = MaterialTheme.typography.labelSmall)
+                                Text("Steps (week)", modifier = Modifier.weight(1.1f), style = MaterialTheme.typography.labelSmall)
+                            }
+                            healthMembers.forEach { m ->
+                                val h = m.heightCm
+                                val w = m.weightKg
+                                val bmi = if (h != null && w != null && h > 50) w / ((h / 100) * (h / 100)) else null
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(m.name.substringBefore(' ') + if (m.uid == env.uid) " (you)" else "",
+                                        modifier = Modifier.weight(1.4f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(m.bloodGroup.ifBlank { "–" }, modifier = Modifier.weight(0.7f), fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        bmi?.let { "%.1f".format(it) } ?: "–",
+                                        modifier = Modifier.weight(0.7f),
+                                        color = when {
+                                            bmi == null -> MaterialTheme.colorScheme.onSurface
+                                            bmi < 18.5 || bmi >= 25 -> Color(0xFFFF3B30)
+                                            bmi >= 23 -> Color(0xFFFF9500)
+                                            else -> Color(0xFF34C759)
+                                        }
+                                    )
+                                    Text(m.stepsWeek?.let { fmt.format(it) } ?: "–", modifier = Modifier.weight(1.1f))
+                                }
+                            }
+                            Text(
+                                "Each person chooses what to share in My Profile.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Habits
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -462,6 +541,8 @@ fun HealthScreen(env: AppEnv) {
                         Triple("medicines", "Medicines", Icons.Rounded.Medication),
                         Triple("reminders", "Reminders", Icons.Rounded.Alarm),
                         Triple("vitals", "Vitals", Icons.Rounded.MonitorHeart),
+                        Triple("workouts", "Workouts", Icons.Rounded.FitnessCenter),
+                        Triple("habits", "Habits", Icons.Rounded.SelfImprovement),
                         Triple("periods", "Periods", Icons.Rounded.WaterDrop),
                         Triple("health", "Records", Icons.Rounded.MedicalServices),
                         Triple("emergency", "Emergency", Icons.Rounded.LocalHospital)
