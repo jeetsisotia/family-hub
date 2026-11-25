@@ -1,15 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Frosted glass house with the family (two parents and a child) inside. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- house -->
+    <group android:translateY="2.2">
+        <path
+            android:pathData="M54,29 L82.5,52 Q84,53.4 82,53.8 L75,53.8 L75,74 Q75,78 71,78 L37,78 Q33,78 33,74 L33,53.8 L26,53.8 Q24,53.4 25.5,52 Z"
+            android:fillColor="#1A000000"
+            android:strokeColor="#24000000"
+            android:strokeWidth="3.4"
+            android:strokeLineJoin="round" />
+    </group>
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M54,26 L22,54 L31,54 L31,80 L77,80 L77,54 L86,54 Z" />
-    <!-- heart -->
+        android:pathData="M54,29 L82.5,52 Q84,53.4 82,53.8 L75,53.8 L75,74 Q75,78 71,78 L37,78 Q33,78 33,74 L33,53.8 L26,53.8 Q24,53.4 25.5,52 Z"
+        android:strokeColor="#F2FFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineJoin="round">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="30"
+                android:startY="29"
+                android:endX="78"
+                android:endY="78">
+                <item android:color="#8CFFFFFF" android:offset="0.0" />
+                <item android:color="#1FFFFFFF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
     <path
-        android:fillColor="#FFFF5D73"
-        android:pathData="M54,72 C44,64 40,59 40,54 C40,50 43,48 46,48 C49,48 52,50 54,53 C56,50 59,48 62,48 C65,48 68,50 68,54 C68,59 64,64 54,72 Z" />
+        android:pathData="M39.1,58 a4.4,4.4 0 1,0 8.8,0 a4.4,4.4 0 1,0 -8.8,0 Z M37.5,74 v-5 a6,6 0 0,1 12,0 v5 Z M60.1,58 a4.4,4.4 0 1,0 8.8,0 a4.4,4.4 0 1,0 -8.8,0 Z M58.5,74 v-5 a6,6 0 0,1 12,0 v5 Z M50.7,63.5 a3.3,3.3 0 1,0 6.6,0 a3.3,3.3 0 1,0 -6.6,0 Z M49.8,74 v-2.6 a4.2,4.2 0 0,1 8.4,0 v2.6 Z"
+        android:fillColor="#F5FFFFFF" />
 </vector>
