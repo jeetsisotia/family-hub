@@ -22,6 +22,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.CircleShape
+import com.familyhub.app.core.theme.AccentCard
+import com.familyhub.app.core.theme.GlassCard
+import com.familyhub.app.core.theme.glass
 import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.data.remote.RecordRepository
 import kotlinx.coroutines.launch
@@ -174,17 +178,23 @@ fun ModuleScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (onBack != null) {
-                    IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = "Back") }
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.padding(start = 4.dp, end = 8.dp).glass(CircleShape, strong = true)
+                    ) { Icon(Icons.Rounded.ArrowBack, contentDescription = "Back") }
                 } else {
                     Spacer(modifier = Modifier.width(12.dp))
                 }
                 Text(
                     text = def.title,
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.weight(1f)
                 )
                 if (onExport != null) {
-                    IconButton(onClick = onExport) { Icon(Icons.Rounded.FileDownload, contentDescription = "Export report") }
+                    IconButton(
+                        onClick = onExport,
+                        modifier = Modifier.padding(end = 4.dp).glass(CircleShape, strong = true)
+                    ) { Icon(Icons.Rounded.FileDownload, contentDescription = "Export report") }
                 }
             }
             val err = error
@@ -211,6 +221,12 @@ fun ModuleScreen(
                             onValueChange = { query = it },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
+                            shape = RoundedCornerShape(18.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedBorderColor = Color.White.copy(alpha = 0.6f)
+                            ),
                             placeholder = { Text("Search") },
                             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) }
                         )
@@ -227,6 +243,7 @@ fun ModuleScreen(
                     }
                 }
                 items(shown, key = { it.str("id") }) { rec ->
+                    Box(modifier = Modifier.animateItem()) {
                     RecordCard(
                         def = def,
                         rec = rec,
@@ -241,13 +258,17 @@ fun ModuleScreen(
                             }
                         }
                     )
+                    }
                 }
             }
         }
 
         FloatingActionButton(
             onClick = { editing = null; showForm = true },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+            shape = RoundedCornerShape(22.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
         ) { Icon(Icons.Rounded.Add, contentDescription = "Add") }
 
         if (showForm) {
@@ -313,10 +334,9 @@ private fun RecordCard(
     val amount = amountText(def, rec)
     val phone = def.phoneKey?.let { rec.str(it) }.orEmpty()
 
-    Card(
+    GlassCard(
         onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(22.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -443,9 +463,8 @@ private fun ModuleHeader(
 
 @Composable
 private fun SummaryCard(stats: List<Pair<String, String>>, footer: String? = null) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+    AccentCard(
+        shape = RoundedCornerShape(24.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -526,9 +545,8 @@ private fun FinanceHeader(
     var showBudget by remember { mutableStateOf(false) }
     val fraction = if (budget > 0) (spent / budget).toFloat().coerceIn(0f, 1f) else 0f
 
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+    AccentCard(
+        shape = RoundedCornerShape(26.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -618,7 +636,7 @@ private fun SettleHeader(records: List<Rec>, memberNames: List<String>) {
     val people = (memberNames + payers).filter { it.isNotBlank() }.distinct()
     if (open.isEmpty() || people.size < 2) {
         if (records.isNotEmpty()) {
-            Card(shape = RoundedCornerShape(18.dp)) {
+            GlassCard(shape = RoundedCornerShape(22.dp)) {
                 Text(
                     text = "Everyone is settled up.",
                     modifier = Modifier.padding(16.dp),
