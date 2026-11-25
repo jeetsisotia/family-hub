@@ -421,11 +421,141 @@ val MemoriesModule = ModuleDef(
     emptyText = "Write down your family's special moments. (Text only, photo uploads need a paid Firebase plan.)"
 )
 
+val MaintenanceModule = ModuleDef(
+    route = "maintenance", title = "Maintenance", icon = Icons.Rounded.Build,
+    collection = "items", typeValue = "maintenance",
+    subtitleKeys = listOf("category", "vendor"),
+    fields = listOf(
+        FieldDef("title", "What needs doing (for example AC service)", required = true),
+        FieldDef("category", "Type", FieldType.CHOICE,
+            listOf("Plumbing", "Electrical", "AC or appliance", "Painting", "Pest control", "Water tank", "Other")),
+        FieldDef("vendor", "Vendor or technician"),
+        FieldDef("phone", "Phone"),
+        FieldDef("costInr", "Last cost (₹)", FieldType.NUMBER),
+        FieldDef("nextDueMillis", "Next due", FieldType.DATE),
+        FieldDef("repeat", "Repeats", FieldType.CHOICE, listOf("None", "Monthly", "Quarterly", "Yearly")),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    amountKey = "costInr", phoneKey = "phone", repeatKey = "repeat", alertOverdue = true, alertDays = 14,
+    dateKeys = listOf(DateKey("nextDueMillis", "Due"))
+)
+
+val NotesModule = ModuleDef(
+    route = "notes", title = "Family Notes", icon = Icons.Rounded.StickyNote2,
+    collection = "items", typeValue = "note",
+    subtitleKeys = listOf("notes"),
+    fields = listOf(
+        FieldDef("title", "Title", required = true),
+        FieldDef("category", "Type", FieldType.CHOICE, listOf("Idea", "Recipe", "Wifi or codes", "Gift idea", "Other")),
+        FieldDef("notes", "Note", FieldType.MULTILINE)
+    ),
+    newestFirst = true, autoCreatedAt = true, alerts = false,
+    emptyText = "Keep quick notes, recipes and ideas that everyone in the family can see."
+)
+
+val MealsModule = ModuleDef(
+    route = "meals", title = "Meal Planner", icon = Icons.Rounded.Restaurant,
+    collection = "items", typeValue = "meal",
+    subtitleKeys = listOf("category", "notes"),
+    fields = listOf(
+        FieldDef("title", "Dish", required = true),
+        FieldDef("category", "Meal", FieldType.CHOICE, listOf("Breakfast", "Lunch", "Snack", "Dinner")),
+        FieldDef("dateMillis", "Day", FieldType.DATE, required = true),
+        FieldDef("notes", "Ingredients or notes", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("dateMillis", "Planned")), alerts = false,
+    emptyText = "Plan what the family will eat. Add a dish and a day."
+)
+
+val ChoresModule = ModuleDef(
+    route = "chores", title = "Chores", icon = Icons.Rounded.CleaningServices,
+    collection = "items", typeValue = "chore",
+    subtitleKeys = listOf("assignedTo", "repeat"),
+    fields = listOf(
+        FieldDef("title", "Chore", required = true),
+        FieldDef("assignedTo", "Assigned to", FieldType.MEMBER),
+        FieldDef("dueMillis", "Due", FieldType.DATE),
+        FieldDef("repeat", "Repeats", FieldType.CHOICE, listOf("None", "Weekly", "Monthly")),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("dueMillis", "Due")), repeatKey = "repeat",
+    doneKey = "done", doneLabel = "Done", alertDays = 3,
+    constants = mapOf("done" to false),
+    emptyText = "Share out the chores and see who does what."
+)
+
+val BirthdaysModule = ModuleDef(
+    route = "birthdays", title = "Birthdays", icon = Icons.Rounded.Cake,
+    collection = "items", typeValue = "birthday",
+    subtitleKeys = listOf("category", "notes"),
+    fields = listOf(
+        FieldDef("title", "Name", required = true),
+        FieldDef("category", "Occasion", FieldType.CHOICE, listOf("Birthday", "Anniversary", "Other")),
+        FieldDef("dateMillis", "Date", FieldType.DATE, required = true),
+        FieldDef("repeat", "Repeats", FieldType.CHOICE, listOf("Yearly", "None")),
+        FieldDef("notes", "Gift ideas, notes", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("dateMillis", "On")), repeatKey = "repeat", alertDays = 14, alertOverdue = false,
+    constants = mapOf("repeat" to "YEARLY"),
+    emptyText = "Add birthdays and anniversaries so nobody is forgotten."
+)
+
+val PetsModule = ModuleDef(
+    route = "pets", title = "Pets", icon = Icons.Rounded.Pets,
+    collection = "items", typeValue = "pet",
+    subtitleKeys = listOf("category", "vetName"),
+    fields = listOf(
+        FieldDef("title", "Pet name", required = true),
+        FieldDef("category", "Kind", FieldType.CHOICE, listOf("Dog", "Cat", "Bird", "Fish", "Other")),
+        FieldDef("vetName", "Vet"),
+        FieldDef("phone", "Vet phone"),
+        FieldDef("vaccineDueMillis", "Next vaccination", FieldType.DATE),
+        FieldDef("notes", "Food, medicines, notes", FieldType.MULTILINE)
+    ),
+    phoneKey = "phone", alertOverdue = true, alertDays = 14,
+    dateKeys = listOf(DateKey("vaccineDueMillis", "Vaccination"))
+)
+
+val SchoolModule = ModuleDef(
+    route = "school", title = "School", icon = Icons.Rounded.School,
+    collection = "items", typeValue = "school",
+    subtitleKeys = listOf("category", "childName"),
+    fields = listOf(
+        FieldDef("title", "What (fee, exam, event)", required = true),
+        FieldDef("category", "Type", FieldType.CHOICE, listOf("Fee", "Exam", "Event", "Homework", "Holiday", "Other")),
+        FieldDef("childName", "Child", FieldType.MEMBER),
+        FieldDef("amountInr", "Amount (₹)", FieldType.NUMBER),
+        FieldDef("dueMillis", "Date", FieldType.DATE),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    amountKey = "amountInr", doneKey = "done", doneLabel = "Done", alertDays = 14,
+    dateKeys = listOf(DateKey("dueMillis", "On")),
+    constants = mapOf("done" to false)
+)
+
+val GoalsModule = ModuleDef(
+    route = "goals", title = "Savings Goals", icon = Icons.Rounded.Savings,
+    collection = "items", typeValue = "goal",
+    subtitleKeys = listOf("savedInr", "notes"),
+    fields = listOf(
+        FieldDef("title", "Goal (for example new car)", required = true),
+        FieldDef("amountInr", "Target (₹)", FieldType.NUMBER, required = true),
+        FieldDef("savedInr", "Saved so far (₹)", FieldType.NUMBER),
+        FieldDef("targetMillis", "Target date", FieldType.DATE),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    amountKey = "amountInr", doneKey = "done", doneLabel = "Achieved", alertOverdue = false, alertDays = 30,
+    dateKeys = listOf(DateKey("targetMillis", "Target")),
+    constants = mapOf("done" to false)
+)
+
 val AllModules: List<ModuleDef> = listOf(
     CalendarModule, FinanceModule, HouseholdModule, ShoppingModule, TravelModule,
     VaultModule, DocumentsModule, HealthModule, VehiclesModule, PropertyModule,
     SubscriptionsModule, LoansModule, StaffModule, EmergencyModule, NoticesModule,
-    SettleModule, MemoriesModule
+    SettleModule, MemoriesModule,
+    MaintenanceModule, NotesModule, MealsModule, ChoresModule, BirthdaysModule,
+    PetsModule, SchoolModule, GoalsModule
 )
 
 val ModuleByRoute: Map<String, ModuleDef> = AllModules.associateBy { it.route }
