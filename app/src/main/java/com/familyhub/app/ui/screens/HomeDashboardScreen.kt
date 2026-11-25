@@ -17,6 +17,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.familyhub.app.core.ai.FamilyAiAssistant
+import com.familyhub.app.core.theme.AccentCard
+import com.familyhub.app.core.theme.GlassCard
+import com.familyhub.app.core.theme.glass
+import com.familyhub.app.core.theme.riseIn
+import com.familyhub.app.core.theme.tileBrush
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.familyhub.app.data.model.*
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -58,7 +66,7 @@ fun HomeDashboardScreen(
     ) {
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().riseIn(0),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -71,7 +79,7 @@ fun HomeDashboardScreen(
                     )
                     Text(
                         text = "Welcome, ${currentUser.name.substringBefore(" ")}",
-                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                        style = MaterialTheme.typography.headlineMedium
                     )
                     Text(
                         text = todayLabel,
@@ -82,13 +90,13 @@ fun HomeDashboardScreen(
                 AsyncImage(
                     model = currentUser.photoUrl,
                     contentDescription = "Profile",
-                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                    modifier = Modifier.size(52.dp).glass(CircleShape, strong = true).padding(3.dp).clip(CircleShape)
                 )
             }
         }
 
         item {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().riseIn(1)) {
                 SegmentedButton(
                     selected = familyWideView,
                     onClick = { familyWideView = true },
@@ -103,13 +111,13 @@ fun HomeDashboardScreen(
         }
 
         item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            GlassCard(
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.riseIn(3)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        IconTile(Icons.Rounded.AutoAwesome, 4)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Family AI Assistant", fontWeight = FontWeight.SemiBold)
                     }
@@ -129,7 +137,11 @@ fun HomeDashboardScreen(
                                 Icon(Icons.Rounded.Send, contentDescription = "Ask")
                             }
                         },
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                        ),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -142,13 +154,13 @@ fun HomeDashboardScreen(
         }
 
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.riseIn(4)) {
                 items(members.filter { it.status == "ACTIVE" }) { member ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         AsyncImage(
                             model = member.photoUrl,
                             contentDescription = member.name,
-                            modifier = Modifier.size(52.dp).clip(CircleShape)
+                            modifier = Modifier.size(56.dp).glass(CircleShape, strong = true).padding(3.dp).clip(CircleShape)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(member.name.substringBefore(" "), style = MaterialTheme.typography.labelMedium)
@@ -159,10 +171,10 @@ fun HomeDashboardScreen(
         }
 
         item {
-            Card(
+            AccentCard(
                 onClick = { onQuickNavigate("finance") },
-                shape = RoundedCornerShape(22.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.riseIn(2)
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(18.dp)) {
                     Text(
@@ -186,26 +198,26 @@ fun HomeDashboardScreen(
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                Card(
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().riseIn(5)) {
+                GlassCard(
                     onClick = { onQuickNavigate("household") },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Icon(Icons.Rounded.TaskAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        IconTile(Icons.Rounded.TaskAlt, 1)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("${pendingTasks.size} Pending", fontWeight = FontWeight.Bold)
                         Text("Household Tasks", style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                Card(
+                GlassCard(
                     onClick = { onQuickNavigate("documents") },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        IconTile(Icons.Rounded.WarningAmber, 2)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("${expiringDocs.size} Alerts", fontWeight = FontWeight.Bold)
                         Text("Doc Renewals", style = MaterialTheme.typography.bodySmall)
@@ -213,5 +225,19 @@ fun HomeDashboardScreen(
                 }
             }
         }
+    }
+}
+
+/** A small rounded colour tile with a white icon, like the icons in the iPhone Settings app. */
+@Composable
+private fun IconTile(icon: ImageVector, colorIndex: Int) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(tileBrush(colorIndex)),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
     }
 }
