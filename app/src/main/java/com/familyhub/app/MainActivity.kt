@@ -1,6 +1,7 @@
 package com.familyhub.app
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.familyhub.app.core.CrashLog
 import com.familyhub.app.core.theme.FamilyHubTheme
 import com.familyhub.app.data.model.*
 import com.familyhub.app.data.remote.AuthRepository
@@ -55,6 +57,7 @@ class MainActivity : ComponentActivity() {
             FamilyHubTheme {
                 val context = LocalContext.current
                 val scope = rememberCoroutineScope()
+                var lastCrash by remember { mutableStateOf(CrashLog.read(context)) }
                 val firebaseUser by authRepository.authStateFlow.collectAsState(initial = null)
                 var isLoading by remember { mutableStateOf(false) }
                 var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -359,7 +362,11 @@ class MainActivity : ComponentActivity() {
                                         onBack = null,
                                         onSaveBudget = saveBudget,
                                         onExport = {
-                                            FinanceReportExporter.exportToCsvAndShare(context, currentFamily.name, transactions)
+                                            try {
+                                                FinanceReportExporter.exportToCsvAndShare(context, currentFamily.name, transactions)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "Could not export: ${e.message}", Toast.LENGTH_LONG).show()
+                                            }
                                         }
                                     )
                                     PrimaryTab.MORE -> MoreHubGrid(onNavigate = navigate)
@@ -368,9 +375,53 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                // If the app closed unexpectedly last time, show what went wrong so it can be shared.
+                val crashText = lastCrash
+                if (crashText != null) {
+                    LastCrashDialog(
+                        text = crashText,
+                        onShare = {
+                            try {
+                                val send = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_SUBJECT, "Family Hub crash report")
+                                    putExtra(Intent.EXTRA_TEXT, crashText)
+                                }
+                                context.startActivity(Intent.createChooser(send, "Share crash report"))
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Could not open sharing.", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        onClose = {
+                            CrashLog.clear(context)
+                            lastCrash = null
+                        }
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun LastCrashDialog(text: String, onShare: () -> Unit, onClose: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Family Hub closed unexpectedly last time") },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                Text(
+                    text = "Please share this report so the problem can be fixed.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(text = text.take(4000), style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = { TextButton(onClick = onShare) { Text("Share report") } },
+        dismissButton = { TextButton(onClick = onClose) { Text("Close") } }
+    )
 }
 
 @Composable
