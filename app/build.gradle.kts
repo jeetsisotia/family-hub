@@ -24,6 +24,18 @@ android {
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
     }
 
+    signingConfigs {
+        getByName("debug") {
+            val ks = System.getenv("DEBUG_KEYSTORE_PATH")
+            if (ks != null && File(ks).exists()) {
+                storeFile = File(ks)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
