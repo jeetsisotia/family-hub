@@ -1,7 +1,10 @@
 package com.familyhub.app.data.remote
 
 import com.familyhub.app.data.model.*
+import android.util.Log
+import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +20,24 @@ class FamilyRepository @Inject constructor(
 ) {
     private fun familyRef(familyId: String) = firestore.collection("families").document(familyId)
 
+    private fun logListenerError(name: String, e: Exception) {
+        Log.w("FamilyRepository", "$name listener failed: ${e.message}", e)
+    }
+
+    /** Creates users/{uid} if it does not exist yet (e.g. the app was closed right after sign-in). */
+    suspend fun ensureUserProfile(user: FirebaseUser): Result<Unit> = runCatching {
+        val ref = firestore.collection("users").document(user.uid)
+        if (!ref.get().await().exists()) {
+            val profile = UserProfile(
+                uid = user.uid,
+                name = user.displayName ?: "Family Member",
+                email = user.email.orEmpty(),
+                photoUrl = user.photoUrl?.toString().orEmpty()
+            )
+            ref.set(profile, SetOptions.merge()).await()
+        }
+    }
+
     fun observeFamily(familyId: String): Flow<FamilyGroup?> = callbackFlow {
         if (familyId.isBlank()) {
             // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
@@ -24,7 +45,8 @@ class FamilyRepository @Inject constructor(
             awaitClose { }
             return@callbackFlow
         }
-        val reg = familyRef(familyId).addSnapshotListener { snap, _ ->
+        val reg = familyRef(familyId).addSnapshotListener { snap, e ->
+            if (e != null) { logListenerError("family", e); return@addSnapshotListener }
             trySend(snap?.toObject(FamilyGroup::class.java))
         }
         awaitClose { reg.remove() }
@@ -56,12 +78,13 @@ class FamilyRepository @Inject constructor(
         firestore.runBatch { batch ->
             batch.set(familyRef(familyId), family)
             batch.set(familyRef(familyId).collection("members").document(user.uid), ownerMember)
-            batch.update(
+            batch.set(
                 firestore.collection("users").document(user.uid),
                 mapOf(
                     "activeFamilyId" to familyId,
                     "familyIds" to (user.familyIds + familyId).distinct()
-                )
+                ),
+                SetOptions.merge()
             )
         }.await()
         family
@@ -93,19 +116,20 @@ class FamilyRepository @Inject constructor(
 
         firestore.runBatch { batch ->
             batch.set(familyRef(familyId).collection("members").document(user.uid), pendingMember)
-            batch.update(
+            batch.set(
                 firestore.collection("users").document(user.uid),
                 mapOf(
                     "activeFamilyId" to familyId,
                     "familyIds" to (user.familyIds + familyId).distinct()
-                )
+                ),
+                SetOptions.merge()
             )
         }.await()
         familyId
     }
 
     suspend fun switchActiveFamily(uid: String, familyId: String) {
-        firestore.collection("users").document(uid).update("activeFamilyId", familyId).await()
+        firestore.collection("users").document(uid).set(mapOf("activeFamilyId" to familyId), SetOptions.merge()).await()
     }
 
     fun observeMembers(familyId: String): Flow<List<FamilyMember>> = callbackFlow {
@@ -116,7 +140,8 @@ class FamilyRepository @Inject constructor(
             return@callbackFlow
         }
         val reg = familyRef(familyId).collection("members")
-            .addSnapshotListener { snap, _ ->
+            .addSnapshotListener { snap, e ->
+                if (e != null) { logListenerError("members", e); return@addSnapshotListener }
                 trySend(snap?.toObjects(FamilyMember::class.java).orEmpty())
             }
         awaitClose { reg.remove() }
@@ -131,9 +156,9 @@ class FamilyRepository @Inject constructor(
         }
         val reg = familyRef(familyId).collection("events")
             .whereEqualTo("isDeleted", false)
-            .orderBy("startTimeMillis", Query.Direction.ASCENDING)
-            .addSnapshotListener { snap, _ ->
-                trySend(snap?.toObjects(FamilyEvent::class.java).orEmpty())
+            .addSnapshotListener { snap, e ->
+                if (e != null) { logListenerError("events", e); return@addSnapshotListener }
+                trySend(snap?.toObjects(FamilyEvent::class.java).orEmpty().sortedBy { it.startTimeMillis })
             }
         awaitClose { reg.remove() }
     }
@@ -147,9 +172,9 @@ class FamilyRepository @Inject constructor(
         }
         val reg = familyRef(familyId).collection("expenses")
             .whereEqualTo("isDeleted", false)
-            .orderBy("dateMillis", Query.Direction.DESCENDING)
-            .addSnapshotListener { snap, _ ->
-                trySend(snap?.toObjects(FinanceTransaction::class.java).orEmpty())
+            .addSnapshotListener { snap, e ->
+                if (e != null) { logListenerError("expenses", e); return@addSnapshotListener }
+                trySend(snap?.toObjects(FinanceTransaction::class.java).orEmpty().sortedByDescending { it.dateMillis })
             }
         awaitClose { reg.remove() }
     }
@@ -162,7 +187,8 @@ class FamilyRepository @Inject constructor(
             return@callbackFlow
         }
         val reg = familyRef(familyId).collection("documents")
-            .addSnapshotListener { snap, _ ->
+            .addSnapshotListener { snap, e ->
+                if (e != null) { logListenerError("documents", e); return@addSnapshotListener }
                 val all = snap?.toObjects(FamilyDocument::class.java).orEmpty()
                 val authorized = all.filter { doc ->
                     isAdmin || !doc.isPrivate || doc.ownerUid == currentUid || currentUid in doc.authorizedUids
@@ -181,7 +207,8 @@ class FamilyRepository @Inject constructor(
         }
         val reg = familyRef(familyId).collection("tasks")
             .orderBy("updatedAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snap, _ ->
+            .addSnapshotListener { snap, e ->
+                if (e != null) { logListenerError("tasks", e); return@addSnapshotListener }
                 trySend(snap?.toObjects(HouseholdTask::class.java).orEmpty())
             }
         awaitClose { reg.remove() }
@@ -196,7 +223,8 @@ class FamilyRepository @Inject constructor(
         }
         val reg = familyRef(familyId).collection("trips")
             .orderBy("startDateMillis", Query.Direction.ASCENDING)
-            .addSnapshotListener { snap, _ ->
+            .addSnapshotListener { snap, e ->
+                if (e != null) { logListenerError("trips", e); return@addSnapshotListener }
                 trySend(snap?.toObjects(FamilyTrip::class.java).orEmpty())
             }
         awaitClose { reg.remove() }
