@@ -20,6 +20,7 @@ android {
         val webClientId = project.findProperty("GOOGLE_WEB_CLIENT_ID")?.toString()
             ?: System.getenv("GOOGLE_WEB_CLIENT_ID")
             ?: ""
+
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
     }
 
@@ -59,7 +60,6 @@ dependencies {
     implementation(firebaseBom)
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
-    implementation("com.google.firebase:firebase-storage-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
 
     implementation("androidx.room:room-runtime:2.6.1")
