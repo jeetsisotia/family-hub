@@ -16,6 +16,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
@@ -39,7 +40,7 @@ class AuthRepository @Inject constructor(
     fun observeUserProfile(uid: String): Flow<UserProfile?> = callbackFlow {
         val reg = firestore.collection("users").document(uid)
             .addSnapshotListener { snap, _ ->
-                trySend(snap?.toObject(UserProfile::class.java))
+                trySend(runCatching { snap?.toObject(UserProfile::class.java) }.getOrNull())
             }
         awaitClose { reg.remove() }
     }
@@ -93,15 +94,28 @@ class AuthRepository @Inject constructor(
                 "No Google credential (${e.type}). Usually the APK signing SHA-1 or the Web client ID " +
                 "does not match Firebase, or no Google account is added on this phone."))
         } catch (e: GetCredentialException) {
+            report(e)
             Result.failure(Exception("${e.javaClass.simpleName} (${e.type}): ${e.message}"))
         } catch (e: Exception) {
+            report(e)
             Result.failure(Exception("${e.javaClass.simpleName}: ${e.message}"))
         }
     }
 
+    /** Sends a non-fatal sign-in error to Crashlytics so it can be checked in the Firebase console. */
+    private fun report(e: Exception) {
+        try {
+            FirebaseCrashlytics.getInstance().recordException(e)
+        } catch (_: Exception) {
+        }
+    }
+
     suspend fun signOutAndSwitchAccount(context: Context) {
-        val credentialManager = CredentialManager.create(context)
-        credentialManager.clearCredentialState(ClearCredentialStateRequest())
+        try {
+            CredentialManager.create(context).clearCredentialState(ClearCredentialStateRequest())
+        } catch (e: Exception) {
+            // Some phones have no credential provider to clear; signing out of Firebase is what matters.
+        }
         auth.signOut()
     }
 
