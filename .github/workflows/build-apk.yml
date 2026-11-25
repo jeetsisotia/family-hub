@@ -40,7 +40,7 @@ jobs:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
-          EXPECTED_SHA1="a2c25ea3322f5742434cc07452295b9f9357f325"
+          EXPECTED_SHA1="a07fc102a4b6c6258b7336cf5365ff4bdb82140d"
           EXPECTED_WEB="1070062203046-pfg9qe1rj4nd3u35od3vvqbb3f7cp3lp.apps.googleusercontent.com"
           APK_SHA1=$($ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep "SHA-1" | head -1 | awk '{print $NF}')
           echo "APK signed with SHA-1: $APK_SHA1"
