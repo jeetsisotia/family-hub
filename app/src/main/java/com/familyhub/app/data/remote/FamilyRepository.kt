@@ -1,10 +1,8 @@
 package com.familyhub.app.data.remote
 
-import android.net.Uri
 import com.familyhub.app.data.model.*
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -15,8 +13,7 @@ import javax.inject.Singleton
 
 @Singleton
 class FamilyRepository @Inject constructor(
-    private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage
+    private val firestore: FirebaseFirestore
 ) {
     private fun familyRef(familyId: String) = firestore.collection("families").document(familyId)
 
@@ -162,15 +159,6 @@ class FamilyRepository @Inject constructor(
             }
         awaitClose { reg.remove() }
     }
-
-    suspend fun uploadPrivateFile(familyId: String, folder: String, uri: Uri, fileName: String): String {
-        val storagePath = "families/$familyId/$folder/${UUID.randomUUID()}_$fileName"
-        storage.reference.child(storagePath).putFile(uri).await()
-        return storagePath
-    }
-
-    suspend fun getTemporaryAuthorizedDownloadUri(storagePath: String): Uri =
-        storage.reference.child(storagePath).downloadUrl.await()
 
     suspend fun upsertEvent(familyId: String, event: FamilyEvent) {
         val docRef = if (event.id.isBlank()) familyRef(familyId).collection("events").document()
