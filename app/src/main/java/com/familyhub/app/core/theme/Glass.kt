@@ -45,7 +45,7 @@ import com.familyhub.app.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Soft gray background with slowly drifting sage and olive glows. Only the drawing updates. */
+/** iOS-style system gray background with slowly drifting blue, lavender and mint glows. Only the drawing updates. */
 @Composable
 fun AuroraBackground(modifier: Modifier = Modifier) {
     val dark = LocalGlassDark.current
@@ -60,11 +60,11 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
         animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Reverse),
         label = "aurora2"
     )
-    val base = if (dark) listOf(Color(0xFF181916), Color(0xFF0D0E0C)) else listOf(Color(0xFFF4F4F0), Color(0xFFE2E3DC))
+    val base = if (dark) listOf(Color(0xFF07070A), Color(0xFF000000)) else listOf(Color(0xFFF6F6F9), Color(0xFFE8E8EE))
     val glows = if (dark) {
-        listOf(Color(0x704B5A22), Color(0x553B3E42), Color(0x5A5F6B36))
+        listOf(Color(0x661A3A8A), Color(0x523A1E6B), Color(0x45104A48))
     } else {
-        listOf(Color(0xA6C9D1A8), Color(0x8CD8D5CB), Color(0x80B3BD88))
+        listOf(Color(0x70A8C8FF), Color(0x5CD2C6FF), Color(0x52B5EADF))
     }
     Canvas(modifier = modifier.fillMaxSize()) {
         drawRect(Brush.verticalGradient(base))
@@ -107,8 +107,8 @@ fun Modifier.glass(shape: Shape = RoundedCornerShape(24.dp), strong: Boolean = f
         .shadow(
             elevation = if (dark) 0.dp else 6.dp,
             shape = shape,
-            ambientColor = Color(0x14394020),
-            spotColor = Color(0x26394020)
+            ambientColor = Color(0x141C2B4A),
+            spotColor = Color(0x261C2B4A)
         )
         .clip(shape)
         .background(fill)
@@ -156,7 +156,7 @@ fun GlassCard(
     )
 }
 
-/** Olive tinted glass for the important summaries and the main button. Text inside uses white. */
+/** iOS-blue glass for the important summaries and the main button. Text inside uses white. */
 @Composable
 fun AccentCard(
     modifier: Modifier = Modifier,
@@ -168,9 +168,9 @@ fun AccentCard(
     val interaction = remember { MutableInteractionSource() }
     val scale = pressScale(interaction)
     val fill = if (dark) {
-        Brush.linearGradient(listOf(Color(0xFF5E6B32), Color(0xFF2F3816)))
+        Brush.linearGradient(listOf(Color(0xFF1E7BEF), Color(0xFF0849A8)))
     } else {
-        Brush.linearGradient(listOf(Color(0xFF7A8944), Color(0xFF4A5724)))
+        Brush.linearGradient(listOf(Color(0xFF3B9CFF), Color(0xFF0062E0)))
     }
     val scheme = MaterialTheme.colorScheme.copy(onPrimary = Color.White)
     MaterialTheme(colorScheme = scheme) {
@@ -180,7 +180,7 @@ fun AccentCard(
                     scaleX = scale
                     scaleY = scale
                 }
-                .shadow(12.dp, shape, ambientColor = Color(0x333F4B1C), spotColor = Color(0x553F4B1C))
+                .shadow(12.dp, shape, ambientColor = Color(0x33004AAD), spotColor = Color(0x55004AAD))
                 .clip(shape)
                 .background(fill)
                 .border(1.dp, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.45f), Color.White.copy(alpha = 0.05f))), shape)
@@ -198,7 +198,7 @@ fun AccentCard(
 
 data class GlassTab(val label: String, val icon: ImageVector)
 
-/** Floating frosted tab bar, like the iPhone dock. The selected tab glows olive and pops a little. */
+/** Floating frosted tab bar, like the iPhone dock. The selected tab turns blue and pops a little. */
 @Composable
 fun GlassTabBar(
     tabs: List<GlassTab>,
@@ -276,7 +276,7 @@ fun AppLogo(modifier: Modifier = Modifier, size: Dp = 96.dp) {
     Box(
         modifier = modifier
             .size(size)
-            .shadow(18.dp, shape, ambientColor = Color(0x403F4B1C), spotColor = Color(0x663F4B1C))
+            .shadow(18.dp, shape, ambientColor = Color(0x40004AAD), spotColor = Color(0x66004AAD))
             .clip(shape)
     ) {
         Image(
@@ -360,4 +360,26 @@ fun Modifier.riseIn(index: Int = 0): Modifier = composed {
         alpha = p
         translationY = (1f - p) * 48f
     }
+}
+
+/** iOS system colours used for the rounded app-style icon tiles (like the iPhone Settings app). */
+private val tileColors = listOf(
+    Color(0xFF4FA3FF) to Color(0xFF0A6CFF),
+    Color(0xFF5BD97A) to Color(0xFF28A745),
+    Color(0xFFFFB340) to Color(0xFFFF8A00),
+    Color(0xFFFF6B61) to Color(0xFFE5352B),
+    Color(0xFFC38BFF) to Color(0xFF8E44E8),
+    Color(0xFFFF7AA2) to Color(0xFFE83E78),
+    Color(0xFF5AD8E6) to Color(0xFF1BA8C4),
+    Color(0xFF7B83FF) to Color(0xFF4B4FE0),
+    Color(0xFFFFD54A) to Color(0xFFF2B600),
+    Color(0xFF63E6BE) to Color(0xFF1FBF93),
+    Color(0xFFC89B6D) to Color(0xFF9C6B3E),
+    Color(0xFFA9A9B0) to Color(0xFF7C7C84)
+)
+
+/** A colourful gradient for icon tile number [index]; each tile gets a different colour. */
+fun tileBrush(index: Int): Brush {
+    val (top, bottom) = tileColors[((index % tileColors.size) + tileColors.size) % tileColors.size]
+    return Brush.verticalGradient(listOf(top, bottom))
 }
