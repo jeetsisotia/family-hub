@@ -1,0 +1,217 @@
+package com.familyhub.app.ui.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import com.familyhub.app.core.ai.FamilyAiAssistant
+import com.familyhub.app.data.model.*
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.*
+
+@Composable
+fun HomeDashboardScreen(
+    family: FamilyGroup,
+    currentUser: UserProfile,
+    currentMember: FamilyMember,
+    members: List<FamilyMember>,
+    events: List<FamilyEvent>,
+    transactions: List<FinanceTransaction>,
+    documents: List<FamilyDocument>,
+    tasks: List<HouseholdTask>,
+    trips: List<FamilyTrip>,
+    onQuickNavigate: (String) -> Unit
+) {
+    var familyWideView by remember { mutableStateOf(true) }
+    var aiQuestion by remember { mutableStateOf("") }
+    var aiResponse by remember { mutableStateOf<String?>(null) }
+    val assistant = remember { FamilyAiAssistant() }
+    val inrFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val todayLabel = remember { SimpleDateFormat("EEEE, dd MMM yyyy", Locale.getDefault()).format(Date()) }
+
+    val visibleTx = if (familyWideView) transactions else transactions.filter { it.memberUid == currentUser.uid }
+    val monthlyExpense = visibleTx.filter { it.type == "EXPENSE" }.sumOf { it.amountInr }
+    val upcomingBills = transactions.filter { !it.isPaid && it.type in listOf("BILL", "EMI") }
+    val pendingTasks = tasks.filter { !it.isCompleted }
+    val expiringDocs = documents.filter {
+        val exp = it.expiryDateMillis ?: return@filter false
+        exp - System.currentTimeMillis() in 0..(30L * 24 * 60 * 60 * 1000)
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = family.name.uppercase(),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Welcome, ${currentUser.name.substringBefore(" ")}",
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Text(
+                        text = todayLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    )
+                }
+                AsyncImage(
+                    model = currentUser.photoUrl,
+                    contentDescription = "Profile",
+                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                )
+            }
+        }
+
+        item {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = familyWideView,
+                    onClick = { familyWideView = true },
+                    shape = SegmentedButtonDefaults.itemShape(0, 2)
+                ) { Text("Family View") }
+                SegmentedButton(
+                    selected = !familyWideView,
+                    onClick = { familyWideView = false },
+                    shape = SegmentedButtonDefaults.itemShape(1, 2)
+                ) { Text("My View") }
+            }
+        }
+
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Family AI Assistant", fontWeight = FontWeight.SemiBold)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = aiQuestion,
+                        onValueChange = { aiQuestion = it },
+                        placeholder = { Text("Ask about bills, events, insurance expiry...") },
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                if (aiQuestion.isNotBlank()) {
+                                    aiResponse = assistant.answerQuery(
+                                        aiQuestion, currentMember, events, transactions, documents, tasks, trips
+                                    )
+                                }
+                            }) {
+                                Icon(Icons.Rounded.Send, contentDescription = "Ask")
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (aiResponse != null) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(text = aiResponse!!, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
+
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(members.filter { it.status == "ACTIVE" }) { member ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        AsyncImage(
+                            model = member.photoUrl,
+                            contentDescription = member.name,
+                            modifier = Modifier.size(52.dp).clip(CircleShape)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(member.name.substringBefore(" "), style = MaterialTheme.typography.labelMedium)
+                        Text(member.role.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                onClick = { onQuickNavigate("finance") },
+                shape = RoundedCornerShape(22.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(18.dp)) {
+                    Text(
+                        text = if (familyWideView) "Monthly Family Expenses" else "My Monthly Expenses",
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = inrFormat.format(monthlyExpense),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "${upcomingBills.size} upcoming bills • Budget: ${inrFormat.format(family.monthlyBudget)}",
+                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
+
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    onClick = { onQuickNavigate("household") },
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Icon(Icons.Rounded.TaskAlt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("${pendingTasks.size} Pending", fontWeight = FontWeight.Bold)
+                        Text("Household Tasks", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Card(
+                    onClick = { onQuickNavigate("documents") },
+                    shape = RoundedCornerShape(18.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Icon(Icons.Rounded.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("${expiringDocs.size} Alerts", fontWeight = FontWeight.Bold)
+                        Text("Doc Renewals", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+    }
+}
