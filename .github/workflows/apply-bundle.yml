@@ -1,0 +1,68 @@
+name: Apply code bundle
+
+# Upload a file named fhbundle-<anything>.tgz to the repository root on main.
+# This workflow unpacks it over the repository, commits the result, removes the bundle
+# and starts the APK build. Workflow files cannot be changed this way.
+
+on:
+  push:
+    branches: [main]
+    paths: ['fhbundle*.tgz']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: apply-bundle
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Unpack bundle and commit
+        id: unpack
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          bundles=(fhbundle*.tgz)
+          if [ ${#bundles[@]} -eq 0 ]; then
+            echo "No bundle found"
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          for f in "${bundles[@]}"; do
+            echo "Unpacking $f"
+            if tar -tzf "$f" | grep -E '(^/|(^|/)\.\.(/|$)|^\.git/|^\.github/)'; then
+              echo "Bundle contains a path that is not allowed"
+              exit 1
+            fi
+            tar -xzf "$f" -C .
+            git rm -q -- "$f"
+          done
+          msg="Apply code bundle"
+          if [ -f .fhbundle/message.txt ]; then msg="$(cat .fhbundle/message.txt)"; fi
+          if [ -f .fhbundle/delete.txt ]; then
+            while IFS= read -r p; do
+              if [ -n "$p" ]; then git rm -r -q --ignore-unmatch -- "$p"; fi
+            done < .fhbundle/delete.txt
+          fi
+          rm -rf .fhbundle
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git status --short
+          git commit -q -m "$msg"
+          git push
+          echo "applied=true" >> "$GITHUB_OUTPUT"
+
+      - name: Start the APK build
+        if: steps.unpack.outputs.applied == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run build-apk.yml --ref main --repo "$GITHUB_REPOSITORY"
