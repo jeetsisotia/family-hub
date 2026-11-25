@@ -18,6 +18,12 @@ class FamilyRepository @Inject constructor(
     private fun familyRef(familyId: String) = firestore.collection("families").document(familyId)
 
     fun observeFamily(familyId: String): Flow<FamilyGroup?> = callbackFlow {
+        if (familyId.isBlank()) {
+            // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
+            trySend(null)
+            awaitClose { }
+            return@callbackFlow
+        }
         val reg = familyRef(familyId).addSnapshotListener { snap, _ ->
             trySend(snap?.toObject(FamilyGroup::class.java))
         }
@@ -103,6 +109,12 @@ class FamilyRepository @Inject constructor(
     }
 
     fun observeMembers(familyId: String): Flow<List<FamilyMember>> = callbackFlow {
+        if (familyId.isBlank()) {
+            // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
         val reg = familyRef(familyId).collection("members")
             .addSnapshotListener { snap, _ ->
                 trySend(snap?.toObjects(FamilyMember::class.java).orEmpty())
@@ -111,6 +123,12 @@ class FamilyRepository @Inject constructor(
     }
 
     fun observeEvents(familyId: String): Flow<List<FamilyEvent>> = callbackFlow {
+        if (familyId.isBlank()) {
+            // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
         val reg = familyRef(familyId).collection("events")
             .whereEqualTo("isDeleted", false)
             .orderBy("startTimeMillis", Query.Direction.ASCENDING)
@@ -121,6 +139,12 @@ class FamilyRepository @Inject constructor(
     }
 
     fun observeTransactions(familyId: String): Flow<List<FinanceTransaction>> = callbackFlow {
+        if (familyId.isBlank()) {
+            // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
         val reg = familyRef(familyId).collection("expenses")
             .whereEqualTo("isDeleted", false)
             .orderBy("dateMillis", Query.Direction.DESCENDING)
@@ -131,6 +155,12 @@ class FamilyRepository @Inject constructor(
     }
 
     fun observeDocuments(familyId: String, currentUid: String, isAdmin: Boolean): Flow<List<FamilyDocument>> = callbackFlow {
+        if (familyId.isBlank()) {
+            // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
         val reg = familyRef(familyId).collection("documents")
             .addSnapshotListener { snap, _ ->
                 val all = snap?.toObjects(FamilyDocument::class.java).orEmpty()
@@ -143,6 +173,12 @@ class FamilyRepository @Inject constructor(
     }
 
     fun observeTasks(familyId: String): Flow<List<HouseholdTask>> = callbackFlow {
+        if (familyId.isBlank()) {
+            // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
         val reg = familyRef(familyId).collection("tasks")
             .orderBy("updatedAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, _ ->
@@ -152,6 +188,12 @@ class FamilyRepository @Inject constructor(
     }
 
     fun observeTrips(familyId: String): Flow<List<FamilyTrip>> = callbackFlow {
+        if (familyId.isBlank()) {
+            // New user with no family yet: nothing to listen to (an empty ID makes Firestore throw).
+            trySend(emptyList())
+            awaitClose { }
+            return@callbackFlow
+        }
         val reg = familyRef(familyId).collection("trips")
             .orderBy("startDateMillis", Query.Direction.ASCENDING)
             .addSnapshotListener { snap, _ ->
