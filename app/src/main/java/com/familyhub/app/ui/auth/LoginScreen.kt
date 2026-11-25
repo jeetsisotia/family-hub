@@ -10,6 +10,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -39,6 +41,7 @@ private val features = listOf(
     Feature("Travel", Icons.Rounded.FlightTakeoff)
 )
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LoginScreen(
     isLoading: Boolean,
@@ -67,23 +70,29 @@ fun LoginScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        // The top part scrolls on small phones, so the sign-in button below always stays visible.
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = maxHeight),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
             AnimatedVisibility(
                 visible = started,
                 enter = fadeIn(tween(500)) + scaleIn(tween(650), initialScale = 0.6f)
             ) {
                 AppLogo(
-                    size = 124.dp,
+                    size = 112.dp,
                     modifier = Modifier.graphicsLayer { translationY = bob.value * density }
                 )
             }
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(26.dp))
             AnimatedVisibility(
                 visible = started,
                 enter = fadeIn(tween(500, delayMillis = 150)) +
@@ -104,24 +113,25 @@ fun LoginScreen(
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(26.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             AnimatedVisibility(
                 visible = started,
                 enter = fadeIn(tween(600, delayMillis = 320)) +
                     slideInVertically(tween(600, delayMillis = 320)) { it / 2 }
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                // Pills wrap onto the next line instead of squeezing on narrow screens.
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    features.chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            row.forEach { FeaturePill(it) }
-                        }
-                    }
+                    features.forEach { FeaturePill(it) }
                 }
             }
         }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
 
         AnimatedVisibility(
             visible = started,
@@ -223,6 +233,12 @@ private fun FeaturePill(feature: Feature) {
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
-        Text(feature.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+        Text(
+            text = feature.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
