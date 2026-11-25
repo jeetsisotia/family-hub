@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -35,6 +35,12 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.familyhub.app.core.CrashLog
+import com.familyhub.app.core.security.AppLock
+import com.familyhub.app.ui.AppEnv
+import com.familyhub.app.ui.ExtraRoute
+import com.familyhub.app.ui.ExtraRouteIds
+import com.familyhub.app.ui.LockScreen
+import com.familyhub.app.ui.stringList
 import com.familyhub.app.core.theme.EntryIntro
 import com.familyhub.app.core.theme.FamilyHubTheme
 import com.familyhub.app.core.theme.GlassTab
@@ -58,7 +64,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     @Inject lateinit var authRepository: AuthRepository
     @Inject lateinit var familyRepository: FamilyRepository
@@ -73,6 +79,7 @@ class MainActivity : ComponentActivity() {
                 val scope = rememberCoroutineScope()
                 var lastCrash by remember { mutableStateOf(CrashLog.read(context)) }
                 var showIntro by rememberSaveable { mutableStateOf(true) }
+                var unlocked by rememberSaveable { mutableStateOf(!AppLock.isEnabled(context)) }
                 val firebaseUser by authRepository.authStateFlow.collectAsState(initial = null)
                 var isLoading by remember { mutableStateOf(false) }
                 var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -152,11 +159,14 @@ class MainActivity : ComponentActivity() {
                     val trips by tripsFlow.collectAsState(initial = emptyList())
 
                     // Raw records power the reminders and the Documents summary on the dashboard.
-                    val itemsRaw = remember(activeFamilyId) { recordRepository.observeRecords(activeFamilyId, "items") }
-                    val eventsRaw = remember(activeFamilyId) { recordRepository.observeRecords(activeFamilyId, "events") }
-                    val expensesRaw = remember(activeFamilyId) { recordRepository.observeRecords(activeFamilyId, "expenses") }
-                    val tasksRaw = remember(activeFamilyId) { recordRepository.observeRecords(activeFamilyId, "tasks") }
-                    val tripsRaw = remember(activeFamilyId) { recordRepository.observeRecords(activeFamilyId, "trips") }
+                    // Family records plus my own "Only me" records.
+                    val itemsRaw = remember(activeFamilyId, uid) { recordRepository.observeMerged(activeFamilyId, uid, "items") }
+                    val eventsRaw = remember(activeFamilyId, uid) { recordRepository.observeMerged(activeFamilyId, uid, "events") }
+                    val expensesRaw = remember(activeFamilyId, uid) { recordRepository.observeMerged(activeFamilyId, uid, "expenses") }
+                    val tasksRaw = remember(activeFamilyId, uid) { recordRepository.observeMerged(activeFamilyId, uid, "tasks") }
+                    val tripsRaw = remember(activeFamilyId, uid) { recordRepository.observeMerged(activeFamilyId, uid, "trips") }
+                    val userDocFlow = remember(uid) { recordRepository.observeUserDoc(uid) }
+                    val userDoc by userDocFlow.collectAsState(initial = emptyMap<String, Any?>())
                     val itemRecs by itemsRaw.collectAsState(initial = emptyList<Rec>())
                     val eventRecs by eventsRaw.collectAsState(initial = emptyList<Rec>())
                     val expenseRecs by expensesRaw.collectAsState(initial = emptyList<Rec>())
@@ -166,17 +176,16 @@ class MainActivity : ComponentActivity() {
                     val statusFlow = remember(activeFamilyId, uid) { recordRepository.observeMyStatus(activeFamilyId, uid) }
                     val myStatus by statusFlow.collectAsState(initial = "LOADING")
 
-                    val alerts = remember(itemRecs, eventRecs, expenseRecs, taskRecs, tripRecs) {
-                        buildAlerts(
-                            mapOf(
-                                "items" to itemRecs,
-                                "events" to eventRecs,
-                                "expenses" to expenseRecs,
-                                "tasks" to taskRecs,
-                                "trips" to tripRecs
-                            )
+                    val recordData = remember(itemRecs, eventRecs, expenseRecs, taskRecs, tripRecs) {
+                        mapOf(
+                            "items" to itemRecs,
+                            "events" to eventRecs,
+                            "expenses" to expenseRecs,
+                            "tasks" to taskRecs,
+                            "trips" to tripRecs
                         )
                     }
+                    val alerts = remember(recordData) { buildAlerts(recordData) }
 
                     val lockerDocs = remember(itemRecs) {
                         itemRecs.filter { it.str("type") == "document" }.map {
@@ -298,6 +307,26 @@ class MainActivity : ComponentActivity() {
                                     onBack = { subRoute = null },
                                     onSignOut = signOut
                                 )
+                            } else if (route != null && route in ExtraRouteIds) {
+                                ExtraRoute(
+                                    route = route,
+                                    env = AppEnv(
+                                        uid = uid,
+                                        profile = profile,
+                                        userDoc = userDoc,
+                                        familyId = activeFamilyId,
+                                        family = currentFamily,
+                                        members = members,
+                                        memberNames = memberNames,
+                                        isOwner = isOwner,
+                                        data = recordData,
+                                        repo = recordRepository,
+                                        familyRepository = familyRepository,
+                                        scope = scope,
+                                        onBack = { subRoute = null },
+                                        navigate = navigate
+                                    )
+                                )
                             } else if (moduleDef != null) {
                                 key(moduleDef.route) {
                                     ModuleScreen(
@@ -390,12 +419,28 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     )
-                                    PrimaryTab.MORE -> MoreHubGrid(onNavigate = navigate)
+                                    PrimaryTab.MORE -> MoreHubGrid(
+                                        onNavigate = navigate,
+                                        order = userDoc.stringList("moduleOrder"),
+                                        hidden = userDoc.stringList("hiddenModules").toSet(),
+                                        onEdit = { subRoute = "arrange" }
+                                    )
                                 }
                             }
                             }
                         }
                     }
+                }
+
+                // Fingerprint / screen-lock gate, if the person turned on the app lock.
+                if (firebaseUser != null && !unlocked) {
+                    LockScreen(onUnlock = {
+                        AppLock.authenticate(
+                            context, "Unlock Family Hub", "Confirm it's you",
+                            onSuccess = { unlocked = true },
+                            onFail = { msg -> Toast.makeText(context, msg, Toast.LENGTH_SHORT).show() }
+                        )
+                    })
                 }
 
                 // Opening animation shown once when the app starts.

@@ -16,13 +16,20 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 1
-        versionName = "1.0.0"
+        versionName = "2.0.0"
 
         val webClientId = project.findProperty("GOOGLE_WEB_CLIENT_ID")?.toString()
             ?: System.getenv("GOOGLE_WEB_CLIENT_ID")
             ?: ""
 
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
+
+        // Gemini key for the AI assistant. Stored reversed and base64-encoded so it is not a plain string in the APK.
+        val geminiKey = (project.findProperty("GEMINI_API_KEY")?.toString()
+            ?: System.getenv("GEMINI_API_KEY")
+            ?: "").trim()
+        val geminiEncoded = java.util.Base64.getEncoder().encodeToString(geminiKey.reversed().toByteArray())
+        buildConfigField("String", "GEMINI_KEY_ENC", "\"$geminiEncoded\"")
     }
 
     signingConfigs {
@@ -80,6 +87,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     implementation("com.google.dagger:hilt-android:2.52")
     ksp("com.google.dagger:hilt-compiler:2.52")

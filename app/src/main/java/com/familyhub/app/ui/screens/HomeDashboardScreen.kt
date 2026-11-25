@@ -15,7 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import androidx.compose.foundation.clickable
+import com.familyhub.app.ui.common.PersonAvatar
 import com.familyhub.app.core.ai.FamilyAiAssistant
 import com.familyhub.app.core.theme.AccentCard
 import com.familyhub.app.core.theme.GlassCard
@@ -87,11 +88,21 @@ fun HomeDashboardScreen(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                     )
                 }
-                AsyncImage(
-                    model = currentUser.photoUrl,
-                    contentDescription = "Profile",
-                    modifier = Modifier.size(52.dp).glass(CircleShape, strong = true).padding(3.dp).clip(CircleShape)
-                )
+                // Tap your picture to open your profile.
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .glass(CircleShape, strong = true)
+                        .clickable { onQuickNavigate("profile") }
+                        .padding(3.dp)
+                ) {
+                    PersonAvatar(
+                        name = currentUser.name,
+                        photoData = currentMember.photoData,
+                        photoUrl = currentUser.photoUrl,
+                        size = 46.dp
+                    )
+                }
             }
         }
 
@@ -157,11 +168,14 @@ fun HomeDashboardScreen(
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.riseIn(4)) {
                 items(members.filter { it.status == "ACTIVE" }) { member ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        AsyncImage(
-                            model = member.photoUrl,
-                            contentDescription = member.name,
-                            modifier = Modifier.size(56.dp).glass(CircleShape, strong = true).padding(3.dp).clip(CircleShape)
-                        )
+                        Box(modifier = Modifier.size(56.dp).glass(CircleShape, strong = true).padding(3.dp)) {
+                            PersonAvatar(
+                                name = member.name,
+                                photoData = member.photoData,
+                                photoUrl = member.photoUrl,
+                                size = 50.dp
+                            )
+                        }
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(member.name.substringBefore(" "), style = MaterialTheme.typography.labelMedium)
                         Text(member.role.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)

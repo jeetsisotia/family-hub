@@ -62,6 +62,7 @@ fun nextOccurrence(start: Long, repeat: String, now: Long = System.currentTimeMi
             "QUARTERLY" -> cal.add(Calendar.MONTH, 3)
             "MONTHLY" -> cal.add(Calendar.MONTH, 1)
             "WEEKLY" -> cal.add(Calendar.DAY_OF_YEAR, 7)
+            "DAILY" -> cal.add(Calendar.DAY_OF_YEAR, 1)
             else -> return start
         }
         guard++
@@ -78,7 +79,9 @@ data class FieldDef(
     val label: String,
     val type: FieldType = FieldType.TEXT,
     val options: List<String> = emptyList(),
-    val required: Boolean = false
+    val required: Boolean = false,
+    /** When set, the choices come from the app at run time (for example "cards"). */
+    val dynamic: String? = null
 )
 
 data class DateKey(val key: String, val label: String)
@@ -108,10 +111,14 @@ data class ModuleDef(
     val constants: Map<String, Any> = emptyMap(),
     val autoCreatedAt: Boolean = false,
     val postProcess: ((MutableMap<String, Any?>, String, String) -> Unit)? = null,
-    val kind: String = "generic"
+    val kind: String = "generic",
+    /** New entries start as "Only me" (health and other personal records). */
+    val privateByDefault: Boolean = false
 )
 
-private val financeCategories = listOf(
+val PAYMENT_METHODS = listOf("UPI", "Cash", "Debit card", "Credit card", "Net banking", "Wallet", "Other")
+
+val financeCategories = listOf(
     "Groceries", "Rent", "Utilities", "Education", "Health", "Transport", "Fuel",
     "Dining", "Shopping", "Entertainment", "EMI", "Insurance", "Salary", "Other"
 )
@@ -149,6 +156,8 @@ val FinanceModule = ModuleDef(
         FieldDef("amountInr", "Amount (₹)", FieldType.NUMBER, required = true),
         FieldDef("category", "Category", FieldType.CHOICE, financeCategories),
         FieldDef("dateMillis", "Date or due date", FieldType.DATE, required = true),
+        FieldDef("paymentMethod", "Paid by", FieldType.CHOICE, PAYMENT_METHODS),
+        FieldDef("card", "Card (for card payments)", FieldType.CHOICE, listOf("None"), dynamic = "cards"),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
     amountKey = "amountInr", dateKeys = listOf(DateKey("dateMillis", "Date")),
@@ -269,7 +278,8 @@ val HealthModule = ModuleDef(
         FieldDef("dateMillis", "Date or next due", FieldType.DATE),
         FieldDef("notes", "Details: dose, doctor, blood group, allergies", FieldType.MULTILINE)
     ),
-    dateKeys = listOf(DateKey("dateMillis", "Due")), alertOverdue = false, alertDays = 7
+    dateKeys = listOf(DateKey("dateMillis", "Due")), alertOverdue = false, alertDays = 7,
+    privateByDefault = true
 )
 
 val VehiclesModule = ModuleDef(
@@ -549,16 +559,125 @@ val GoalsModule = ModuleDef(
     constants = mapOf("done" to false)
 )
 
+// ---------- daily life: medicines, reminders, vitals, habits, cards ----------
+
+val MedicinesModule = ModuleDef(
+    route = "medicines", title = "Medicines", icon = Icons.Rounded.Medication,
+    collection = "items", typeValue = "medicine",
+    subtitleKeys = listOf("memberName", "dose", "times", "food"),
+    fields = listOf(
+        FieldDef("title", "Medicine name", required = true),
+        FieldDef("memberName", "For", FieldType.MEMBER),
+        FieldDef("dose", "Dose (for example 1 tablet or 5 ml)"),
+        FieldDef("times", "Times, 24-hour (for example 08:00, 20:00)", required = true),
+        FieldDef("food", "When", FieldType.CHOICE, listOf("After food", "Before food", "With food", "Any time")),
+        FieldDef("startMillis", "Start date", FieldType.DATE),
+        FieldDef("endMillis", "Last day (leave empty if ongoing)", FieldType.DATE),
+        FieldDef("stock", "Tablets or doses left", FieldType.NUMBER),
+        FieldDef("notes", "Notes (doctor, purpose)", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("endMillis", "Course ends")), alertOverdue = false, alertDays = 3,
+    privateByDefault = true, kind = "medicine",
+    emptyText = "Add medicines with their times. Family Hub reminds you at each time and you can mark them as taken."
+)
+
+val RemindersModule = ModuleDef(
+    route = "reminders", title = "Reminders", icon = Icons.Rounded.Alarm,
+    collection = "items", typeValue = "reminder",
+    subtitleKeys = listOf("time", "repeat", "notes"),
+    fields = listOf(
+        FieldDef("title", "Remind me to", required = true),
+        FieldDef("dateMillis", "Date", FieldType.DATE, required = true),
+        FieldDef("time", "Time, 24-hour (for example 18:30)"),
+        FieldDef("repeat", "Repeats", FieldType.CHOICE, listOf("None", "Daily", "Weekly", "Monthly", "Yearly")),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("dateMillis", "Remind")), repeatKey = "repeat",
+    doneKey = "done", doneLabel = "Done", alertDays = 2,
+    constants = mapOf("done" to false), privateByDefault = true,
+    emptyText = "Set a reminder with a date and time and you'll get a notification right on time."
+)
+
+val VITAL_KINDS = listOf(
+    "Weight (kg)", "Blood pressure", "Sugar fasting", "Sugar after food",
+    "Heart rate", "SpO2 (%)", "Temperature", "Other"
+)
+
+val VitalsModule = ModuleDef(
+    route = "vitals", title = "Vitals", icon = Icons.Rounded.MonitorHeart,
+    collection = "items", typeValue = "vital", titleKey = "kind",
+    subtitleKeys = listOf("value", "memberName", "notes"),
+    fields = listOf(
+        FieldDef("kind", "Reading", FieldType.CHOICE, VITAL_KINDS, required = true),
+        FieldDef("value", "Value (for example 72.5 or 120/80)", required = true),
+        FieldDef("dateMillis", "Date", FieldType.DATE, required = true),
+        FieldDef("memberName", "Whose", FieldType.MEMBER),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("dateMillis", "Measured")), newestFirst = true, alerts = false,
+    privateByDefault = true,
+    emptyText = "Log weight, blood pressure, sugar and more to see your trends in Health."
+)
+
+val HabitsModule = ModuleDef(
+    route = "habits", title = "Daily Habits", icon = Icons.Rounded.SelfImprovement,
+    collection = "items", typeValue = "habit",
+    subtitleKeys = listOf("notes"),
+    fields = listOf(
+        FieldDef("title", "Habit (for example Walk 30 minutes)", required = true),
+        FieldDef("notes", "Details", FieldType.MULTILINE)
+    ),
+    alerts = false, privateByDefault = true,
+    emptyText = "Add habits you want to keep, then tick them off each day in Health."
+)
+
+val CardsModule = ModuleDef(
+    route = "card_list", title = "Credit Cards", icon = Icons.Rounded.CreditCard,
+    collection = "items", typeValue = "card",
+    subtitleKeys = listOf("bank", "last4"),
+    fields = listOf(
+        FieldDef("title", "Card name (for example HDFC Millennia)", required = true),
+        FieldDef("bank", "Bank"),
+        FieldDef("last4", "Last 4 digits"),
+        FieldDef("statementDay", "Statement date (day of month, 1 to 31)", FieldType.NUMBER, required = true),
+        FieldDef("dueDay", "Payment due date (day of month)", FieldType.NUMBER, required = true),
+        FieldDef("limitInr", "Credit limit (₹)", FieldType.NUMBER),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    alerts = false, privateByDefault = true, kind = "card",
+    emptyText = "Add your credit cards with statement and due dates to follow each billing cycle."
+)
+
 val AllModules: List<ModuleDef> = listOf(
     CalendarModule, FinanceModule, HouseholdModule, ShoppingModule, TravelModule,
     VaultModule, DocumentsModule, HealthModule, VehiclesModule, PropertyModule,
     SubscriptionsModule, LoansModule, StaffModule, EmergencyModule, NoticesModule,
     SettleModule, MemoriesModule,
     MaintenanceModule, NotesModule, MealsModule, ChoresModule, BirthdaysModule,
-    PetsModule, SchoolModule, GoalsModule
+    PetsModule, SchoolModule, GoalsModule,
+    MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule
 )
 
+/** Modules reached from inside other screens rather than from the More grid. */
+val HiddenFromMore: Set<String> = setOf("card_list", "habits")
+
 val ModuleByRoute: Map<String, ModuleDef> = AllModules.associateBy { it.route }
+
+/** Shortcut chips shown under the Finance summary (route to label). Filled in as screens are added. */
+object FinanceShortcutRegistry {
+    val items: List<Pair<String, String>> = listOf(
+        "insights" to "Insights",
+        "cards" to "Card bills",
+        "import" to "Import SMS / email"
+    )
+
+    fun icon(route: String): ImageVector = when (route) {
+        "insights" -> Icons.Rounded.PieChart
+        "cards" -> Icons.Rounded.CreditCard
+        "import" -> Icons.Rounded.MarkEmailRead
+        else -> Icons.Rounded.ChevronRight
+    }
+}
 
 // ---------- filtering, sorting, alerts ----------
 

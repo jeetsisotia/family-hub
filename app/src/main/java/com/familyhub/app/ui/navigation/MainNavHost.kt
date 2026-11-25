@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.familyhub.app.ui.modules.AllModules
+import com.familyhub.app.ui.modules.HiddenFromMore
 
 enum class PrimaryTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Rounded.Home),
@@ -37,24 +38,61 @@ enum class PrimaryTab(val label: String, val icon: ImageVector) {
 
 data class SecondaryDestination(val route: String, val title: String, val icon: ImageVector)
 
+/** Screens that are not plain record lists (profile, families, health, money insights, AI). */
+val ExtraDestinations: List<SecondaryDestination> = listOf(
+    SecondaryDestination("assistant", "AI Assistant", Icons.Rounded.AutoAwesome),
+    SecondaryDestination("health_hub", "Health & Fitness", Icons.Rounded.FavoriteBorder),
+    SecondaryDestination("periods", "Period Tracker", Icons.Rounded.WaterDrop),
+    SecondaryDestination("insights", "Money Insights", Icons.Rounded.PieChart),
+    SecondaryDestination("cards", "Card Bills", Icons.Rounded.CreditCard),
+    SecondaryDestination("import", "Import Expenses", Icons.Rounded.MarkEmailRead),
+    SecondaryDestination("profile", "My Profile", Icons.Rounded.AccountCircle),
+    SecondaryDestination("families", "My Families", Icons.Rounded.Diversity3)
+)
+
 /** Everything except the Calendar and Finance tabs shows up in the More grid. */
 val MoreDestinations: List<SecondaryDestination> =
-    AllModules
-        .filter { it.route != "calendar" && it.route != "finance" }
-        .map { SecondaryDestination(it.route, it.title, it.icon) } +
+    ExtraDestinations +
+        AllModules
+            .filter { it.route != "calendar" && it.route != "finance" && it.route !in HiddenFromMore }
+            .map { SecondaryDestination(it.route, it.title, it.icon) } +
         listOf(
-            SecondaryDestination("alerts", "Reminders", Icons.Rounded.NotificationsActive),
+            SecondaryDestination("alerts", "Due soon", Icons.Rounded.NotificationsActive),
             SecondaryDestination("settings", "Settings", Icons.Rounded.Settings)
         )
 
+/** The More icons in the person's chosen order; new icons they have not placed yet go at the end. */
+fun arrangedDestinations(order: List<String>): List<SecondaryDestination> {
+    if (order.isEmpty()) return MoreDestinations
+    val pos = order.withIndex().associate { it.value to it.index }
+    return MoreDestinations.withIndex()
+        .sortedBy { (i, d) -> pos[d.route] ?: (order.size + i) }
+        .map { it.value }
+}
+
 @Composable
-fun MoreHubGrid(onNavigate: (String) -> Unit) {
+fun MoreHubGrid(
+    onNavigate: (String) -> Unit,
+    order: List<String> = emptyList(),
+    hidden: Set<String> = emptySet(),
+    onEdit: (() -> Unit)? = null
+) {
+    val shownDestinations = remember(order, hidden) { arrangedDestinations(order).filter { it.route !in hidden } }
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-        Text(
-            text = "More",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.padding(top = 12.dp, start = 4.dp)
-        )
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "More",
+                style = MaterialTheme.typography.headlineLarge,
+                modifier = Modifier.weight(1f).padding(start = 4.dp)
+            )
+            if (onEdit != null) {
+                TextButton(onClick = onEdit) {
+                    Icon(Icons.Rounded.Tune, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Arrange")
+                }
+            }
+        }
         Text(
             text = "Everything your family keeps track of",
             style = MaterialTheme.typography.bodyMedium,
@@ -67,7 +105,7 @@ fun MoreHubGrid(onNavigate: (String) -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            itemsIndexed(MoreDestinations) { index, item ->
+            itemsIndexed(shownDestinations, key = { _, d -> d.route }) { index, item ->
                 // Tiles pop in one after another the first time the grid opens.
                 var shown by remember { mutableStateOf(false) }
                 LaunchedEffect(Unit) {

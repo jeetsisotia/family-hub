@@ -46,7 +46,20 @@ data class FamilyMember(
     val canEditFinance: Boolean = true,
     val canViewPrivateDocs: Boolean = false,
     val canViewHealth: Boolean = true,
-    val joinedAt: Timestamp = Timestamp.now()
+    val joinedAt: Timestamp = Timestamp.now(),
+    // Shared from the person's profile only if they turned sharing on.
+    val photoData: String = "",
+    val phone: String = "",
+    val bloodGroup: String = "",
+    val dobMillis: Long? = null,
+    val emergencyName: String = "",
+    val emergencyPhone: String = "",
+    val heightCm: Double? = null,
+    val weightKg: Double? = null,
+    // Shared activity numbers for family comparison.
+    val stepsToday: Long? = null,
+    val stepsDate: String = "",
+    val stepsWeek: Long? = null
 )
 
 data class FamilyEvent(

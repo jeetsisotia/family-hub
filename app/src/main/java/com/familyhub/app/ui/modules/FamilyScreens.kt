@@ -26,6 +26,7 @@ import com.familyhub.app.data.model.FamilyGroup
 import com.familyhub.app.data.model.FamilyMember
 import com.familyhub.app.data.model.FamilyRole
 import com.familyhub.app.data.model.UserProfile
+import com.familyhub.app.ui.common.PersonAvatar
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -246,7 +247,7 @@ fun FamilyScreen(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Avatar(m.name)
+                    PersonAvatar(name = m.name, photoData = m.photoData, photoUrl = m.photoUrl, size = 44.dp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(m.name + if (m.uid == currentUid) " (you)" else "", fontWeight = FontWeight.SemiBold)
@@ -256,6 +257,29 @@ fun FamilyScreen(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                             maxLines = 1
                         )
+                        // Details the member chose to share from their profile.
+                        val extra = listOfNotNull(
+                            m.bloodGroup.takeIf { it.isNotBlank() }?.let { "Blood $it" },
+                            m.dobMillis?.let { "Born " + SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(it)) },
+                            if (m.emergencyName.isNotBlank()) "Emergency: ${m.emergencyName} ${m.emergencyPhone}" else null
+                        )
+                        if (extra.isNotEmpty()) {
+                            Text(
+                                extra.joinToString(" • "),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 2
+                            )
+                        }
+                    }
+                    if (m.phone.isNotBlank()) {
+                        IconButton(onClick = {
+                            try {
+                                context.startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + m.phone)))
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "Could not open the phone app.", Toast.LENGTH_SHORT).show()
+                            }
+                        }) { Icon(Icons.Rounded.Call, contentDescription = "Call ${m.name}") }
                     }
                     if (isOwner && m.uid != currentUid) {
                         TextButton(onClick = { onRemove(m.uid) }) { Text("Remove") }

@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import com.familyhub.app.core.theme.AccentCard
 import com.familyhub.app.core.theme.GlassCard
 import com.familyhub.app.core.theme.glass
+import com.familyhub.app.data.remote.PRIVATE_FLAG
 import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.data.remote.RecordRepository
 import kotlinx.coroutines.launch
@@ -104,11 +105,14 @@ fun ModuleScreen(
     repo: RecordRepository,
     onBack: (() -> Unit)?,
     onSaveBudget: (Double) -> Unit = {},
-    onExport: (() -> Unit)? = null
+    onExport: (() -> Unit)? = null,
+    onOpen: ((String) -> Unit)? = null,
+    extraOptions: Map<String, List<String>> = emptyMap()
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val flow = remember(familyId, def.collection) { repo.observeRecords(familyId, def.collection) }
+    // Family records plus my own "Only me" records of this kind.
+    val flow = remember(familyId, uid, def.collection) { repo.observeMerged(familyId, uid, def.collection) }
     val all by flow.collectAsState(initial = emptyList<Rec>())
     val records = remember(all) { recordsFor(def, all) }
     val sorted = remember(records) { sortRecords(def, records) }
@@ -138,9 +142,10 @@ fun ModuleScreen(
             if (def.autoCreatedAt) data["createdAtMillis"] = System.currentTimeMillis()
         }
         def.postProcess?.invoke(data, uid, userName)
+        val private = data["visibility"] == VIS_PRIVATE
         scope.launch {
             try {
-                repo.save(familyId, def.collection, existing?.str("id"), data)
+                repo.saveScoped(familyId, uid, def.collection, existing, data, private)
                 error = null
             } catch (e: Exception) {
                 error = "Could not save: ${e.message}"
@@ -152,7 +157,7 @@ fun ModuleScreen(
         val key = def.doneKey ?: return
         scope.launch {
             try {
-                repo.setField(familyId, def.collection, rec.str("id"), key, checked)
+                repo.setFieldScoped(familyId, uid, def.collection, rec, key, checked)
             } catch (e: Exception) {
                 error = "Could not update: ${e.message}"
             }
@@ -163,8 +168,8 @@ fun ModuleScreen(
         scope.launch {
             try {
                 val soft = def.softDeleteKey
-                if (soft != null) repo.setField(familyId, def.collection, rec.str("id"), soft, true)
-                else repo.delete(familyId, def.collection, rec.str("id"))
+                if (soft != null) repo.setFieldScoped(familyId, uid, def.collection, rec, soft, true)
+                else repo.deleteScoped(familyId, uid, def.collection, rec)
             } catch (e: Exception) {
                 error = "Could not delete: ${e.message}"
             }
@@ -212,7 +217,10 @@ fun ModuleScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 item {
-                    ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget)
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget)
+                        if (def.kind == "finance" && onOpen != null) FinanceShortcuts(onOpen)
+                    }
                 }
                 if (records.size > 3) {
                     item {
@@ -279,6 +287,7 @@ fun ModuleScreen(
                     initial = current,
                     memberNames = memberNames,
                     userName = userName,
+                    extraOptions = extraOptions,
                     onDismiss = { showForm = false },
                     onSave = { m ->
                         save(m, current)
@@ -346,13 +355,24 @@ private fun RecordCard(
                 Checkbox(checked = done, onCheckedChange = onToggle)
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = rec.str(def.titleKey).ifBlank { "(untitled)" },
-                    fontWeight = FontWeight.SemiBold,
-                    textDecoration = if (done) TextDecoration.LineThrough else null,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (rec[PRIVATE_FLAG] == true) {
+                        Icon(
+                            Icons.Rounded.Lock,
+                            contentDescription = "Only me",
+                            modifier = Modifier.size(14.dp).padding(end = 2.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Text(
+                        text = rec.str(def.titleKey).ifBlank { "(untitled)" },
+                        fontWeight = FontWeight.SemiBold,
+                        textDecoration = if (done) TextDecoration.LineThrough else null,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 if (sub.isNotBlank()) {
                     Text(
                         text = sub,
@@ -682,11 +702,20 @@ private fun RecordForm(
     initial: Rec?,
     memberNames: List<String>,
     userName: String,
+    extraOptions: Map<String, List<String>>,
     onDismiss: () -> Unit,
     onSave: (Map<String, Any?>) -> Unit
 ) {
     val draft = remember {
-        mutableStateMapOf<String, Any?>().also { it.putAll(initialDraft(def, initial, userName)) }
+        mutableStateMapOf<String, Any?>().also {
+            it.putAll(initialDraft(def, initial, userName))
+            // Where the record lives decides who can see it.
+            it["visibility"] = when {
+                initial != null -> if (initial[PRIVATE_FLAG] == true) VIS_PRIVATE else VIS_FAMILY
+                def.privateByDefault -> VIS_PRIVATE
+                else -> VIS_FAMILY
+            }
+        }
     }
     val nums = remember {
         mutableStateMapOf<String, String>().also { m ->
@@ -708,6 +737,10 @@ private fun RecordForm(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                VisibilityPicker(
+                    value = (draft["visibility"] as? String) ?: VIS_FAMILY,
+                    onChange = { draft["visibility"] = it }
+                )
                 def.fields.forEach { f ->
                     val label = if (f.required) "${f.label} *" else f.label
                     when (f.type) {
@@ -740,12 +773,19 @@ private fun RecordForm(
                             required = f.required,
                             onChange = { draft[f.key] = it }
                         )
-                        FieldType.CHOICE -> ChoiceField(
-                            label = label,
-                            value = (draft[f.key] as? String).orEmpty(),
-                            options = f.options,
-                            onChange = { draft[f.key] = it }
-                        )
+                        FieldType.CHOICE -> {
+                            val cur = (draft[f.key] as? String).orEmpty()
+                            val dyn = f.dynamic
+                            val opts = if (dyn != null) {
+                                (f.options + extraOptions[dyn].orEmpty() + cur).filter { it.isNotBlank() }.distinct()
+                            } else f.options
+                            ChoiceField(
+                                label = label,
+                                value = cur,
+                                options = opts,
+                                onChange = { draft[f.key] = it }
+                            )
+                        }
                         FieldType.MEMBER -> {
                             val current = (draft[f.key] as? String).orEmpty()
                             val opts = (memberNames + current).filter { it.isNotBlank() }.distinct()
@@ -845,6 +885,53 @@ private fun ChoiceField(label: String, value: String, options: List<String>, onC
                     }
                 )
             }
+        }
+    }
+}
+
+// ---------- who can see a record ----------
+
+const val VIS_FAMILY = "Family"
+const val VIS_PRIVATE = "Only me"
+
+@Composable
+private fun VisibilityPicker(value: String, onChange: (String) -> Unit) {
+    Column {
+        Text("Who can see this", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = value == VIS_FAMILY,
+                onClick = { onChange(VIS_FAMILY) },
+                label = { Text("Family") },
+                leadingIcon = { Icon(Icons.Rounded.Groups, contentDescription = null, modifier = Modifier.size(16.dp)) }
+            )
+            FilterChip(
+                selected = value == VIS_PRIVATE,
+                onClick = { onChange(VIS_PRIVATE) },
+                label = { Text("Only me") },
+                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(16.dp)) }
+            )
+        }
+    }
+}
+
+/** Quick links under the Finance summary. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FinanceShortcuts(onOpen: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        FinanceShortcutRegistry.items.forEach { (route, label) ->
+            AssistChip(
+                onClick = { onOpen(route) },
+                label = { Text(label) },
+                leadingIcon = {
+                    Icon(
+                        FinanceShortcutRegistry.icon(route),
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            )
         }
     }
 }
