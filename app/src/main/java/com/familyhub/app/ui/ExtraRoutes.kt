@@ -7,6 +7,12 @@ import com.familyhub.app.data.model.UserProfile
 import com.familyhub.app.data.remote.FamilyRepository
 import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.data.remote.RecordRepository
+import com.familyhub.app.ui.ai.AssistantScreen
+import com.familyhub.app.ui.health.HealthScreen
+import com.familyhub.app.ui.health.PeriodScreen
+import com.familyhub.app.ui.money.CardsScreen
+import com.familyhub.app.ui.money.ImportScreen
+import com.familyhub.app.ui.money.InsightsScreen
 import com.familyhub.app.ui.profile.ArrangeScreen
 import com.familyhub.app.ui.profile.FamiliesScreen
 import com.familyhub.app.ui.profile.ProfileScreen
@@ -37,7 +43,9 @@ data class AppEnv(
 fun Rec.stringList(key: String): List<String> = (this[key] as? List<*>)?.mapNotNull { it as? String }.orEmpty()
 
 /** Routes handled here instead of by the generic record screen. */
-val ExtraRouteIds: Set<String> = setOf("profile", "families", "arrange")
+val ExtraRouteIds: Set<String> = setOf(
+    "profile", "families", "arrange", "assistant", "health_hub", "periods", "insights", "cards", "import"
+)
 
 @Composable
 fun ExtraRoute(route: String, env: AppEnv) {
@@ -76,5 +84,11 @@ fun ExtraRoute(route: String, env: AppEnv) {
             },
             onBack = env.onBack
         )
+        "assistant" -> AssistantScreen(env)
+        "health_hub" -> HealthScreen(env)
+        "periods" -> PeriodScreen(env)
+        "insights" -> InsightsScreen(env)
+        "cards" -> CardsScreen(env)
+        "import" -> ImportScreen(env)
     }
 }

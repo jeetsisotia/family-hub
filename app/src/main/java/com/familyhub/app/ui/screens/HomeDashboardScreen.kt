@@ -42,7 +42,9 @@ fun HomeDashboardScreen(
     documents: List<FamilyDocument>,
     tasks: List<HouseholdTask>,
     trips: List<FamilyTrip>,
-    onQuickNavigate: (String) -> Unit
+    onQuickNavigate: (String) -> Unit,
+    /** The Gemini daily brief; when present it replaces the simple offline assistant card. */
+    aiCard: (@Composable () -> Unit)? = null
 ) {
     var familyWideView by remember { mutableStateOf(true) }
     var aiQuestion by remember { mutableStateOf("") }
@@ -121,7 +123,9 @@ fun HomeDashboardScreen(
             }
         }
 
-        item {
+        if (aiCard != null) {
+            item { Box(modifier = Modifier.riseIn(3)) { aiCard() } }
+        } else item {
             GlassCard(
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.riseIn(3)

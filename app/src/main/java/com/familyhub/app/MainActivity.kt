@@ -57,6 +57,12 @@ import com.familyhub.app.ui.navigation.PrimaryTab
 import com.familyhub.app.ui.screens.FinanceReportExporter
 import com.familyhub.app.ui.screens.HomeDashboardScreen
 import com.familyhub.app.work.ReminderWorker
+import com.familyhub.app.work.AlarmScheduler
+import com.familyhub.app.health.StepService
+import com.familyhub.app.health.StepTracker
+import com.familyhub.app.core.ai.GeminiClient
+import com.familyhub.app.ui.ai.AiBriefCard
+import com.familyhub.app.data.model.FamilyGroup
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -66,6 +72,18 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
 
+    companion object {
+        /** Screen to open, set by notifications (for example "health_hub" or "import"). */
+        const val EXTRA_ROUTE = "open_route"
+        val pendingRoute = androidx.compose.runtime.mutableStateOf<String?>(null)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        intent.getStringExtra(EXTRA_ROUTE)?.let { pendingRoute.value = it }
+    }
+
     @Inject lateinit var authRepository: AuthRepository
     @Inject lateinit var familyRepository: FamilyRepository
     @Inject lateinit var recordRepository: RecordRepository
@@ -73,6 +91,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) intent?.getStringExtra(EXTRA_ROUTE)?.let { pendingRoute.value = it }
         setContent {
             FamilyHubTheme {
                 val context = LocalContext.current
@@ -185,7 +204,19 @@ class MainActivity : FragmentActivity() {
                             "trips" to tripRecs
                         )
                     }
-                    val alerts = remember(recordData) { buildAlerts(recordData) }
+                    val alerts = remember(recordData) { allAlerts(recordData) }
+
+                    // Exact-time alarms for medicines and reminders follow the records.
+                    LaunchedEffect(itemRecs, activeFamilyId) {
+                        AlarmScheduler.scheduleAll(context, itemRecs, activeFamilyId, uid)
+                    }
+                    LaunchedEffect(uid, profile.familyIds, activeFamilyId) {
+                        StepTracker.setFamilies(context, profile.familyIds + activeFamilyId)
+                        if (StepTracker.isEnabled(context)) StepService.start(context)
+                    }
+                    val cardTitles = remember(itemRecs) {
+                        listOf("None") + itemRecs.filter { it.str("type") == "card" }.map { it.str("title") }.filter { it.isNotBlank() }
+                    }
 
                     val lockerDocs = remember(itemRecs) {
                         itemRecs.filter { it.str("type") == "document" }.map {
@@ -248,6 +279,33 @@ class MainActivity : FragmentActivity() {
 
                     BackHandler(enabled = subRoute != null) { subRoute = null }
 
+                    // Open the screen a notification asked for.
+                    val pending by pendingRoute
+                    LaunchedEffect(pending) {
+                        val r = pending
+                        if (r != null) {
+                            pendingRoute.value = null
+                            navigate(r)
+                        }
+                    }
+
+                    fun envFor(fam: FamilyGroup) = AppEnv(
+                        uid = uid,
+                        profile = profile,
+                        userDoc = userDoc,
+                        familyId = activeFamilyId,
+                        family = fam,
+                        members = members,
+                        memberNames = memberNames,
+                        isOwner = isOwner,
+                        data = recordData,
+                        repo = recordRepository,
+                        familyRepository = familyRepository,
+                        scope = scope,
+                        onBack = { subRoute = null },
+                        navigate = navigate
+                    )
+
                     Scaffold(
                         containerColor = Color.Transparent,
                         bottomBar = {
@@ -308,25 +366,7 @@ class MainActivity : FragmentActivity() {
                                     onSignOut = signOut
                                 )
                             } else if (route != null && route in ExtraRouteIds) {
-                                ExtraRoute(
-                                    route = route,
-                                    env = AppEnv(
-                                        uid = uid,
-                                        profile = profile,
-                                        userDoc = userDoc,
-                                        familyId = activeFamilyId,
-                                        family = currentFamily,
-                                        members = members,
-                                        memberNames = memberNames,
-                                        isOwner = isOwner,
-                                        data = recordData,
-                                        repo = recordRepository,
-                                        familyRepository = familyRepository,
-                                        scope = scope,
-                                        onBack = { subRoute = null },
-                                        navigate = navigate
-                                    )
-                                )
+                                ExtraRoute(route = route, env = envFor(currentFamily))
                             } else if (moduleDef != null) {
                                 key(moduleDef.route) {
                                     ModuleScreen(
@@ -339,7 +379,9 @@ class MainActivity : FragmentActivity() {
                                         isOwner = isOwner,
                                         repo = recordRepository,
                                         onBack = { subRoute = null },
-                                        onSaveBudget = saveBudget
+                                        onSaveBudget = saveBudget,
+                                        onOpen = navigate,
+                                        extraOptions = mapOf("cards" to cardTitles)
                                     )
                                 }
                             } else {
@@ -361,7 +403,12 @@ class MainActivity : FragmentActivity() {
                                                 documents = lockerDocs,
                                                 tasks = tasks,
                                                 trips = trips,
-                                                onQuickNavigate = navigate
+                                                onQuickNavigate = navigate,
+                                                aiCard = if (GeminiClient.isConfigured()) {
+                                                    { AiBriefCard(envFor(currentFamily)) }
+                                                } else {
+                                                    null
+                                                }
                                             )
                                         }
                                     }
@@ -411,6 +458,8 @@ class MainActivity : FragmentActivity() {
                                         repo = recordRepository,
                                         onBack = null,
                                         onSaveBudget = saveBudget,
+                                        onOpen = navigate,
+                                        extraOptions = mapOf("cards" to cardTitles),
                                         onExport = {
                                             try {
                                                 FinanceReportExporter.exportToCsvAndShare(context, currentFamily.name, transactions)
