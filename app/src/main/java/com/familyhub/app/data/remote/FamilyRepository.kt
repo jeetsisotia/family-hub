@@ -6,6 +6,7 @@ import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.QuerySnapshot
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -13,6 +14,20 @@ import kotlinx.coroutines.tasks.await
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Converts each document on its own and skips any that do not fit the model, so one bad
+ * entry can never crash the app (a type mismatch inside a listener would otherwise do that).
+ */
+private fun <T> QuerySnapshot?.safeList(cls: Class<T>): List<T> =
+    this?.documents.orEmpty().mapNotNull { d ->
+        try {
+            d.toObject(cls)
+        } catch (e: Exception) {
+            Log.w("FamilyRepository", "Skipping ${d.reference.path}: ${e.message}")
+            null
+        }
+    }
 
 @Singleton
 class FamilyRepository @Inject constructor(
@@ -47,7 +62,7 @@ class FamilyRepository @Inject constructor(
         }
         val reg = familyRef(familyId).addSnapshotListener { snap, e ->
             if (e != null) { logListenerError("family", e); return@addSnapshotListener }
-            trySend(snap?.toObject(FamilyGroup::class.java))
+            trySend(runCatching { snap?.toObject(FamilyGroup::class.java) }.getOrNull())
         }
         awaitClose { reg.remove() }
     }
@@ -142,7 +157,7 @@ class FamilyRepository @Inject constructor(
         val reg = familyRef(familyId).collection("members")
             .addSnapshotListener { snap, e ->
                 if (e != null) { logListenerError("members", e); return@addSnapshotListener }
-                trySend(snap?.toObjects(FamilyMember::class.java).orEmpty())
+                trySend(snap.safeList(FamilyMember::class.java))
             }
         awaitClose { reg.remove() }
     }
@@ -158,7 +173,7 @@ class FamilyRepository @Inject constructor(
             .whereEqualTo("isDeleted", false)
             .addSnapshotListener { snap, e ->
                 if (e != null) { logListenerError("events", e); return@addSnapshotListener }
-                trySend(snap?.toObjects(FamilyEvent::class.java).orEmpty().sortedBy { it.startTimeMillis })
+                trySend(snap.safeList(FamilyEvent::class.java).sortedBy { it.startTimeMillis })
             }
         awaitClose { reg.remove() }
     }
@@ -174,7 +189,7 @@ class FamilyRepository @Inject constructor(
             .whereEqualTo("isDeleted", false)
             .addSnapshotListener { snap, e ->
                 if (e != null) { logListenerError("expenses", e); return@addSnapshotListener }
-                trySend(snap?.toObjects(FinanceTransaction::class.java).orEmpty().sortedByDescending { it.dateMillis })
+                trySend(snap.safeList(FinanceTransaction::class.java).sortedByDescending { it.dateMillis })
             }
         awaitClose { reg.remove() }
     }
@@ -189,7 +204,7 @@ class FamilyRepository @Inject constructor(
         val reg = familyRef(familyId).collection("documents")
             .addSnapshotListener { snap, e ->
                 if (e != null) { logListenerError("documents", e); return@addSnapshotListener }
-                val all = snap?.toObjects(FamilyDocument::class.java).orEmpty()
+                val all = snap.safeList(FamilyDocument::class.java)
                 val authorized = all.filter { doc ->
                     isAdmin || !doc.isPrivate || doc.ownerUid == currentUid || currentUid in doc.authorizedUids
                 }
@@ -209,7 +224,7 @@ class FamilyRepository @Inject constructor(
             .orderBy("updatedAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, e ->
                 if (e != null) { logListenerError("tasks", e); return@addSnapshotListener }
-                trySend(snap?.toObjects(HouseholdTask::class.java).orEmpty())
+                trySend(snap.safeList(HouseholdTask::class.java))
             }
         awaitClose { reg.remove() }
     }
@@ -225,7 +240,7 @@ class FamilyRepository @Inject constructor(
             .orderBy("startDateMillis", Query.Direction.ASCENDING)
             .addSnapshotListener { snap, e ->
                 if (e != null) { logListenerError("trips", e); return@addSnapshotListener }
-                trySend(snap?.toObjects(FamilyTrip::class.java).orEmpty())
+                trySend(snap.safeList(FamilyTrip::class.java))
             }
         awaitClose { reg.remove() }
     }
