@@ -1,6 +1,7 @@
 package com.familyhub.app.data.model
 
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.PropertyName
 
 enum class FamilyRole { OWNER, ADULT, CHILD, CUSTOM }
 
@@ -59,7 +60,7 @@ data class FamilyEvent(
     val reminderMinutesBefore: Int = 30,
     val participantUids: List<String> = emptyList(),
     val createdByUid: String = "",
-    val isDeleted: Boolean = false,
+    @get:PropertyName("isDeleted") val isDeleted: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis()
 )
 
@@ -74,9 +75,9 @@ data class FinanceTransaction(
     val memberName: String = "",
     val dateMillis: Long = System.currentTimeMillis(),
     val dueDateMillis: Long? = null,
-    val isPaid: Boolean = true,
+    @get:PropertyName("isPaid") val isPaid: Boolean = true,
     val notes: String = "",
-    val isDeleted: Boolean = false
+    @get:PropertyName("isDeleted") val isDeleted: Boolean = false
 )
 
 data class HomeVaultItem(
@@ -109,7 +110,7 @@ data class FamilyDocument(
     val expiryDateMillis: Long? = null,
     val storagePath: String = "",
     val mimeType: String = "application/pdf",
-    val isPrivate: Boolean = true,
+    @get:PropertyName("isPrivate") val isPrivate: Boolean = true,
     val authorizedUids: List<String> = emptyList(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -139,7 +140,7 @@ data class HouseholdTask(
     val subtitle: String = "",
     val assignedToName: String = "",
     val dueDateMillis: Long? = null,
-    val isCompleted: Boolean = false,
+    @get:PropertyName("isCompleted") val isCompleted: Boolean = false,
     val updatedAt: Long = System.currentTimeMillis()
 )
 
