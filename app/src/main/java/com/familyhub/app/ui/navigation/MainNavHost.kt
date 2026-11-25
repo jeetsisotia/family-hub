@@ -13,7 +13,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.familyhub.app.ui.modules.AllModules
 
 enum class PrimaryTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Rounded.Home),
@@ -25,17 +27,15 @@ enum class PrimaryTab(val label: String, val icon: ImageVector) {
 
 data class SecondaryDestination(val route: String, val title: String, val icon: ImageVector)
 
-val MoreDestinations = listOf(
-    SecondaryDestination("home_vault", "Home Vault", Icons.Rounded.Inventory2),
-    SecondaryDestination("documents", "Documents", Icons.Rounded.FolderShared),
-    SecondaryDestination("health", "Health", Icons.Rounded.MedicalServices),
-    SecondaryDestination("shopping", "Shopping", Icons.Rounded.ShoppingCart),
-    SecondaryDestination("household", "Household", Icons.Rounded.HomeWork),
-    SecondaryDestination("travel", "Travel", Icons.Rounded.FlightTakeoff),
-    SecondaryDestination("memories", "Memories", Icons.Rounded.PhotoLibrary),
-    SecondaryDestination("notifications", "Notifications", Icons.Rounded.NotificationsActive),
-    SecondaryDestination("settings", "Settings", Icons.Rounded.Settings)
-)
+/** Everything except the Calendar and Finance tabs shows up in the More grid. */
+val MoreDestinations: List<SecondaryDestination> =
+    AllModules
+        .filter { it.route != "calendar" && it.route != "finance" }
+        .map { SecondaryDestination(it.route, it.title, it.icon) } +
+        listOf(
+            SecondaryDestination("alerts", "Reminders", Icons.Rounded.NotificationsActive),
+            SecondaryDestination("settings", "Settings", Icons.Rounded.Settings)
+        )
 
 @Composable
 fun MoreHubGrid(onNavigate: (String) -> Unit) {
@@ -48,7 +48,8 @@ fun MoreHubGrid(onNavigate: (String) -> Unit) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             items(MoreDestinations) { item ->
                 Card(
@@ -57,7 +58,7 @@ fun MoreHubGrid(onNavigate: (String) -> Unit) {
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp, horizontal = 8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 18.dp, horizontal = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -70,7 +71,8 @@ fun MoreHubGrid(onNavigate: (String) -> Unit) {
                         Text(
                             text = item.title,
                             style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1
+                            maxLines = 2,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
