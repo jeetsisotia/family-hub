@@ -429,13 +429,16 @@ fun HealthScreen(env: AppEnv) {
                         }
                         if (weightSeries.size >= 2) {
                             Text("Weight trend", style = MaterialTheme.typography.labelLarge)
-                            BarChart(
-                                labels = weightSeries.map { shortDate(it.first.lng("dateMillis") ?: 0L).take(6) },
+                            com.familyhub.app.ui.money.LineChart(
                                 values = weightSeries.map { it.second },
-                                selected = weightSeries.size - 1,
-                                height = 120.dp,
-                                color = Color(0xFFAF52DE),
-                                goal = null
+                                labels = weightSeries.map { shortDate(it.first.lng("dateMillis") ?: 0L) }
+                            )
+                            val change = weightSeries.last().second - weightSeries.first().second
+                            Text(
+                                (if (change <= 0) "▼ %.1f kg" else "▲ %.1f kg").format(kotlin.math.abs(change)) + " since " +
+                                    shortDate(weightSeries.first().first.lng("dateMillis") ?: 0L),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                             )
                         }
                     }

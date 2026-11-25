@@ -70,7 +70,7 @@ private fun addIgnored(ctx: Context, keys: Collection<String>) {
  * Nothing is added until you tap Add. Already-added transactions are recognised and skipped.
  */
 @Composable
-fun ImportScreen(env: AppEnv) {
+fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val expenses = env.data["expenses"].orEmpty()
@@ -115,6 +115,16 @@ fun ImportScreen(env: AppEnv) {
             val list = withContext(Dispatchers.IO) { SmsReader.read(context, System.currentTimeMillis() - days * DAY_MS) }
             accept(list, "SMS")
             busy = false
+        }
+    }
+
+    // Sample messages for the automatic emulator test (the emulator has no bank SMS).
+    LaunchedEffect(demoTexts) {
+        if (demoTexts != null) {
+            val now = System.currentTimeMillis()
+            accept(demoTexts.mapIndexedNotNull { i, t ->
+                com.familyhub.app.money.TxnParser.parse(t, "VM-BANKAL", now - i * 3_600_000L, "SMS")
+            }, "SMS")
         }
     }
 

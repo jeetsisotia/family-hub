@@ -246,3 +246,54 @@ fun ProgressRing(
         content()
     }
 }
+
+/** A small line chart scaled between the lowest and highest value, for trends such as weight. */
+@Composable
+fun LineChart(
+    values: List<Double>,
+    labels: List<String>,
+    modifier: Modifier = Modifier,
+    color: Color = Color(0xFFAF52DE),
+    height: Dp = 110.dp,
+    valueText: (Double) -> String = { "%.1f".format(it) }
+) {
+    if (values.isEmpty()) return
+    val min = values.minOrNull() ?: 0.0
+    val max = values.maxOrNull() ?: 0.0
+    val span = (max - min).takeIf { it > 0.0 } ?: 1.0
+    val progress = remember(values) { Animatable(0f) }
+    LaunchedEffect(values) { progress.animateTo(1f, tween(700)) }
+    Column(modifier = modifier.fillMaxWidth()) {
+        Canvas(modifier = Modifier.fillMaxWidth().height(height)) {
+            val padX = this.size.width / (values.size * 2f)
+            val padY = 12.dp.toPx()
+            val w = this.size.width - 2 * padX
+            val h = this.size.height - 2 * padY
+            val pts = values.mapIndexed { i, v ->
+                val x = padX + if (values.size == 1) w / 2 else w * i / (values.size - 1)
+                val y = padY + h * (1f - ((v - min) / span).toFloat())
+                Offset(x, y)
+            }
+            val shown = (pts.size * progress.value).toInt().coerceIn(1, pts.size)
+            val path = androidx.compose.ui.graphics.Path().apply {
+                pts.take(shown).forEachIndexed { i, p -> if (i == 0) moveTo(p.x, p.y) else lineTo(p.x, p.y) }
+            }
+            drawPath(path, color, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+            pts.take(shown).forEach { p ->
+                drawCircle(color, 5.dp.toPx(), p)
+                drawCircle(Color.White, 2.5.dp.toPx(), p)
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            values.forEachIndexed { i, v ->
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(valueText(v), fontSize = 10.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                    Text(
+                        labels.getOrElse(i) { "" }, fontSize = 9.sp, maxLines = 1,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+            }
+        }
+    }
+}

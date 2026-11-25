@@ -178,12 +178,7 @@ fun PeriodScreen(env: AppEnv) {
                             IconButton(onClick = { if (monthOffset < 6) monthOffset += 1 }) { Icon(Icons.Rounded.ChevronRight, "Next month") }
                         }
                         MonthGrid(month, today) { day -> PeriodMath.dayKind(day, periods, p) }
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(top = 8.dp)) {
-                            Legend(PeriodRed, "Period")
-                            Legend(PeriodRed.copy(alpha = 0.35f), "Expected")
-                            Legend(FertileTeal, "Fertile")
-                            Legend(OvulationPurple, "Ovulation")
-                        }
+                        LegendRow()
                     }
                 }
             }
@@ -192,10 +187,8 @@ fun PeriodScreen(env: AppEnv) {
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            DatePickField("Started", pastStart, { pastStart = it }, modifier = Modifier.weight(1f))
-                            DatePickField("Ended", pastEnd, { pastEnd = it }, modifier = Modifier.weight(1f))
-                        }
+                        DatePickField("Started on", pastStart, { pastStart = it })
+                        DatePickField("Ended on (optional)", pastEnd, { pastEnd = it })
                         FilledTonalButton(
                             enabled = pastStart != null,
                             onClick = {
@@ -288,6 +281,21 @@ private fun Legend(color: Color, label: String) {
         Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(color))
         Spacer(modifier = Modifier.width(4.dp))
         Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LegendRow() {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(top = 8.dp)
+    ) {
+        Legend(PeriodRed, "Period")
+        Legend(PeriodRed.copy(alpha = 0.35f), "Expected")
+        Legend(FertileTeal, "Fertile")
+        Legend(OvulationPurple, "Ovulation")
     }
 }
 

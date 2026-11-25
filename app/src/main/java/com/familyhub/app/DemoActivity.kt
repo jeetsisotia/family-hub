@@ -69,6 +69,7 @@ class DemoActivity : FragmentActivity() {
                         val def = ModuleByRoute[route]
                         when {
                             route == "assistant" -> AssistantScreen(env, autoAsk = ask)
+                            route == "import" -> com.familyhub.app.ui.money.ImportScreen(env, demoTexts = DemoData.SAMPLE_SMS)
                             route == "home" -> com.familyhub.app.ui.screens.HomeDashboardScreen(
                                 family = env.family,
                                 currentUser = env.profile,
@@ -105,6 +106,18 @@ class DemoActivity : FragmentActivity() {
 }
 
 object DemoData {
+    /** Typical Indian bank alerts, plus an OTP and an offer that must be ignored. */
+    val SAMPLE_SMS = listOf(
+        "Rs.450.00 debited from A/c XX1234 on 24-11-26 to VPA swiggy@icici (UPI Ref No 432112345678). Not you? Call 18002586161 - HDFC Bank",
+        "INR 2,199.00 spent on ICICI Bank Card XX4321 on 23-Nov-26 at AMAZON PAY IN. Avl Lmt: INR 97,801.00. If not you, call 1800 2662",
+        "Dear Customer, Rs 25,000.00 credited to your A/c XXXXXX5678 on 25-11-2026 by NEFT from ACME PVT LTD. Avl Bal Rs 1,02,345.67 -SBI",
+        "Your OTP for transaction of Rs 999 is 123456. Do not share it with anyone.",
+        "Payment of Rs 3,804.00 received towards your HDFC Bank Credit Card XX4321. Thank you.",
+        "Sent Rs.120.00 from Kotak Bank AC X9876 to zepto@ybl on 25-11-26. UPI Ref 532198765432. Not you, call 18602662666",
+        "Rs.1,840.00 paid towards BESCOM electricity bill via BBPS from A/c **1234 on 22/11/2026.",
+        "Get 10% cashback up to Rs 500 on your next recharge! Offer valid till 30 Nov."
+    )
+
     const val UID = "demo-user"
     const val FAMILY = "demo-family"
 

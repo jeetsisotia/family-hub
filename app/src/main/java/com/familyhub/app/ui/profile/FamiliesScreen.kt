@@ -104,21 +104,24 @@ fun FamiliesScreen(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(f.name, fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    when {
-                                        f.ownerUid == uid -> "You are the owner"
-                                        active -> "Current family"
-                                        else -> "Tap to switch"
-                                    },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                )
-                            }
-                            if (active) {
-                                AssistChip(onClick = {}, label = { Text("Active") }, leadingIcon = {
-                                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
-                                })
+                                Text(f.name, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (active) {
+                                        Icon(
+                                            Icons.Rounded.CheckCircle, contentDescription = null,
+                                            tint = Color(0xFF34C759), modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Text(
+                                        listOfNotNull(
+                                            if (active) "Active now" else "Tap to switch",
+                                            if (f.ownerUid == uid) "you are the owner" else null
+                                        ).joinToString(" • "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
+                                }
                             }
                             if (f.ownerUid != uid) {
                                 IconButton(onClick = { leaving = f }) {

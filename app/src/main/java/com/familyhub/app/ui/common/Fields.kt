@@ -42,11 +42,23 @@ fun ScreenTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowS
         } else {
             Spacer(modifier = Modifier.width(12.dp))
         }
+        // Long titles step down in size so they fit next to the buttons instead of being cut off.
+        val styles = listOf(
+            MaterialTheme.typography.headlineLarge,
+            MaterialTheme.typography.headlineMedium,
+            MaterialTheme.typography.headlineSmall,
+            MaterialTheme.typography.titleLarge
+        )
+        var level by remember(title) { mutableStateOf(0) }
         Text(
             text = title,
-            style = MaterialTheme.typography.headlineLarge,
+            style = styles[level],
             modifier = Modifier.weight(1f),
-            maxLines = 1
+            maxLines = 1,
+            softWrap = false,
+            overflow = if (level == styles.size - 1) androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            else androidx.compose.ui.text.style.TextOverflow.Clip,
+            onTextLayout = { r -> if ((r.didOverflowWidth || r.hasVisualOverflow) && level < styles.size - 1) level++ }
         )
         actions()
     }

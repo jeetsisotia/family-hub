@@ -191,8 +191,8 @@ fun ProfileScreen(
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextInput("Name", text["displayName"].orEmpty(), { text["displayName"] = it })
                         DatePickField("Date of birth", dates["dobMillis"], { dates["dobMillis"] = it })
-                        DatePickField("Wedding anniversary (optional)", dates["anniversaryMillis"], { dates["anniversaryMillis"] = it })
-                        TextInput("Occupation (optional)", text["occupation"].orEmpty(), { text["occupation"] = it })
+                        DatePickField("Anniversary", dates["anniversaryMillis"], { dates["anniversaryMillis"] = it })
+                        TextInput("Occupation", text["occupation"].orEmpty(), { text["occupation"] = it })
                         Text("Gender", style = MaterialTheme.typography.labelLarge)
                         ChoiceChips(listOf("Female", "Male", "Other"), text["gender"].orEmpty(), { text["gender"] = it })
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
