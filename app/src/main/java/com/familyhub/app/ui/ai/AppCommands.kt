@@ -49,7 +49,8 @@ object AppCommands {
             DUP.containsMatchIn(s) -> duplicates(env, page)
             NOT_EXPENSE.containsMatchIn(s) -> notExpense(text, env)
             TASKS.containsMatchIn(s) && !ADDING.containsMatchIn(s) -> tasks(s, env)
-            else -> null
+            // Spend, savings, EMIs, card bills, balances and dues, worked out on the phone.
+            else -> MoneyAnswers.answer(text, env)
         }
     }
 
@@ -320,13 +321,14 @@ object AppCommands {
     /** Suggestions for the page the assistant was opened from. */
     fun suggestionsFor(page: String?): List<String> = when (page?.lowercase(Locale.ROOT)) {
         "finance", "money", "expenses", "money insights", "insights" -> listOf(
-            "Find duplicate transactions", "Merge refunds", "Mark self transfers as not an expense", "How much did we spend this month?"
+            "How much did we spend this month?", "What's my top category?", "Which EMIs are pending?", "When is my next card bill due?",
+            "Find duplicate transactions", "Merge refunds"
         )
         "my profile", "profile" -> listOf("Add emergency contact Papa 98765 43210")
         "household", "tasks" -> listOf("Help with my open tasks", "Act on tasks added by the owner", "Find duplicate tasks")
         "shopping" -> listOf("Find duplicate items", "Add milk, eggs and bread to shopping")
         "calendar" -> listOf("Find duplicate events", "What's due this week?")
-        "subscriptions", "cards", "loans" -> listOf("What's due this week?", "Find duplicate transactions")
+        "subscriptions", "cards", "loans", "credit cards", "loans & emi", "due calendar" -> listOf("What's due this week?", "Which EMIs are pending?", "When is my next card bill due?")
         null -> emptyList()
         else -> listOf("Find duplicates on this page", "Help with my open tasks")
     }

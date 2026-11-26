@@ -64,8 +64,9 @@ fun DonutChart(
     modifier: Modifier = Modifier,
     size: Dp = 180.dp
 ) {
-    val progress = remember(slices) { Animatable(0f) }
-    LaunchedEffect(slices) { progress.animateTo(1f, tween(700)) }
+    val still = com.familyhub.app.core.theme.reducedMotion()
+    val progress = remember(slices) { Animatable(if (still) 1f else 0f) }
+    LaunchedEffect(slices) { if (still) progress.snapTo(1f) else progress.animateTo(1f, tween(700)) }
     val total = slices.sumOf { it.second }.takeIf { it > 0 } ?: 1.0
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
@@ -140,8 +141,9 @@ fun BarChart(
     onClick: ((Int) -> Unit)? = null
 ) {
     val max = (values.maxOrNull() ?: 0.0).coerceAtLeast(goal ?: 0.0).coerceAtLeast(1.0)
-    val progress = remember(values) { Animatable(0f) }
-    LaunchedEffect(values) { progress.animateTo(1f, tween(600)) }
+    val still = com.familyhub.app.core.theme.reducedMotion()
+    val progress = remember(values) { Animatable(if (still) 1f else 0f) }
+    LaunchedEffect(values) { if (still) progress.snapTo(1f) else progress.animateTo(1f, tween(600)) }
     val barArea = height - 34.dp
     Row(
         modifier = modifier.fillMaxWidth().height(height),
@@ -196,8 +198,9 @@ private fun inrShortOrCount(v: Double, goal: Double?): String =
 /** A labelled horizontal bar, for comparisons such as spend by member or payment method. */
 @Composable
 fun HBar(label: String, value: Double, max: Double, valueText: String, color: Color, modifier: Modifier = Modifier) {
-    val progress = remember(value, max) { Animatable(0f) }
-    LaunchedEffect(value, max) { progress.animateTo(1f, tween(600)) }
+    val still = com.familyhub.app.core.theme.reducedMotion()
+    val progress = remember(value, max) { Animatable(if (still) 1f else 0f) }
+    LaunchedEffect(value, max) { if (still) progress.snapTo(1f) else progress.animateTo(1f, tween(600)) }
     Column(modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(label, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -232,8 +235,9 @@ fun ProgressRing(
     color: Color = Color(0xFF34C759),
     content: @Composable () -> Unit
 ) {
-    val anim = remember { Animatable(0f) }
-    LaunchedEffect(fraction) { anim.animateTo(fraction.coerceIn(0f, 1f), tween(800)) }
+    val still = com.familyhub.app.core.theme.reducedMotion()
+    val anim = remember { Animatable(if (still) fraction.coerceIn(0f, 1f) else 0f) }
+    LaunchedEffect(fraction) { if (still) anim.snapTo(fraction.coerceIn(0f, 1f)) else anim.animateTo(fraction.coerceIn(0f, 1f), tween(800)) }
     val track = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
     Box(modifier = modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -261,8 +265,9 @@ fun LineChart(
     val min = values.minOrNull() ?: 0.0
     val max = values.maxOrNull() ?: 0.0
     val span = (max - min).takeIf { it > 0.0 } ?: 1.0
-    val progress = remember(values) { Animatable(0f) }
-    LaunchedEffect(values) { progress.animateTo(1f, tween(700)) }
+    val still = com.familyhub.app.core.theme.reducedMotion()
+    val progress = remember(values) { Animatable(if (still) 1f else 0f) }
+    LaunchedEffect(values) { if (still) progress.snapTo(1f) else progress.animateTo(1f, tween(700)) }
     Column(modifier = modifier.fillMaxWidth()) {
         Canvas(modifier = Modifier.fillMaxWidth().height(height)) {
             val padX = this.size.width / (values.size * 2f)

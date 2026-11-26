@@ -118,6 +118,7 @@ fun Modifier.glass(shape: Shape = RoundedCornerShape(24.dp), strong: Boolean = f
 /** Remembers a press state and returns a springy scale for "squishy" taps. */
 @Composable
 private fun pressScale(interaction: MutableInteractionSource): Float {
+    if (reducedMotion()) return 1f
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.965f else 1f,
@@ -346,6 +347,8 @@ fun EntryIntro(onFinished: () -> Unit) {
 
 /** Fades and lifts an element into place the first time it appears; later items wait a little longer. */
 fun Modifier.riseIn(index: Int = 0): Modifier = composed {
+    // "Remove animations" in Android's accessibility settings: show everything at once, without movement.
+    if (reducedMotion()) return@composed this
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         delay(70L * index)
@@ -382,4 +385,17 @@ private val tileColors = listOf(
 fun tileBrush(index: Int): Brush {
     val (top, bottom) = tileColors[((index % tileColors.size) + tileColors.size) % tileColors.size]
     return Brush.verticalGradient(listOf(top, bottom))
+}
+
+/** True when the person turned animations off (Settings → Accessibility → Remove animations). */
+@Composable
+fun reducedMotion(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember {
+        try {
+            android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+        } catch (e: Exception) {
+            false
+        }
+    }
 }

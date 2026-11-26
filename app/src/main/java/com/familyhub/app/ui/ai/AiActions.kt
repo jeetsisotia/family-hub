@@ -204,6 +204,8 @@ fun actionLabel(a: AiAction): String {
         "not_expense" -> "Not an expense"
         "task_done" -> "Mark done"
         "emergency" -> "Emergency contact ${a.count ?: 1}"
+        "category" -> if (a.value.isNotBlank()) "New subcategory in ${a.value}" else "New money category"
+        "budget" -> "Family monthly budget"
         else -> "Note"
     }
     val main = when (a.kind) {
@@ -308,6 +310,18 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
     val repo = env.repo
     fun at(): Long = parseTimes(a.time).firstOrNull()?.let { (h, m) -> atTime(startOfDay(day), h, m) } ?: day
     when (a.kind) {
+        "category" -> {
+            val exists = items.any { it.str("type") == "category" && it.str("title").equals(a.title, true) && it.str("parent").let { p -> p == a.value || (p == "None" && a.value.isBlank()) } }
+            if (exists) throw IllegalStateException("${a.title} is already a category.")
+            repo.saveScoped(env.familyId, env.uid, "items", null,
+                mapOf("type" to "category", "title" to a.title, "parent" to a.value.ifBlank { "None" }, "kind" to "Spending",
+                    "isDeleted" to false, "createdByUid" to env.uid, "createdAt" to now), false)
+        }
+        "budget" -> {
+            if (!env.isAdmin) throw IllegalStateException("Only family admins can change the budget.")
+            val v = a.amount ?: throw IllegalStateException("No amount.")
+            repo.updateBudget(env.familyId, v)
+        }
         "shopping" -> repo.saveScoped(env.familyId, env.uid, "tasks", null,
             mapOf("type" to "SHOPPING", "title" to a.title, "isCompleted" to false, "createdAt" to now), a.private)
         "task" -> repo.saveScoped(env.familyId, env.uid, "tasks", null,

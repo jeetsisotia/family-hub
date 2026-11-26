@@ -97,16 +97,19 @@ fun HealthScreen(env: AppEnv, showBack: Boolean = true) {
             com.familyhub.app.health.HealthNotification.refresh(context)
         }
     }
+    var hcMissing by remember { mutableStateOf(false) }
     val hcPermission = rememberLauncherForActivityResult(
         androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
     ) { granted ->
         if (granted.containsAll(com.familyhub.app.health.HealthConnectSync.PERMISSIONS)) hcSync()
         else Toast.makeText(context, "Allow Steps in Health Connect to sync with Google Fit.", Toast.LENGTH_LONG).show()
+        scope.launch { hcMissing = com.familyhub.app.health.HealthConnectSync.missingExtras(context) }
     }
     LaunchedEffect(Unit) {
         StepTracker.today(context)
         StepTracker.setFamilies(context, env.familyIds)
         hcLinked = com.familyhub.app.health.HealthConnectSync.hasPermission(context)
+        hcMissing = hcLinked && com.familyhub.app.health.HealthConnectSync.missingExtras(context)
         if (hcLinked) hcSync()
         com.familyhub.app.health.HealthNotification.refresh(context)
     }
@@ -191,6 +194,16 @@ fun HealthScreen(env: AppEnv, showBack: Boolean = true) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Today at a glance: rings, sleep, heart, weight and BMI, then trends.
+            item { HealthToday(env, steps, goal, hcToday to hcBusy) }
+            if (hcLinked && hcMissing) {
+                item {
+                    OutlinedButton(onClick = {
+                        try { hcPermission.launch(com.familyhub.app.health.HealthConnectSync.ALL_PERMISSIONS) } catch (e: Exception) { }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("Also read sleep, heart rate, weight and workouts") }
+                }
+            }
+            item { HealthTrends(goal, hcToday to hcBusy) }
             // Everything health-related in one place.
             item {
                 com.familyhub.app.ui.hub.HubTiles(com.familyhub.app.ui.hub.Hubs.health.items, env.navigate)
@@ -214,8 +227,8 @@ fun HealthScreen(env: AppEnv, showBack: Boolean = true) {
                             }
                             Spacer(modifier = Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                                Metric("%.1f km".format(km), "Distance")
-                                Metric("%.0f".format(kcal), "kcal")
+                                Metric("≈ %.1f km".format(km), "Distance (est.)")
+                                Metric("≈ %.0f".format(kcal), "kcal (est.)")
                                 Metric(fmt.format(week.sumOf { it.second }), "This week")
                             }
                             if (!enabled) {
@@ -263,7 +276,7 @@ fun HealthScreen(env: AppEnv, showBack: Boolean = true) {
                             hcLinked -> TextButton(onClick = { hcSync() }) { Text("Sync") }
                             else -> TextButton(onClick = {
                                 try {
-                                    hcPermission.launch(com.familyhub.app.health.HealthConnectSync.PERMISSIONS)
+                                    hcPermission.launch(com.familyhub.app.health.HealthConnectSync.ALL_PERMISSIONS)
                                 } catch (e: Exception) {
                                     Toast.makeText(context, "Health Connect could not open.", Toast.LENGTH_SHORT).show()
                                 }
