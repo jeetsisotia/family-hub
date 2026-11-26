@@ -311,6 +311,8 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
     val day = a.dateMillis ?: localNoon(now)
     val items = env.data["items"].orEmpty()
     val repo = env.repo
+    // Permission is checked again here, just before anything is written.
+    checkActionAllowed(env, a)
     fun at(): Long = parseTimes(a.time).firstOrNull()?.let { (h, m) -> atTime(startOfDay(day), h, m) } ?: day
     when (a.kind) {
         "category" -> {

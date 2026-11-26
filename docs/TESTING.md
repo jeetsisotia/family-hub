@@ -11,14 +11,20 @@ Parts that need a real phone, a real inbox or a real Google account are listed a
 
 ## 1. Automated tests (plain Kotlin)
 
-Run on 26 Nov 2026 against the code in this release. Every check passed.
+These run on GitHub on every push to `main` (`.github/workflows/unit-tests.yml`, "Unit tests"); a failing suite fails the run. Last run: 27 Nov 2026, all suites passed (Unit tests run #1, commit `cbd9555`).
 
-| Suite | Folder | Checks | Result |
-|---|---|---|---|
-| Money engine (`Ledger.kt`) | `tools/ledger-test` | 37 | All passed |
-| SMS and email alerts (`TxnParser.kt`) | `tools/import-test` | 12 | All passed |
-| Statement and Axio import (`StatementParser.kt`, `StatementImport.kt`) | `tools/import-test` | 22 | All passed |
-| Assistant questions (`MoneyAnswers.kt`) | `tools/ai-test` | 22 | All passed |
+| Suite | Folder | Checks |
+|---|---|---|
+| Money engine, Finance dashboard and Transactions, category reassignment, duplicates | `tools/ledger-test` | 138 |
+| SMS and email alerts | `tools/import-test` | 15 |
+| Statement import | `tools/import-test` | 22 |
+| Chat @mentions | `tools/chat-test` | 14 |
+| Assistant questions | `tools/ai-test` | 22 |
+| Health and AI limits | `tools/health-test` | 21 |
+| Reminder rules (repeats, month ends) | `tools/reminder-test` | 40 |
+| Safety logic | `tools/safety-test` | 64 |
+
+The Firestore rules are tested in the emulator by `.github/workflows/rules-test.yml` (79 tests, run #7).
 
 ### What the money tests prove
 - **Accounts:** opening balance counted from the start of its date; transfers move money without changing income or spending; debit card spends reduce the linked account.

@@ -786,6 +786,9 @@ fun AiSettingsScreen(env: AppEnv) {
                     ).forEach { Text("• $it", style = MaterialTheme.typography.bodySmall) }
                 }
             }
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.padding(14.dp)) { AiActivityList() }
+            }
         }
     }
 }

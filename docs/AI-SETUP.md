@@ -28,7 +28,7 @@ To add it later, these would be needed:
 
 **Status: NEEDS EXTERNAL SETUP.**
 
-The old shared key in GitHub secrets (`GEMINI_API_KEY`) is no longer put into the APK. The "Check Gemini API key" build step can be deleted.
+The old shared key in GitHub secrets (`GEMINI_API_KEY`) is no longer put into the APK, and the build no longer reads it. The "Check Gemini API key" build step was removed on 27 Nov 2026 (it kept hanging). The `GEMINI_API_KEY` secret can be deleted from GitHub (Settings → Secrets and variables → Actions); nothing uses it.
 
 ## 3. Models, limits and cost
 

@@ -245,98 +245,46 @@ fun FitLabel(
     )
 }
 
-/** A compact three-across grid of glass tiles, for the top of a hub screen. */
+/** A hub's screens as one grouped list (icon, name, count), like the iPhone Settings app. */
 @Composable
 fun HubTiles(items: List<HubItem>, onOpen: (String) -> Unit, counts: (String) -> Int? = { null }) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items.chunked(3).forEachIndexed { row, chunk ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                chunk.forEachIndexed { col, item ->
-                    HubTile(item, row * 3 + col, counts(item.route), Modifier.weight(1f)) { onOpen(item.route) }
-                }
-                repeat(3 - chunk.size) { Spacer(modifier = Modifier.weight(1f)) }
-            }
+    com.familyhub.app.core.theme.GroupedSection {
+        items.forEachIndexed { i, item ->
+            com.familyhub.app.core.theme.GroupedRow(
+                item.title, icon = item.icon, tile = i,
+                value = counts(item.route)?.let { if (it > 99) "99+" else it.toString() },
+                divider = i < items.lastIndex
+            ) { onOpen(item.route) }
         }
     }
 }
 
-@Composable
-private fun HubTile(item: HubItem, index: Int, count: Int?, modifier: Modifier, onClick: () -> Unit) {
-    GlassCard(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(20.dp)) {
-        Column(
-            modifier = Modifier.fillMaxWidth().height(120.dp).padding(vertical = 10.dp, horizontal = 6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(tileBrush(index)),
-                    contentAlignment = Alignment.Center
-                ) { Icon(item.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp)) }
-                if (count != null) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .offset(x = 6.dp, y = (-6).dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFF3B30))
-                            .padding(horizontal = 5.dp, vertical = 1.dp)
-                    ) {
-                        Text(
-                            if (count > 99) "99+" else count.toString(),
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            FitLabel(item.title, MaterialTheme.typography.labelLarge)
-        }
-    }
-}
-
-/** A hub's own screen: a short intro and a grid of its screens. */
+/** A hub's own screen: a short intro and a grouped list of its screens. */
 @Composable
 fun HubScreen(hub: Hub, env: AppEnv) {
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenTopBar(title = hub.title, onBack = env.onBack)
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+        androidx.compose.foundation.lazy.LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 Text(
                     hub.subtitle,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
-                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                    modifier = Modifier.padding(start = 4.dp)
                 )
             }
-            itemsIndexed(hub.items, key = { _, it -> it.route }) { index, item ->
-                val count = hubCount(env, item.route)
-                GlassCard(onClick = { env.navigate(item.route) }, shape = RoundedCornerShape(24.dp)) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth().height(146.dp).padding(vertical = 12.dp, horizontal = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(tileBrush(index)),
-                            contentAlignment = Alignment.Center
-                        ) { Icon(item.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp)) }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        FitLabel(item.title, MaterialTheme.typography.labelLarge)
-                        if (count != null) {
-                            Text(
-                                "$count saved",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
+            item {
+                com.familyhub.app.core.theme.GroupedSection {
+                    hub.items.forEachIndexed { i, item ->
+                        val count = hubCount(env, item.route)
+                        com.familyhub.app.core.theme.GroupedRow(
+                            item.title, icon = item.icon, tile = i,
+                            value = count?.let { "$it" },
+                            divider = i < hub.items.lastIndex
+                        ) { env.navigate(item.route) }
                     }
                 }
             }

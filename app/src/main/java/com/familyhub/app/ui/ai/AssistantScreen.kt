@@ -149,9 +149,11 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
             try {
                 applyAction(env, context, a)
                 a.state = "added"
+                AiAudit.record(context, a, true)
             } catch (e: Exception) {
                 a.state = "failed"
                 a.error = e.message ?: "Could not save"
+                AiAudit.record(context, a, false, a.error)
             }
             refresh++
         }

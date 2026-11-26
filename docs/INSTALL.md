@@ -49,7 +49,8 @@ The app is Kotlin with Jetpack Compose, Hilt and Firebase (Auth and Firestore, o
 
 - **Firebase project:** `family-hub-1465f`.
 - **Builds:** they run only on GitHub Actions. `.github/workflows/build-apk.yml` builds the debug APK.
-- **Emulator check:** after each build, the same workflow installs the APK on an emulator. It opens every main screen with sample data and saves screenshots to the `demo-screenshots` branch.
+- **Emulator check:** after each build, the same workflow installs the APK on an emulator. It opens the main screens with sample data, in light and dark, and saves screenshots named after each screen to the `demo-screenshots` branch.
+- **Unit tests:** `.github/workflows/unit-tests.yml` runs every plain-Kotlin test suite in `tools/` on each push to `main`.
 - **Uploading changes from a browser:** upload a file named `fhbundle-<name>.tgz` to the repository root. `.github/workflows/apply-bundle.yml` unpacks it, commits the change and starts a build.
 
 ### GitHub secrets the build needs
@@ -58,7 +59,6 @@ The app is Kotlin with Jetpack Compose, Hilt and Firebase (Auth and Firestore, o
 |---|---|
 | `DEBUG_KEYSTORE_BASE64` | Signing every build with the same key. That key's SHA-1 is registered in Firebase, so Google sign-in works. |
 | `GOOGLE_WEB_CLIENT_ID` | Google sign-in (the Web client ID from Firebase Authentication) |
-| `GEMINI_API_KEY` | The AI assistant (a Google AI Studio key) |
 
 Never commit a keystore, `google-services.json` from another project, or any key. The repository is public.
 
