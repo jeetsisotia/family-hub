@@ -187,5 +187,68 @@ fun main() {
     check("the rule id is stable for the same merchant", MerchantRules.ruleId("SWIGGY") == MerchantRules.ruleId("swiggy@ybl"), MerchantRules.ruleId("SWIGGY"))
     check("the label is tidy", MerchantRules.label("SWIGGY*ORDER") == "Swiggy", MerchantRules.label("SWIGGY*ORDER"))
 
+    // ---------- shared totals (Finance, Insights, assistant and budget alerts use these) ----------
+    val nov = listOf(
+        mapOf("id" to "m1", "type" to "EXPENSE", "title" to "Swiggy", "category" to "Dining", "amountInr" to 100.10, "dateMillis" to at(2026, 11, 3)),
+        mapOf("id" to "m2", "type" to "EXPENSE", "title" to "Zomato", "category" to "Dining", "amountInr" to 200.20, "dateMillis" to at(2026, 11, 4)),
+        mapOf("id" to "m3", "type" to "EXPENSE", "title" to "Big Bazaar", "category" to "Groceries", "amountInr" to 600.0, "dateMillis" to at(2026, 11, 5), "refundAmount" to 100.0),
+        mapOf("id" to "m4", "type" to "INCOME", "title" to "Salary", "amountInr" to 50000.0, "dateMillis" to at(2026, 11, 1)),
+        mapOf("id" to "m5", "type" to "INCOME", "title" to "Refund Amazon", "amountInr" to 250.0, "dateMillis" to at(2026, 11, 6), "isRefund" to true),
+        mapOf("id" to "m6", "type" to "TRANSFER", "title" to "To cash", "amountInr" to 4000.0, "dateMillis" to at(2026, 11, 7)),
+        mapOf("id" to "m7", "type" to "CARD_PAYMENT", "title" to "Card bill", "amountInr" to 5000.0, "dateMillis" to at(2026, 11, 8)),
+        mapOf("id" to "m8", "type" to "EXPENSE", "title" to "Gone", "category" to "Dining", "amountInr" to 999.0, "dateMillis" to at(2026, 11, 9), "isDeleted" to true),
+        mapOf("id" to "m9", "type" to "BILL", "title" to "Electricity", "category" to "Bills", "amountInr" to 1840.0, "dateMillis" to at(2026, 11, 10), "isPaid" to false),
+        mapOf("id" to "m10", "type" to "EXPENSE", "title" to "Old month", "category" to "Dining", "amountInr" to 77.0, "dateMillis" to at(2026, 10, 31)),
+        mapOf("id" to "m11", "type" to "SAVING", "title" to "FD", "amountInr" to 3000.0, "dateMillis" to at(2026, 11, 12))
+    )
+    val tt = Ledger.totals(nov, at(2026, 11, 1), at(2026, 11, 30))
+    check("totals: spending is added in paise, merged refunds and deletions handled", tt.gross == 100_10L + 200_20L + 500_00L, tt.gross)
+    check("totals: a refund that arrives lowers spending, and is not income", tt.refunds == 250_00L && tt.spent == tt.gross - 250_00L && tt.income == 50_000_00L, "${tt.spent} ${tt.refunds} ${tt.income}")
+    check("totals: transfers, card payments, unpaid bills and other months are left out", tt.spends.map { it["id"] }.toSet() == setOf("m1", "m2", "m3"), tt.spends.map { it["id"] })
+    check("totals: categories are biggest first and add up to the gross spend", tt.byCategory == listOf("Groceries" to 500_00L, "Dining" to 300_30L) && tt.byCategory.sumOf { it.second } == tt.gross, tt.byCategory)
+    check("totals: money put into savings is counted separately", tt.saved == 3000_00L, tt.saved)
+    check("totals: 0.10 + 0.20 - 0.30 is exactly zero", Ledger.totals(listOf(
+        mapOf("id" to "p1", "type" to "EXPENSE", "amountInr" to 0.10, "dateMillis" to at(2026, 11, 3)),
+        mapOf("id" to "p2", "type" to "EXPENSE", "amountInr" to 0.20, "dateMillis" to at(2026, 11, 3)),
+        mapOf("id" to "p3", "type" to "INCOME", "amountInr" to 0.30, "dateMillis" to at(2026, 11, 3), "isRefund" to true)
+    ), at(2026, 11, 1), at(2026, 11, 30)).spent == 0L)
+    check("totals: a big refund never makes spending negative", Ledger.totals(listOf(
+        mapOf("id" to "q1", "type" to "EXPENSE", "amountInr" to 100.0, "dateMillis" to at(2026, 11, 3)),
+        mapOf("id" to "q2", "type" to "INCOME", "amountInr" to 500.0, "dateMillis" to at(2026, 11, 4), "isRefund" to true)
+    ), at(2026, 11, 1), at(2026, 11, 30)).spent == 0L)
+    val me = Ledger.totals(nov, at(2026, 11, 1), at(2026, 11, 30)) { it["id"] == "m1" || it["id"] == "m5" }
+    check("totals: a filter (for example one person) applies to spending and refunds", me.gross == 100_10L && me.refunds == 250_00L)
+    check("totals: an entry saved without a type counts as an expense", Ledger.totals(listOf(mapOf("id" to "z", "amountInr" to 50.0, "dateMillis" to at(2026, 11, 3))), at(2026, 11, 1), at(2026, 11, 30)).spent == 50_00L)
+
+    // ---------- finding entries saved twice ----------
+    val dupe = listOf(
+        mapOf("id" to "d1", "type" to "EXPENSE", "title" to "Swiggy", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 10), "refNo" to "R123"),
+        mapOf("id" to "d2", "type" to "EXPENSE", "title" to "SWIGGY*ORDER", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 10) + 3_600_000L, "refNo" to "R123"),
+        mapOf("id" to "d3", "type" to "EXPENSE", "title" to "Swiggy", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 10) + 7_200_000L, "refNo" to "R123"),
+        // Same amount and day at another shop is a different payment.
+        mapOf("id" to "d4", "type" to "EXPENSE", "title" to "Cinema tickets", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 10)),
+        // Same shop and amount a week later is a different payment.
+        mapOf("id" to "d5", "type" to "EXPENSE", "title" to "Swiggy", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 17)),
+        // Same shop, same day, different amount.
+        mapOf("id" to "d6", "type" to "EXPENSE", "title" to "Swiggy", "amountInr" to 120.0, "dateMillis" to at(2026, 11, 10)),
+        // A deleted copy is not a duplicate.
+        mapOf("id" to "d7", "type" to "EXPENSE", "title" to "Swiggy", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 10), "isDeleted" to true),
+        // The salary and an expense of the same amount are different directions.
+        mapOf("id" to "d8", "type" to "INCOME", "title" to "Swiggy refund", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 10)),
+        mapOf("id" to "d9", "type" to "EXPENSE", "title" to "Uber", "amountInr" to 210.0, "dateMillis" to at(2026, 11, 12)),
+        mapOf("id" to "d10", "type" to "EXPENSE", "title" to "Uber trip", "amountInr" to 210.0, "dateMillis" to at(2026, 11, 12) + 1_800_000L)
+    )
+    val groups = Ledger.duplicateGroups(dupe)
+    check("duplicates: the same payment saved three times is one group of three", groups.firstOrNull()?.map { it["id"] } == listOf("d1", "d2", "d3"), groups.map { g -> g.map { it["id"] } })
+    check("duplicates: a similar name on the same day also groups", groups.any { g -> g.map { it["id"] } == listOf("d9", "d10") }, groups.map { g -> g.map { it["id"] } })
+    check("duplicates: other shops, other days, other amounts, deleted copies and refunds stay apart", groups.size == 2 && groups.flatten().none { it["id"] in setOf("d4", "d5", "d6", "d7", "d8") }, groups.map { g -> g.map { it["id"] } })
+    check("duplicates: nothing found when nothing repeats", Ledger.duplicateGroups(dupe.filter { it["id"] in setOf("d1", "d4", "d5", "d6") }).isEmpty())
+    check("duplicates: a long list is handled quickly", run {
+        val big = (0 until 5000).map { i -> mapOf("id" to "b$i", "type" to "EXPENSE", "title" to "Shop ${i % 40}", "amountInr" to (10.0 + i), "dateMillis" to at(2026, 1, 1) + i * 3_600_000L) }
+        val t0 = System.currentTimeMillis()
+        Ledger.duplicateGroups(big)
+        System.currentTimeMillis() - t0 < 2000
+    })
+
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

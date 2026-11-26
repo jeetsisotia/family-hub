@@ -131,8 +131,11 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         if (!Notifier.canPost(ctx)) return
         val now = System.currentTimeMillis()
         val from = budgetMonthStart(now, monthStartDay(profileData), 0)
-        val spends = expenses.filter { isSpend(it) && inRange(it, from, now) }
-        val total = spends.sumOf { amountOf(it) }
+        // Same totals as the Finance screens: in paise, with refunds taken off.
+        val L = com.familyhub.app.money.Ledger
+        val tot = L.totals(expenses, from, now)
+        val spends = tot.spends
+        val total = tot.spentRupees
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val messages = ArrayList<String>()
         if (familyBudget > 0) {
@@ -149,7 +152,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             }
         }
         for ((cat, limit) in categoryBudgets(profileData)) {
-            val used = spends.filter { it.str("category").ifBlank { "Other" } == cat }.sumOf { amountOf(it) }
+            val used = L.rupees(spends.filter { it.str("category").ifBlank { "Other" } == cat }.sumOf { L.paise(amountOf(it)) })
             val key = "cat-$from-$cat"
             if (used >= limit && !prefs.getBoolean(key, false)) {
                 prefs.edit().putBoolean(key, true).apply()

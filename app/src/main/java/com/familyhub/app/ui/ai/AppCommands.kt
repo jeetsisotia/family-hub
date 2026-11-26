@@ -105,7 +105,10 @@ object AppCommands {
         val actions = ArrayList<AiAction>()
         for (c in order) {
             val recs = env.data[c].orEmpty()
-            val groups = recs.groupBy { dupKey(c, it) }.filterKeys { it != null }.values.filter { it.size > 1 }
+            // Money entries use the stricter payment matcher (same direction and amount, within a day and a half, and the
+            // same reference, card ending or shop). Other lists match on title and date.
+            val groups = if (c == "expenses") com.familyhub.app.money.Ledger.duplicateGroups(recs)
+            else recs.groupBy { dupKey(c, it) }.filterKeys { it != null }.values.filter { it.size > 1 }
             for (g in groups.sortedByDescending { it.size }) {
                 // Keep the entry with the most detail (a hand-made one usually has a category, notes or a member).
                 val keep = g.maxByOrNull { r -> r.values.count { v -> v is String && v.isNotBlank() } } ?: g.first()
@@ -130,7 +133,7 @@ object AppCommands {
         if (actions.isEmpty()) return Result("No duplicates found in Finance, tasks, shopping, calendar or your lists.", emptyList())
         return Result(
             "Found ${actions.size} set${if (actions.size == 1) "" else "s"} of possible duplicates. Each card keeps one entry " +
-                "and removes the rest. Check the names before you tap Remove, since two real payments of the same amount on one day also show here.",
+                "and removes the rest. Check the names before you tap Remove.",
             actions
         )
     }

@@ -17,3 +17,5 @@ The last line is `ALL PASSED` or the number of failures. They cover:
 - what counts as spending
 - duplicate payments across SMS and email
 - one category for the same merchant (matching names, what is offered, remembered rules)
+- shared totals (spent, refunds, income, savings, categories) used by every screen
+- finding the same payment saved more than once

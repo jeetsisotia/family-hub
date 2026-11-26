@@ -64,7 +64,23 @@ fun HomeDashboardScreen(
     val todayLabel = remember { SimpleDateFormat("EEEE, dd MMM yyyy", Locale.getDefault()).format(Date()) }
 
     val visibleTx = if (familyWideView) transactions else transactions.filter { it.memberUid == currentUser.uid }
-    val monthlyExpense = visibleTx.filter { it.type == "EXPENSE" }.sumOf { it.amountInr }
+    // The same figure as the Finance tab: this calendar month, in paise, leaving out "Not an expense" entries and
+    // taking merged and arrived refunds off. Falls back to the plain list only if the record data has not loaded.
+    val monthlyExpense = remember(records, visibleTx, familyWideView, currentUser.uid, currentUser.name) {
+        val expenses = records["expenses"]
+        if (expenses == null) {
+            visibleTx.filter { it.type == "EXPENSE" }.sumOf { it.amountInr }
+        } else {
+            val c = Calendar.getInstance()
+            c.set(Calendar.DAY_OF_MONTH, 1); c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+            val from = c.timeInMillis
+            c.add(Calendar.MONTH, 1)
+            com.familyhub.app.money.Ledger.totals(
+                expenses, from, c.timeInMillis - 1,
+                com.familyhub.app.ui.hub.homeViewFilter(familyWideView, currentUser.uid, currentUser.name)
+            ).spentRupees
+        }
+    }
     val upcomingBills = transactions.filter { !it.isPaid && it.type in listOf("BILL", "EMI") }
     val pendingTasks = tasks.filter { !it.isCompleted }
     val expiringDocs = documents.filter {

@@ -70,11 +70,12 @@ Each problem below was first reproduced by a test that failed, then fixed. Saved
 
 | Suite | Checks | Result |
 |---|---|---|
-| Money engine | 43 | Passed |
+| Money engine, merchant rules, totals and duplicates | 74 | Passed |
 | SMS and email alerts | 15 | Passed |
 | Statement import | 22 | Passed |
+| Chat mentions | 14 | Passed |
 | Assistant questions | 22 | Passed |
-| Firestore rules (emulator, on GitHub) | 30 | Not run yet |
+| Firestore rules (emulator, on GitHub) | 49 | Passed (run #4) |
 
 ### Feature inventory
 
@@ -112,6 +113,7 @@ How each status is known:
   - Rollback copy of the previous live rules: `firebase/firestore.rules.backup-2026-11-26-live`, also kept in the console's rules history ("Today, 2:59 PM").
   - What changed: invite codes (`/invites`), chats, and families can no longer be listed or searched. Nothing became weaker.
   - Rules Playground retest: **Not tested** (the 46 emulator tests cover the same cases).
+- **Poll rules published (27 Nov, 12:23 AM IST)** after 49 of 49 emulator tests passed (run #4). The live text matches the tested file exactly. Rollback copy: `firebase/firestore.rules.backup-2026-11-27-before-polls`.
 
 ---
 
@@ -170,6 +172,22 @@ The automatic emulator check now photographs:
   - "Indian Oil" and "Indian Bank" stay apart.
   - Transfers, card bill payments, deleted entries and refunds are never changed.
 - **Tests:** 17 new checks in `tools/ledger-test`; all 60 ledger checks pass. Trying it in the app: **Needs my phone**.
+
+---
+
+## Phase 4: finance improvements (bundle p25)
+
+The Phase 1 finance fixes were kept and retested (all 60 earlier ledger checks still pass). New in this phase:
+
+- **One set of totals everywhere.** Before, four screens worked out "spent" and "income" in slightly different ways, so the same month could show different figures. Finance, Money Insights, the Finance header on the Finance list, the Home "Monthly Family Expenses" card, the assistant's money summary and the budget alerts now all use `Ledger.totals`:
+  - amounts are added in whole paise
+  - "Not an expense" entries, transfers, card bill payments, deleted entries and unpaid bills are left out
+  - a refund that arrives lowers spending in the month it arrives, and is never income
+  - a refund merged into a purchase lowers that purchase
+- **Insights:** a note under the category chart says how much was refunded, and the CSV export now includes refunds. "Top places" groups "SWIGGY", "swiggy@icici" and "Swiggy order" as one shop. The totals are worked out once per period instead of on every redraw, which keeps scrolling smooth with a long history.
+- **Duplicates:** "Find duplicate transactions" used to group any two entries with the same type, amount and day, so two real payments at different shops were offered for removal. It now uses the payment matcher (same direction and amount within a day and a half, then the same reference number, card ending or shop name). Nothing is removed without your tap on each card.
+- **Tests:** 13 new checks in `tools/ledger-test` (74 in all): totals, refunds, filters, the paise drift case, and duplicate groups including a 5,000-entry speed check. **Passed.**
+- **Not done in this phase:** a rebuilt statement-reconciliation screen, new report types and new charts. The existing ones were checked and left as they are, since they had no known errors. Real Gmail and SMS inbox imports remain **Needs my phone**.
 
 ---
 

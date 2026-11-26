@@ -89,35 +89,53 @@ fun InsightsScreen(env: AppEnv) {
     }
     fun cardFilter(r: Rec): Boolean = mode != "Card cycle" || card == null || r.str("card") == card.str("title")
 
-    val periodSpends = allExpenses.filter { isSpend(it) && inRange(it, from, to) && inScope(it) && cardFilter(it) }
-    val periodIncome = allExpenses.filter { isIncome(it) && inRange(it, from, to) && inScope(it) }
-    val spent = periodSpends.sumOf { amountOf(it) }
-    val earned = periodIncome.sumOf { amountOf(it) }
+    // Worked out once per period and filter (not on every redraw), with the same rules as the Finance
+    // dashboard: totals in paise, refunds lower spending and are never income.
+    val L = com.familyhub.app.money.Ledger
+    fun rs(p: Long) = L.rupees(p)
+    fun byKey(list: List<Rec>, key: (Rec) -> String): List<Pair<String, Double>> =
+        list.groupBy(key).map { (k, l) -> k to rs(l.sumOf { L.paise(amountOf(it)) }) }.sortedByDescending { it.second }
+    val totals = remember(allExpenses, from, to, scope, mode, cardName) {
+        L.totals(allExpenses, from, to) { inScope(it) && cardFilter(it) }
+    }
+    val periodSpends = totals.spends
+    val periodIncome = remember(allExpenses, from, to, scope) {
+        allExpenses.filter { isIncome(it) && inRange(it, from, to) && inScope(it) }
+    }
+    val periodRefunds = remember(allExpenses, from, to, scope, mode, cardName) {
+        allExpenses.filter { isRefund(it) && inRange(it, from, to) && inScope(it) && cardFilter(it) }
+    }
+    val spent = rs(totals.spent)
+    val refunds = rs(totals.refunds)
+    val earned = rs(periodIncome.sumOf { L.paiseOf(it) })
 
     // Same length period just before, for comparison.
     val length = (to - from).coerceAtLeast(DAY_MS)
-    val prevSpent = allExpenses.filter {
-        isSpend(it) && inRange(it, from - length - 1, from - 1) && inScope(it) && cardFilter(it)
-    }.sumOf { amountOf(it) }
+    val prevSpent = remember(allExpenses, from, to, scope, mode, cardName) {
+        rs(L.totals(allExpenses, from - length - 1, from - 1) { inScope(it) && cardFilter(it) }.spent)
+    }
 
-    val byCategory = periodSpends.groupBy { it.str("category").ifBlank { "Other" } }
-        .mapValues { (_, l) -> l.sumOf { amountOf(it) } }
-        .toList().sortedByDescending { it.second }
-    val byMethod = periodSpends.groupBy { it.str("paymentMethod").ifBlank { "Not set" } }
-        .mapValues { (_, l) -> l.sumOf { amountOf(it) } }
-        .toList().sortedByDescending { it.second }
-    val byMember = periodSpends.groupBy { it.str("memberName").ifBlank { "Someone" } }
-        .mapValues { (_, l) -> l.sumOf { amountOf(it) } }
-        .toList().sortedByDescending { it.second }
-    val topPlaces = periodSpends.groupBy { it.str("title").trim().lowercase() }
-        .map { (_, l) -> l.first().str("title").trim() to l.sumOf { amountOf(it) } }
-        .filter { it.first.isNotBlank() }
-        .sortedByDescending { it.second }.take(5)
+    val byCategory = remember(totals) { totals.byCategory.map { it.first to rs(it.second) } }
+    val byMethod = remember(totals) { byKey(periodSpends) { it.str("paymentMethod").ifBlank { "Not set" } } }
+    val byMember = remember(totals) { byKey(periodSpends) { it.str("memberName").ifBlank { "Someone" } } }
+    // Shops are grouped by merchant, so "SWIGGY", "swiggy@icici" and "Swiggy order" count as one.
+    val topPlaces = remember(totals) {
+        periodSpends.groupBy { com.familyhub.app.money.MerchantRules.key(com.familyhub.app.money.MerchantRules.merchantOf(it)).ifBlank { it.str("title").trim().lowercase() } }
+            .filterKeys { it.isNotBlank() }
+            .map { (_, l) ->
+                val name = l.groupingBy { com.familyhub.app.money.MerchantRules.merchantOf(it).trim() }.eachCount().maxByOrNull { it.value }?.key.orEmpty()
+                name.ifBlank { l.first().str("title").trim() } to rs(l.sumOf { L.paise(amountOf(it)) })
+            }
+            .filter { it.first.isNotBlank() }
+            .sortedByDescending { it.second }.take(5)
+    }
 
-    val months = (11 downTo 0).map { bms(-it) }
-    val trend = months.mapIndexed { i, m ->
-        val end = (if (i + 1 < months.size) months[i + 1] else bms(1)) - 1
-        allExpenses.filter { isSpend(it) && inRange(it, m, end) && inScope(it) }.sumOf { amountOf(it) }
+    val months = remember(now, startDay) { (11 downTo 0).map { bms(-it) } }
+    val trend = remember(allExpenses, scope, months) {
+        months.mapIndexed { i, m ->
+            val end = (if (i + 1 < months.size) months[i + 1] else bms(1)) - 1
+            rs(L.totals(allExpenses, m, end) { inScope(it) }.spent)
+        }
     }
     val selectedMonthIndex = months.indexOfFirst { it == from }.takeIf { monthLike && it >= 0 }
 
@@ -141,7 +159,7 @@ fun InsightsScreen(env: AppEnv) {
             IconButton(onClick = { showSettings = true }) {
                 Icon(Icons.Rounded.Tune, contentDescription = "Month start and budgets")
             }
-            IconButton(onClick = { exportCsv(context, periodSpends + periodIncome, periodLabel) }) {
+            IconButton(onClick = { exportCsv(context, periodSpends + periodIncome + periodRefunds, periodLabel) }) {
                 Icon(Icons.Rounded.Share, contentDescription = "Export as CSV")
             }
         }
@@ -253,6 +271,14 @@ fun InsightsScreen(env: AppEnv) {
                             DonutChart(byCategory, inrShort(spent), "${byCategory.size} categories")
                             Spacer(modifier = Modifier.height(12.dp))
                             DonutLegend(byCategory, onClick = { c -> categoryFilter = if (categoryFilter == c) null else c }, selected = categoryFilter)
+                            if (refunds > 0) {
+                                Text(
+                                    "Refunds back: ${inr(refunds)}. They are taken off the total, so the categories add up to ${inr(spent + refunds)}.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            }
                         }
                     }
                 }

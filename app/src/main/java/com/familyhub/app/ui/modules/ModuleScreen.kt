@@ -679,26 +679,25 @@ private fun FinanceHeader(
         return c.get(Calendar.YEAR) == year && c.get(Calendar.MONTH) == month
     }
 
-    fun isSpend(r: Rec): Boolean {
-        if (r.bool("notExpense")) return false
-        val t = r.str("type")
-        return t == "EXPENSE" || ((t == "BILL" || t == "EMI") && r.bool("isPaid"))
-    }
-
-    // Merged refunds reduce what a purchase counts for.
-    fun amt(r: Rec): Double = ((r.num("amountInr") ?: 0.0) - (r.num("refundAmount") ?: 0.0)).coerceAtLeast(0.0)
+    // The same rules as the Finance dashboard: totals in paise, refunds lower spending and are never income.
+    val L = com.familyhub.app.money.Ledger
+    fun isSpend(r: Rec): Boolean = L.isSpend(r)
+    fun amt(r: Rec): Double = L.spendAmount(r)
+    fun sum(list: List<Rec>, pick: (Rec) -> Boolean, value: (Rec) -> Double = { amt(it) }): Double =
+        L.rupees(list.filter(pick).sumOf { L.paise(value(it)) })
 
     val monthRecs = records.filter { inMonth(it) }
-    val spent = monthRecs.filter { isSpend(it) }.sumOf { amt(it) }
-    val income = monthRecs.filter { it.str("type") == "INCOME" && !it.bool("notExpense") }.sumOf { amt(it) }
-    val saved = monthRecs.filter { it.str("type") == "SAVING" }.sumOf { amt(it) }
-    val dueBills = records.filter { (it.str("type") == "BILL" || it.str("type") == "EMI") && !it.bool("isPaid") }
+    val monthRefunds = sum(monthRecs, { L.isRefund(it) }, { L.amount(it) })
+    val spent = (sum(monthRecs, { isSpend(it) }) - monthRefunds).coerceAtLeast(0.0)
+    val income = sum(monthRecs, { L.isIncome(it) }, { L.amount(it) })
+    val saved = sum(monthRecs, { L.live(it) && L.type(it) == "SAVING" }, { L.amount(it) })
+    val dueBills = records.filter { L.live(it) && (L.type(it) == "BILL" || L.type(it) == "EMI") && !L.isPaidDue(it) }
     val yearRecs = records.filter { inYear(it) }
-    val yearSpent = yearRecs.filter { isSpend(it) }.sumOf { amt(it) }
-    val yearIncome = yearRecs.filter { it.str("type") == "INCOME" && !it.bool("notExpense") }.sumOf { amt(it) }
+    val yearSpent = (sum(yearRecs, { isSpend(it) }) - sum(yearRecs, { L.isRefund(it) }, { L.amount(it) })).coerceAtLeast(0.0)
+    val yearIncome = sum(yearRecs, { L.isIncome(it) }, { L.amount(it) })
     val topCategories = monthRecs.filter { isSpend(it) }
         .groupBy { it.str("category").ifBlank { "Other" } }
-        .mapValues { e -> e.value.sumOf { amt(it) } }
+        .mapValues { e -> L.rupees(e.value.sumOf { L.paise(amt(it)) }) }
         .entries.sortedByDescending { it.value }.take(4)
 
     var showBudget by remember { mutableStateOf(false) }

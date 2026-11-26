@@ -1,0 +1,206 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myMemberDoc(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+
+    function familyOwnerUid(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid;
+    }
+
+    // Only approved (ACTIVE) members count as family members.
+    function isFamilyMember(familyId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) &&
+        myMemberDoc(familyId).data.status == 'ACTIVE';
+    }
+
+    // Super Admin: the person who created the family.
+    function isFamilyOwner(familyId) {
+      return signedIn() && familyOwnerUid(familyId) == request.auth.uid;
+    }
+
+    // Super Admin, or a member the Super Admin made a Family Admin.
+    function isFamilyAdmin(familyId) {
+      return isFamilyOwner(familyId) ||
+        (isFamilyMember(familyId) && myMemberDoc(familyId).data.get('isAdmin', false) == true);
+    }
+
+    // Admin flag and role are unchanged by this write.
+    function keepsRole() {
+      return request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) &&
+        request.resource.data.get('role', '') == resource.data.get('role', '');
+    }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Private ("Only me") records, profile details, ID numbers and step history: owner only.
+    match /users/{userId}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // An invite code points to its family. Anyone signed in may look up a code they were given, but codes
+    // cannot be listed, so families cannot be found by browsing. Admins create and update their family's code.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn() &&
+        request.resource.data.keys().hasOnly(['familyId', 'familyName', 'createdByUid', 'updatedAt']) &&
+        request.resource.data.familyId is string &&
+        getAfter(/databases/$(database)/documents/families/$(request.resource.data.familyId)).data.inviteCode == code &&
+        (getAfter(/databases/$(database)/documents/families/$(request.resource.data.familyId)).data.ownerUid == request.auth.uid ||
+          isFamilyAdmin(request.resource.data.familyId));
+      allow delete: if signedIn() && isFamilyAdmin(resource.data.familyId);
+    }
+
+    match /families/{familyId} {
+      // Members read their family; someone who asked to join may read its name while waiting.
+      // Families can never be listed or searched (joining uses /invites).
+      allow get: if isFamilyMember(familyId) ||
+        (signedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)));
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      // Admins may change family settings; only the Super Admin may hand over or delete the family.
+      allow update: if isFamilyOwner(familyId) ||
+        (isFamilyAdmin(familyId) && request.resource.data.ownerUid == resource.data.ownerUid);
+      allow delete: if isFamilyOwner(familyId);
+
+      match /members/{memberUid} {
+        allow read: if isFamilyMember(familyId) || (signedIn() && request.auth.uid == memberUid);
+        // A person may only create their own record as PENDING_APPROVAL, unless they are creating the family.
+        allow create: if signedIn() && request.auth.uid == memberUid && (
+          request.resource.data.status == 'PENDING_APPROVAL' ||
+          getAfter(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid
+        );
+        // The Super Admin may change anyone. A Family Admin may approve or update other members (not the
+        // Super Admin) but cannot make or remove admins. Members may edit their own card, not their status,
+        // role or admin flag.
+        allow update: if isFamilyOwner(familyId) ||
+          (isFamilyAdmin(familyId) && memberUid != familyOwnerUid(familyId) && keepsRole()) ||
+          (signedIn() && request.auth.uid == memberUid && keepsRole() &&
+            request.resource.data.status == resource.data.status);
+        // Leaving is always allowed. A Family Admin may remove members who are not admins.
+        allow delete: if isFamilyOwner(familyId) || (signedIn() && request.auth.uid == memberUid) ||
+          (isFamilyAdmin(familyId) && memberUid != familyOwnerUid(familyId) && resource.data.get('isAdmin', false) == false);
+      }
+
+      // Shared records: members add, edit and move them to Recently deleted; only admins delete for good.
+      match /events/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /expenses/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /tasks/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /trips/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      // Vault, documents, health, vehicles, loans, subscriptions, accounts, cards and more.
+      match /items/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      // Family chat. The "family" chat is for every approved member; a direct chat ("dm_<uidA>_<uidB>",
+      // uids in sorted order) can be read only by its two people, admins included.
+      match /chats/{chatId} {
+        function chatDoc() {
+          return get(/databases/$(database)/documents/families/$(familyId)/chats/$(chatId));
+        }
+        function inChat() {
+          return isFamilyMember(familyId) &&
+            (chatId == 'family' || request.auth.uid in chatDoc().data.get('memberUids', []));
+        }
+        function activeMember(uid) {
+          return get(/databases/$(database)/documents/families/$(familyId)/members/$(uid)).data.status == 'ACTIVE';
+        }
+
+        // A direct chat that does not exist yet may be looked up only by one of its two people.
+        allow get: if isFamilyMember(familyId) && (chatId == 'family' ||
+          (resource == null && chatId.matches('dm_.*' + request.auth.uid + '.*')) ||
+          (resource != null && request.auth.uid in resource.data.get('memberUids', [])));
+        allow list: if isFamilyMember(familyId) && request.auth.uid in resource.data.memberUids;
+        allow create: if isFamilyMember(familyId) && (
+          (chatId == 'family' && request.resource.data.type == 'group' &&
+            request.resource.data.keys().hasOnly(['type', 'title', 'createdByUid', 'lastAt'])) ||
+          (request.resource.data.type == 'direct' &&
+            request.resource.data.keys().hasOnly(['type', 'memberUids', 'createdByUid', 'lastAt']) &&
+            request.resource.data.memberUids is list &&
+            request.resource.data.memberUids.size() == 2 &&
+            request.auth.uid in request.resource.data.memberUids &&
+            request.resource.data.memberUids[0] < request.resource.data.memberUids[1] &&
+            chatId == 'dm_' + request.resource.data.memberUids[0] + '_' + request.resource.data.memberUids[1] &&
+            activeMember(request.resource.data.memberUids[0]) && activeMember(request.resource.data.memberUids[1]))
+        );
+        // Sending a message updates the last-message preview; pinning sets the pinned message.
+        allow update: if inChat() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastText', 'lastSenderUid', 'lastAt', 'pinnedMessageId']) &&
+          request.resource.data.get('lastSenderUid', request.auth.uid) == request.auth.uid ||
+          (inChat() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinnedMessageId']));
+        allow delete: if false;
+
+        match /messages/{msgId} {
+          function inThisChat() {
+            return isFamilyMember(familyId) && (chatId == 'family' ||
+              request.auth.uid in getAfter(/databases/$(database)/documents/families/$(familyId)/chats/$(chatId)).data.get('memberUids', []));
+          }
+          allow read: if inChat();
+          allow create: if inThisChat() &&
+            request.resource.data.senderUid == request.auth.uid &&
+            request.resource.data.text is string &&
+            request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 4000 &&
+            request.resource.data.keys().hasOnly(['senderUid', 'senderName', 'text', 'at', 'clientAt',
+              'replyToId', 'replyToText', 'replyToName', 'forwarded']);
+          // The sender may edit or delete for everyone; anyone in the chat may set only their own reaction.
+          allow update: if inChat() && (
+            (resource.data.senderUid == request.auth.uid &&
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text', 'editedAt', 'deletedForAll']) &&
+              request.resource.data.text is string && request.resource.data.text.size() <= 4000) ||
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions']) &&
+              request.resource.data.get('reactions', {}).diff(resource.data.get('reactions', {})).affectedKeys().hasOnly([request.auth.uid]))
+          );
+          allow delete: if false;
+        }
+
+        // When each person last read the chat: everyone in the chat may see them, each sets only their own.
+        match /reads/{readerUid} {
+          allow read: if inChat();
+          allow write: if inChat() && request.auth.uid == readerUid &&
+            request.resource.data.keys().hasOnly(['at']);
+        }
+      }
+
+      match /documents/{docId} {
+        // Private documents stay visible only to their owner, the people they chose, and the Super Admin.
+        allow read: if isFamilyMember(familyId) && (
+          isFamilyOwner(familyId) ||
+          resource.data.isPrivate == false ||
+          resource.data.ownerUid == request.auth.uid ||
+          (resource.data.authorizedUids != null && request.auth.uid in resource.data.authorizedUids)
+        );
+        allow create: if isFamilyMember(familyId) && request.resource.data.ownerUid == request.auth.uid;
+        allow update, delete: if isFamilyMember(familyId) && (
+          isFamilyOwner(familyId) || resource.data.ownerUid == request.auth.uid
+        );
+      }
+    }
+  }
+}

@@ -105,26 +105,32 @@ object AiContext {
         // Money summary
         val mStart = monthStart(now, 0)
         val lastStart = monthStart(now, -1)
-        val thisMonth = expenses.filter { isSpend(it) && inRange(it, mStart, now) }
-        val lastMonth = expenses.filter { isSpend(it) && inRange(it, lastStart, mStart - 1) }
+        // Same rules as the Finance dashboard: totals in paise, refunds lower spending and are never income.
+        val L = com.familyhub.app.money.Ledger
+        fun rs(list: List<Rec>) = L.rupees(list.sumOf { L.paise(amountOf(it)) })
         val dayOfMonth = ((now - mStart) / DAY_MS).toInt() + 1
-        val lastMonthSameDays = expenses.filter { isSpend(it) && inRange(it, lastStart, lastStart + dayOfMonth * DAY_MS) }
-        val income = expenses.filter { isIncome(it) && inRange(it, mStart, now) }.sumOf { amountOf(it) }
+        val tThis = L.totals(expenses, mStart, now)
+        val tLast = L.totals(expenses, lastStart, mStart - 1)
+        val tSame = L.totals(expenses, lastStart, lastStart + dayOfMonth * DAY_MS)
+        val thisMonth = tThis.spends
+        val lastMonth = tLast.spends
+        val income = L.rupees(tThis.income)
         sb.appendLine("\nMoney (INR):")
-        sb.appendLine("- Spent this month so far: ${money(thisMonth.sumOf { amountOf(it) })} (same days last month: ${money(lastMonthSameDays.sumOf { amountOf(it) })}).")
-        sb.appendLine("- Spent last month in total: ${money(lastMonth.sumOf { amountOf(it) })}.")
+        sb.appendLine("- Spent this month so far: ${money(tThis.spentRupees)} (same days last month: ${money(tSame.spentRupees)}).")
+        sb.appendLine("- Spent last month in total: ${money(tLast.spentRupees)}.")
+        if (tThis.refunds > 0) sb.appendLine("- Refunds received this month: ${money(L.rupees(tThis.refunds))} (already taken off the spending).")
         if (income > 0) sb.appendLine("- Income recorded this month: ${money(income)}.")
         if (env.family.monthlyBudget > 0) sb.appendLine("- Family monthly budget: ${money(env.family.monthlyBudget)}.")
-        val cats = thisMonth.groupBy { it.str("category").ifBlank { "Other" } }.mapValues { (_, l) -> l.sumOf { amountOf(it) } }
+        val cats = thisMonth.groupBy { it.str("category").ifBlank { "Other" } }.mapValues { (_, l) -> rs(l) }
             .toList().sortedByDescending { it.second }.take(8)
         if (cats.isNotEmpty()) sb.appendLine("- This month by category: " + cats.joinToString(", ") { "${it.first} ${money(it.second)}" } + ".")
-        val lastCats = lastMonth.groupBy { it.str("category").ifBlank { "Other" } }.mapValues { (_, l) -> l.sumOf { amountOf(it) } }
+        val lastCats = lastMonth.groupBy { it.str("category").ifBlank { "Other" } }.mapValues { (_, l) -> rs(l) }
             .toList().sortedByDescending { it.second }.take(8)
         if (lastCats.isNotEmpty()) sb.appendLine("- Last month by category: " + lastCats.joinToString(", ") { "${it.first} ${money(it.second)}" } + ".")
-        val who = thisMonth.groupBy { it.str("memberName").ifBlank { "Someone" } }.mapValues { (_, l) -> l.sumOf { amountOf(it) } }
+        val who = thisMonth.groupBy { it.str("memberName").ifBlank { "Someone" } }.mapValues { (_, l) -> rs(l) }
         if (who.size > 1) sb.appendLine("- This month by member: " + who.entries.joinToString(", ") { "${it.key} ${money(it.value)}" } + ".")
         val places = thisMonth.groupBy { it.str("title").trim().lowercase() }
-            .map { (_, l) -> l.first().str("title").trim() to l.sumOf { amountOf(it) } }
+            .map { (_, l) -> l.first().str("title").trim() to rs(l) }
             .filter { it.first.isNotBlank() }.sortedByDescending { it.second }.take(10)
         if (places.isNotEmpty()) sb.appendLine("- Top places this month: " + places.joinToString(", ") { "${it.first} ${money(it.second)}" } + ".")
         val recent = expenses.filter { isSpend(it) && inRange(it, now - 10 * DAY_MS, now) }
@@ -138,8 +144,8 @@ object AiContext {
         val cards = env.data["items"].orEmpty().filter { it.str("type") == "card" }
         cards.forEach { c ->
             val cy = CardCycle.of(c, now) ?: return@forEach
-            val billed = cardSpends(expenses, c, cy.billedStart, cy.billedEnd).sumOf { amountOf(it) }
-            val current = cardSpends(expenses, c, cy.currentStart, cy.currentEnd).sumOf { amountOf(it) }
+            val billed = rs(cardSpends(expenses, c, cy.billedStart, cy.billedEnd))
+            val current = rs(cardSpends(expenses, c, cy.currentStart, cy.currentEnd))
             val limit = c.num("limitInr")
             sb.appendLine(
                 "- Card ${c.str("title")}: last bill ${money(billed)} due ${d(cy.billDue)}; this cycle so far ${money(current)}" +

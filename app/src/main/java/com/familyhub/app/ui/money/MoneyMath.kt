@@ -54,17 +54,24 @@ data class CardCycle(
 /** Marked "Not an expense" (self transfers, card bill payments, refunds merged into a purchase). */
 fun isExcluded(r: Rec): Boolean = r.bool("notExpense")
 
-/** Real spending: expenses, plus bills and EMIs once paid. */
-fun isSpend(r: Rec): Boolean {
-    val t = r.str("type").uppercase()
-    if (r.bool("isDeleted") || isExcluded(r)) return false
-    return t == "EXPENSE" || t.isBlank() || ((t == "BILL" || t == "EMI") && (r["isPaid"] as? Boolean ?: true))
-}
+/**
+ * Real spending: expenses, plus bills and EMIs once paid. The same rule as the Finance dashboard
+ * ([com.familyhub.app.money.Ledger.isSpend]), so every screen shows the same totals.
+ */
+fun isSpend(r: Rec): Boolean = com.familyhub.app.money.Ledger.isSpend(r)
 
-fun isIncome(r: Rec): Boolean = !r.bool("isDeleted") && !isExcluded(r) && r.str("type").uppercase() == "INCOME"
+/** Income, never counting refunds (they lower spending instead). */
+fun isIncome(r: Rec): Boolean = com.familyhub.app.money.Ledger.isIncome(r)
+
+/** A refund or reversal not merged into its purchase: it lowers spending in the period it arrives. */
+fun isRefund(r: Rec): Boolean = com.familyhub.app.money.Ledger.isRefund(r)
 
 /** What an entry counts for: its amount less any refunds merged into it. */
-fun amountOf(r: Rec): Double = ((r.num("amountInr") ?: 0.0) - (r.num("refundAmount") ?: 0.0)).coerceAtLeast(0.0)
+fun amountOf(r: Rec): Double = com.familyhub.app.money.Ledger.spendAmount(r)
+
+/** Adds amounts in whole paise so totals never drift. */
+fun sumRupees(list: List<Rec>): Double =
+    com.familyhub.app.money.Ledger.rupees(list.sumOf { com.familyhub.app.money.Ledger.paise(amountOf(it)) })
 
 fun inRange(r: Rec, from: Long, to: Long): Boolean {
     val t = r.lng("dateMillis") ?: return false

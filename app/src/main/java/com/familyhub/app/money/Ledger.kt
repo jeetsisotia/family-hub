@@ -551,4 +551,61 @@ object Ledger {
     fun merchantKey(s: String): String =
         s.lowercase().replace(Regex("(upi|pos|ecom|neft|imps|vpa|ref|txn|payment|paid|to|at|via)"), " ")
             .filter { it.isLetter() }.take(12)
+
+    /**
+     * Groups of saved entries that are very likely one payment saved more than once (for example the SMS
+     * and the email for the same purchase). Uses [sameTransaction], so two real payments of the same amount
+     * on one day at different shops stay apart. Each group is sorted oldest first; groups are biggest first.
+     */
+    fun duplicateGroups(records: List<Map<String, Any?>>): List<List<Map<String, Any?>>> {
+        val rs = records.filter { live(it) && it.l("dateMillis") != null && paiseOf(it) > 0 }
+            .sortedBy { it.l("dateMillis") }
+        val parent = IntArray(rs.size) { it }
+        fun find(i: Int): Int { var x = i; while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x] }; return x }
+        for (i in rs.indices) {
+            val ti = rs[i].l("dateMillis") ?: continue
+            var j = i + 1
+            // sameTransaction only matches within a day and a half, so the sorted list needs a short look ahead.
+            while (j < rs.size && (rs[j].l("dateMillis") ?: Long.MAX_VALUE) - ti <= DAY + DAY / 2) {
+                if (sameTransaction(rs[i], rs[j])) parent[find(j)] = find(i)
+                j++
+            }
+        }
+        return rs.indices.groupBy { find(it) }.values.filter { it.size > 1 }
+            .map { g -> g.map { rs[it] } }
+            .sortedWith(compareByDescending<List<Map<String, Any?>>> { it.size }.thenByDescending { it.first().l("dateMillis") })
+    }
+
+    // ---------- totals for reports, insights and the assistant ----------
+
+    /**
+     * Spending and income for a period, worked out the same way everywhere (Finance, Insights, the summary
+     * card, budget alerts and the assistant). Amounts are in paise.
+     * - [spent] is spending less refunds that arrived in the period (never below zero).
+     * - [income] never includes refunds.
+     * - [byCategory] is the spending before refunds, biggest first; [refunds] is shown beside it.
+     */
+    data class Totals(
+        val spent: Long, val gross: Long, val refunds: Long, val income: Long, val saved: Long,
+        val byCategory: List<Pair<String, Long>>, val spends: List<Map<String, Any?>>
+    ) {
+        val spentRupees get() = rupees(spent)
+        val incomeRupees get() = rupees(income)
+    }
+
+    fun totals(
+        records: List<Map<String, Any?>>, from: Long, to: Long,
+        include: (Map<String, Any?>) -> Boolean = { true }
+    ): Totals {
+        val inPeriod = records.filter { r -> (r.l("dateMillis") ?: return@filter false) in from..to && include(r) }
+        val spends = inPeriod.filter { isSpend(it) }
+        val gross = spends.sumOf { paise(spendAmount(it)) }
+        val refunds = inPeriod.filter { isRefund(it) }.sumOf { paiseOf(it) }
+        val income = inPeriod.filter { isIncome(it) }.sumOf { paiseOf(it) }
+        val saved = inPeriod.filter { live(it) && !it.b("notExpense") && type(it) == "SAVING" }.sumOf { paiseOf(it) }
+        val byCategory = spends.groupBy { it.s("category").ifBlank { "Other" } }
+            .map { (c, l) -> c to l.sumOf { paise(spendAmount(it)) } }
+            .sortedByDescending { it.second }
+        return Totals(max(0L, gross - refunds), gross, refunds, income, saved, byCategory, spends)
+    }
 }
