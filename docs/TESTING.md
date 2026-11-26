@@ -125,3 +125,16 @@ These need a real phone, a real inbox or a real Google account, so they could no
 - [ ] **Data & backup:** save a backup file. Delete a shared entry and restore it from Recently deleted.
 - [ ] **Assistant:** ask "How much EMI is pending?" and "Switch to dark mode", then tap Apply.
 - [ ] **Reduced motion:** with Android's Remove animations turned on, screens appear without movement.
+
+
+## Finance redesign and universal AI (27 Nov 2026)
+
+| Test | Result |
+|---|---|
+| `tools/ledger-test` (102 checks, including the dashboard, Transactions and category checks) | Passed |
+| `tools/health-test` (21, including AI usage limits) | Passed |
+| Builds #59 and #60 with emulator screen checks | Passed, no crash |
+| Screenshots | Not inspected |
+| Live Gemini, web search and Google consent | Need your own key and phone |
+
+Full list: `docs/VERIFICATION-REPORT-2.md`.

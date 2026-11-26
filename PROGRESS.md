@@ -508,7 +508,7 @@ The second brief (Finance redesign and a universal AI assistant) is being done i
 | What | Result |
 |---|---|
 | `tools/ledger-test` (102 checks, 24 new) | **Passed** (27 Nov). New checks cover: the month balance, spending after refunds, transfers, deleted entries and unpaid bills left out, the top 5 in order, the % against last month, the latest 5, month ranges across years, Expenses and Income lists, search by text and amount, the category filter and breakdown, grouping by day, and duplicate custom categories |
-| APK build and emulator screens: dashboard, Transactions (dark), Categories | Runs after upload |
+| APK build #59 (commit `3f9b2c9`) and emulator screens: dashboard, Transactions (dark), Categories | **Passed**: compiled on its first build, no crash. The screenshots were not inspected (not downloadable from here) |
 | On a phone: adding and editing, the custom range picker, how it looks | **Needs my phone** |
 
 ### Not changed in this bundle
@@ -562,7 +562,7 @@ Full setup, security and cost notes are in `docs/AI-SETUP.md`.
 | What | Result |
 |---|---|
 | `tools/health-test` (21 checks; 3 new for the usage limits) | **Passed** |
-| Compile and emulator screens (universal chat not connected, AI settings) | Runs after upload |
+| APK build #60 (commit `e5d6693`) and emulator screens (universal chat not connected, AI settings) | **Passed**: compiled on its first build, no crash (attempt 2; attempt 1 hit the old Gemini-check hang) |
 | A real Gemini key, a real conversation, attachments, web search, Google consent | **Not tested here** (no key or Google account in this environment). **Needs my phone** with your own key |
 
 ---

@@ -48,3 +48,12 @@
 - **Debug-signed APK.** Fine for installing directly. The Play Store needs a release build with its own key.
 - **Sample-data screen.** The APK includes a sample-data screen that the automatic emulator test opens. It shows only made-up data and cannot open or change real family data.
 - **Real-phone checks.** These were not tested on a real phone in this release: Google sign-in on your phone, your real SMS inbox, Gmail consent, Health Connect with a watch, QR scanning and reminder timing. [TESTING.md](TESTING.md) has a short checklist for them.
+
+
+## Finance redesign and universal AI (27 Nov 2026)
+
+- **No shared family AI key:** it would need a secure server, which the free Firebase plan does not have. Each person adds their own Gemini key; money questions work without one.
+- **Gmail, Drive and Calendar** need a one-time Google Cloud setup (APIs, scopes, test users) before they work. They are read-only. Consent is asked again about every 7 days while the app is in Testing.
+- **Web search** may be refused on free keys for Gemini 3 models (Google's rule). On paid keys it can cost money after Google's monthly free allowance.
+- **No streaming:** answers appear when complete. Stop ends the wait at once.
+- **Free-tier prompts** may be used by Google to improve its products.

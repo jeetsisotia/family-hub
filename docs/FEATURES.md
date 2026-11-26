@@ -114,3 +114,20 @@ Everything listed as Done is a working screen on real data, not a placeholder. S
 | Family data kept apart | Done | Firestore rules: only a family's approved members can read it. Only admins can delete for good. "Only me" entries are readable only by their owner. Private documents are readable by their owner, the people they chose and the Super Admin. Families cannot be listed; joining looks up one invite code. |
 | Sensitive data | Done | Health data, ID numbers and notes never go to the AI. Only the last 4 digits of cards and accounts are kept. |
 | Network | Done | HTTPS only (Firebase and Google APIs). AI calls time out after 45 seconds with a clear message, and another model is tried when the first is busy. Firestore keeps working offline and syncs when the phone is back online. |
+
+
+## Finance redesign and universal AI (27 Nov 2026)
+
+- **Finance:**
+  - a month dashboard (balance, income and expenses against last month, budget, top 5, latest 5)
+  - one Transactions screen (Expenses | Income, periods, search, breakdown, by day)
+  - one add and edit form
+  - custom categories with emoji icons
+- **AI:**
+  - a universal assistant on each person's own Gemini key (encrypted on the phone)
+  - optional web search with sources
+  - optional read-only Gmail, Drive and Calendar
+  - FamilyHub actions with confirmation
+  - usage limits
+
+Details: `PROGRESS.md`, `docs/AI-SETUP.md`, `docs/VERIFICATION-REPORT-2.md`.
