@@ -76,8 +76,8 @@
 | Reminder rules | 40 | **Passed** |
 | Health and AI limit | 18 | **Passed** |
 | Firestore rules in the emulator (on GitHub) | 79 | **Passed** (run #7) |
-| APK builds #52 (calls), #53 (safety), #55 (reminders) | — | **Passed** |
-| Emulator screen check (Android 14, 21 screens with sample data) | — | **Passed**: no crash. The screenshots were not reviewed by eye. |
+| APK builds #52 (calls), #53 (safety), #55 (reminders), #57 (Phase 8) | — | **Passed** |
+| Emulator screen check (Android 14, 21 screens with sample data, including Family safety, SOS, Home with Today, reminders and the food diary) | — | **Passed**: no crash. The screenshots were not reviewed by eye. |
 | Anything on a real phone | — | **Needs my phone** (checklist in section 6) |
 
 Every result above was run. Nothing is claimed that was not run.
@@ -126,7 +126,7 @@ Every result above was run. Nothing is claimed that was not run.
 
 ## 6. APK, install and phone checklist
 
-**Build status:** the newest code builds (#55 passed; the Phase 8 build follows this report).
+**Build status:** **build #57 passed** (commit `6fa5ef9`, all 8 phases). This is the APK to install.
 
 **Download on your phone:**
 1. Open github.com/jeetsisotia/family-hub and sign in.

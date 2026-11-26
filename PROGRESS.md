@@ -451,7 +451,7 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 |---|---|
 | `tools/health-test` (18 checks: adherence, food totals, AI limit) | **Passed** |
 | All other plain-Kotlin suites (money 78, reminders 40, safety 64, chat 14, assistant 22, SMS and statement import) | **Passed** (27 Nov) |
-| APK build and emulator screens (Food diary, Medicines with adherence) | Runs after upload |
+| APK build #57 (commit `6fa5ef9`) and emulator screens, including the food diary | **Passed**: compiled on its first build, no crash |
 | Food diary and adherence on a phone | **Needs my phone** |
 
 ---
