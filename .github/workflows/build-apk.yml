@@ -43,7 +43,6 @@ jobs:
       - name: Build Debug APK
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: gradle assembleDebug --no-daemon --stacktrace
 
 
