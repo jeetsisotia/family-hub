@@ -162,6 +162,18 @@ fun DataToolsScreen(env: AppEnv) {
         if (uri == null) { if (reset != null) message = "Reset cancelled: the backup was not saved."; return@rememberLauncherForActivityResult }
         busy = true
         scope.launch {
+            // A backup is read fresh from the server: the screen's live data may come from the phone's cache or be
+            // incomplete after a lost connection, and a reset that follows must never trust an incomplete backup.
+            val fresh = try {
+                COLLECTIONS.associateWith { c -> env.repo.fetchFromServer(env.familyId, env.uid, c) }
+            } catch (e: Exception) {
+                try { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) } catch (_: Exception) { }
+                busy = false
+                message = "Backup not saved: could not read everything from the server (${e.message?.take(80)}). " +
+                    "Connect to the internet and try again." + if (reset != null) " Nothing was reset." else ""
+                return@launch
+            }
+            raw = fresh
             try {
                 val text = backupJson()
                 withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } ?: error("Could not open the file") }
@@ -210,10 +222,22 @@ fun DataToolsScreen(env: AppEnv) {
                     restoreFile = null
                     busy = true
                     scope.launch {
+                        // What already exists is checked on the server, so an entry that only looked missing (phone
+                        // cache, lost connection) is never written over with an older copy from the backup.
+                        val fresh = try {
+                            COLLECTIONS.associateWith { c -> env.repo.fetchFromServer(env.familyId, env.uid, c) }
+                        } catch (e: Exception) {
+                            busy = false
+                            message = "Restore not started: could not check the server (${e.message?.take(80)}). Connect to the internet and try again."
+                            return@launch
+                        }
+                        raw = fresh
+                        val existing = fresh.mapValues { (_, l) -> l.mapNotNull { it["id"] as? String }.toSet() }
+                        val toAdd = b.data.mapValues { (c, l) -> l.filter { (it["id"] as? String) !in existing[c].orEmpty() } }
                         val pics = withContext(Dispatchers.IO) { com.familyhub.app.ui.common.LocalPhotos.import(context, b.photos) }
                         var ok = 0
                         var failed = 0
-                        for ((c, l) in missing) for (r in l) {
+                        for ((c, l) in toAdd) for (r in l) {
                             val id = r["id"] as? String ?: continue
                             try {
                                 env.repo.putScoped(env.familyId, env.uid, c, id, r, r[PRIVATE_FLAG] == true); ok++

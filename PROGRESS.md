@@ -568,6 +568,41 @@ Full setup, security and cost notes are in `docs/AI-SETUP.md`.
 
 ---
 
+## Data reliability review (bundle p37)
+
+This was the item left open in Phase 7. These are the backup, restore and offline-saving paths, read in the code.
+
+### Problems found and fixed
+
+| Problem | Risk | Fix |
+|---|---|---|
+| **Backups were built from the screen's live data.** A failed or offline load became an empty list without any warning. | A backup could be silently missing entries, and **"Back up, then reset" would then delete data that was not in the backup file**. | Backups (and backup-before-reset) now read every collection **fresh from the server**. If that fails, nothing is saved or reset, the empty file is removed, and the app says to connect and try again. The reset then deletes exactly what the backup holds. |
+| **Restore decided "missing" from the same live data**, then wrote with merge. | An entry that only *looked* missing would be **overwritten with its older backup copy**, losing later edits. | Restore checks what exists **on the server** first and adds only truly missing entries. If the server cannot be reached, restore does not start. |
+| **The new transaction form and category dialog waited for the server before closing.** | Offline, the sheet stayed open, and tapping Save again created **duplicates**. | A new entry gets its id when the form opens, so repeated saves update the same record. The sheet closes at once: Firestore keeps the write on the phone and sends it when online. A refused save shows a message. |
+
+### Checked and already sound
+
+- An interrupted restore can simply be run again: it adds only entries that are missing, by id.
+- A reset runs only after its backup file is saved. Deletion uses batches of 400, and a stopped reset can be repeated from a new backup.
+- Backup files are checked to be Family Hub files before restoring, and include pictures kept on the phone.
+
+### Not covered by backup files, by design
+
+Chats, calls, shared locations, safety settings and AI conversations or keys are not in backup files.
+- Safety settings have their own private cloud copy.
+- Chats and calls stay in Firestore.
+- AI keys and conversations stay on the phone only.
+
+### Tests
+
+These paths need Firestore and a phone. They are **NOT TESTED** here beyond compiling, and they are **Needs my phone**:
+1. Back up while online: it works.
+2. Back up in airplane mode: it says it could not reach the server, and nothing is reset.
+3. Restore an older backup: existing entries are unchanged and only deleted ones return.
+4. Add a transaction offline, then tap Save twice: only one entry appears.
+
+---
+
 ## Phase 3: family chat (built, not yet tested on phones)
 
 ### What is in it

@@ -507,6 +507,9 @@ fun TransactionForm(env: AppEnv, existing: Rec?, initialKind: FinanceMonth.Kind,
     var error by remember { mutableStateOf<String?>(null) }
     val cats = remember(items, kind) { categoriesFor(items, kind) }
     val fmt = remember { SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()) }
+    // A new entry gets its id now, so saving twice (or again while offline) updates the same record, never a copy.
+    val newId = remember { UUID.randomUUID().toString().replace("-", "").take(20) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
 
     fun save() {
         val amt = amount.replace(",", "").trim().toDoubleOrNull()
@@ -550,12 +553,14 @@ fun TransactionForm(env: AppEnv, existing: Rec?, initialKind: FinanceMonth.Kind,
             data["createdAt"] = System.currentTimeMillis()
         }
         FinanceModule.postProcess?.invoke(data, env.uid, env.profile.name)
+        val target = existing ?: mapOf("id" to newId, PRIVATE_FLAG to onlyMe)
+        // Firestore keeps the change on the phone at once and sends it when online, so the sheet closes now.
+        onDismiss()
         env.scope.launch {
             try {
-                env.repo.saveScoped(env.familyId, env.uid, "expenses", existing, data, onlyMe)
-                onDismiss()
+                env.repo.saveScoped(env.familyId, env.uid, "expenses", target, data, onlyMe)
             } catch (e: Exception) {
-                error = "Could not save: ${e.message}"
+                android.widget.Toast.makeText(appContext, "Could not save the transaction: ${e.message?.take(80)}", android.widget.Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -682,6 +687,8 @@ fun CategoryDialog(env: AppEnv, existing: CustomCategory?, defaultKind: String, 
     var error by remember { mutableStateOf<String?>(null) }
     val others = remember(items) { customCategories(items).filter { it.rec.str("id") != existing?.rec?.str("id") }.map { it.name to it.kind } }
     val dup = FinanceMonth.isDuplicateCategory(name, kind, others, spendingCategories, incomeCategories, ignoreName = existing?.name.orEmpty())
+    val newId = remember { UUID.randomUUID().toString().replace("-", "").take(20) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (existing == null) "New category" else "Edit category") },
@@ -731,13 +738,15 @@ fun CategoryDialog(env: AppEnv, existing: CustomCategory?, defaultKind: String, 
                 data["familyId"] = env.familyId
                 data["updatedAt"] = System.currentTimeMillis()
                 if (existing == null) data["createdByUid"] = env.uid
+                val private = existing?.rec?.get(PRIVATE_FLAG) == true
+                onSaved(clean)
                 env.scope.launch {
                     try {
-                        // Shared with the family (not "Only me"), so every member gets the same categories.
-                        env.repo.saveScoped(env.familyId, env.uid, "items", existing?.rec, data, existing?.rec?.get(PRIVATE_FLAG) == true)
-                        onSaved(clean)
+                        // Shared with the family (not "Only me"), so every member gets the same categories. A fixed id
+                        // means a repeated save never creates a second copy.
+                        env.repo.saveScoped(env.familyId, env.uid, "items", existing?.rec ?: mapOf("id" to newId), data, private)
                     } catch (e: Exception) {
-                        error = "Could not save: ${e.message}"
+                        android.widget.Toast.makeText(appContext, "Could not save the category: ${e.message?.take(80)}", android.widget.Toast.LENGTH_LONG).show()
                     }
                 }
             }) { Text("Save") }

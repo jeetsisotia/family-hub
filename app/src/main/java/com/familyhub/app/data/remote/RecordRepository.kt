@@ -68,6 +68,24 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
     fun observePrivate(uid: String, collection: String): Flow<List<Rec>> =
         if (uid.isBlank()) emptyFlow() else listen(privateCol(uid, collection), true, "private $collection")
 
+    /**
+     * Every record of a collection (family and this person's "Only me"), read from the server, not from the phone's
+     * cache. Throws if the server cannot be reached, so a backup is never silently incomplete.
+     */
+    suspend fun fetchFromServer(familyId: String, uid: String, collection: String): List<Rec> {
+        fun rows(docs: List<com.google.firebase.firestore.DocumentSnapshot>, private: Boolean): List<Rec> = docs.map { d ->
+            val m = HashMap<String, Any?>()
+            d.data?.let { m.putAll(it) }
+            m["id"] = d.id
+            if (private) m[PRIVATE_FLAG] = true
+            m as Rec
+        }
+        val server = com.google.firebase.firestore.Source.SERVER
+        val fam = if (familyId.isBlank()) emptyList() else rows(col(familyId, collection).get(server).await().documents, false)
+        val mine = if (uid.isBlank()) emptyList() else rows(privateCol(uid, collection).get(server).await().documents, true)
+        return fam + mine
+    }
+
     /** Family records plus this person's own "Only me" records of the same kind. */
     fun observeMerged(familyId: String, uid: String, collection: String): Flow<List<Rec>> =
         combine(observeRecords(familyId, collection), observePrivate(uid, collection)) { a, b -> a + b }
