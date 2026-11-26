@@ -113,6 +113,8 @@ dependencies {
     // Family invite QR: drawn with ZXing; scanned with Google's code scanner, which needs no camera permission.
     implementation("com.google.zxing:core:3.5.3")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+    // Family chat emoji keyboard (AndroidX, Apache 2.0, works offline).
+    implementation("androidx.emoji2:emoji2-emojipicker:1.4.0")
 
     implementation("com.google.dagger:hilt-android:2.52")
     ksp("com.google.dagger:hilt-compiler:2.52")

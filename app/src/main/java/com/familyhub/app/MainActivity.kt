@@ -185,6 +185,8 @@ class MainActivity : FragmentActivity() {
                         } catch (e: Exception) {
                             android.util.Log.w("MainActivity", "Could not schedule reminders", e)
                         }
+                        // Best-effort chat notifications (about every 15 minutes; see ChatWorker).
+                        try { com.familyhub.app.work.ChatWorker.schedule(context) } catch (e: Exception) { }
                     }
 
                     val profileFlow = remember(uid) { authRepository.observeUserProfile(uid) }
@@ -313,6 +315,11 @@ class MainActivity : FragmentActivity() {
                                 subRoute = null
                                 backStack.clear()
                             }
+                            "chats" -> {
+                                selectedTab = PrimaryTab.CHATS
+                                subRoute = null
+                                backStack.clear()
+                            }
                             else -> {
                                 val from = subRoute
                                 if (from != null && from != r) {
@@ -383,7 +390,8 @@ class MainActivity : FragmentActivity() {
                     Scaffold(
                         containerColor = Color.Transparent,
                         bottomBar = {
-                            GlassTabBar(
+                            // A conversation uses the whole screen for messages and the keyboard, like other messengers.
+                            if (subRoute?.startsWith("chat:") != true) GlassTabBar(
                                 tabs = PrimaryTab.entries.map { GlassTab(it.label, it.icon) },
                                 selectedIndex = selectedTab.ordinal,
                                 onSelect = { i ->
@@ -501,6 +509,7 @@ class MainActivity : FragmentActivity() {
                                         }
                                     }
                                     PrimaryTab.HEALTH -> com.familyhub.app.ui.health.HealthScreen(envFor(currentFamily), showBack = false)
+                                    PrimaryTab.CHATS -> com.familyhub.app.ui.chat.ChatListScreen(envFor(currentFamily)) { id -> navigate("chat:$id") }
                                     PrimaryTab.FAMILY -> FamilyScreen(
                                         family = currentFamily,
                                         members = members,

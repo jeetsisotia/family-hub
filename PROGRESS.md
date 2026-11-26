@@ -103,6 +103,58 @@ How each status is known:
 
 ---
 
+### Phase 1 results so far
+
+- **APK build #47:** passed. It compiled with all Phase 1 changes. The emulator check was still running when this was written.
+- **Rules tests, first run:** failed on setup, not on the rules. The emulator refused a rules file outside its folder. `firebase.json` now sits next to `firestore.rules`.
+
+---
+
+## Phase 3: family chat (built, not yet tested on phones)
+
+### What is in it
+
+- **Chats tab.** The bottom bar now reads: Home, Finance, Health, Chats, Family, More.
+- **Chat types:** the family group chat, plus one-to-one chats with any approved member.
+- **Messages:**
+  - Sending works offline. A message shows a clock while sending, and a refused message shows "Not sent. Retry".
+  - The latest 60 messages load, with "Load earlier messages" for older ones.
+  - Unread counts use a count query, which costs 1 read per chat.
+- **Actions on a message:**
+  - Reply by swiping or from the long-press menu.
+  - Edit, delete for me, delete for everyone, copy and forward.
+  - Pin in the chat, and star.
+  - Emoji reactions, with 6 quick ones and the full picker.
+- **Look:**
+  - Grouped bubbles and date separators.
+  - Large emoji-only messages.
+  - A jump-to-latest button.
+  - "Seen" or "Seen by N" under your last message.
+- **Kept on this phone only:** pinned, muted and archived chats, drafts and recent emojis.
+- **Search:** works within loaded messages. The screen says so.
+- **Notifications:** best-effort. A background check runs about every 15 minutes while online and notifies about new messages in chats that are not muted. Android can delay it in Doze or battery saver.
+
+### Not in it, and why
+
+| Item | Reason |
+|---|---|
+| Typing indicators and "delivered" ticks | They would write to the database every few seconds and use up free quota. "Seen" is built instead. |
+| Mentions, polls, stickers | Not built yet |
+| Photos, files and voice notes | No free, secure storage. Firebase Storage needs the paid plan, and storing files inside Firestore is not allowed. |
+| Instant push for a closed app | Needs a trusted server (Cloud Functions or the paid plan) |
+
+### Privacy
+
+- Direct chats can be read only by their two people. Admins and the Super Admin cannot read them, and rules tests check this.
+- Messages are **not end-to-end encrypted.** They are protected by the rules and by Google's encryption in transit and at rest. The app says so on the Chats screen.
+
+### Rules
+
+- The new chat rules come with 16 more emulator tests, 46 in total.
+- They are published only after the tests pass on GitHub.
+
+---
+
 ## Next step
 
 1. Upload Phase 1 (bundle p21) and build. Add the rules-test workflow and run it.

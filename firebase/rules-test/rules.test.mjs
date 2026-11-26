@@ -3,11 +3,12 @@
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, writeBatch, orderBy, limit } from 'firebase/firestore';
 
 let env;
 const F = 'fam1';
 const CODE = 'FH-ABC123';
+const DM = 'dm_admin_member';
 
 before(async () => {
   env = await initializeTestEnvironment({
@@ -33,6 +34,11 @@ beforeEach(async () => {
     await setDoc(doc(db, `users/member`), { uid: 'member', name: 'M' });
     await setDoc(doc(db, `families/other/members/stranger`), { uid: 'stranger', status: 'ACTIVE' });
     await setDoc(doc(db, `families/other`), { id: 'other', name: 'Other', ownerUid: 'stranger', inviteCode: 'FH-ZZZ999' });
+    // Chats: the family group, and a direct chat between "admin" and "member" (the owner is not in it).
+    await setDoc(doc(db, `families/${F}/chats/family`), { type: 'group', title: 'Family', createdByUid: 'owner', lastAt: 1 });
+    await setDoc(doc(db, `families/${F}/chats/family/messages/g1`), { senderUid: 'member', senderName: 'M', text: 'Hi all', at: 1, clientAt: 1 });
+    await setDoc(doc(db, `families/${F}/chats/${DM}`), { type: 'direct', memberUids: ['admin', 'member'], createdByUid: 'admin', lastAt: 1 });
+    await setDoc(doc(db, `families/${F}/chats/${DM}/messages/d1`), { senderUid: 'admin', senderName: 'A', text: 'Private', at: 1, clientAt: 1 });
   });
 });
 
@@ -152,4 +158,73 @@ test('Only me records: nobody else can read them, not even the super admin', asy
   await assertSucceeds(getDoc(doc(as('member'), 'users/member')));
   await assertFails(getDoc(doc(as('owner'), 'users/member')));
   await assertFails(getDoc(doc(as('owner'), 'users/member/records/r1')));
+});
+
+// ---------- family chat ----------
+test('chat: family members can read the family group chat', async () => {
+  await assertSucceeds(getDoc(doc(as('member'), `families/${F}/chats/family/messages/g1`)));
+  await assertSucceeds(getDocs(query(collection(as('owner'), `families/${F}/chats/family/messages`), orderBy('clientAt', 'desc'), limit(60))));
+});
+test('chat: pending members and strangers cannot read the family group chat', async () => {
+  await assertFails(getDoc(doc(as('pending'), `families/${F}/chats/family/messages/g1`)));
+  await assertFails(getDoc(doc(as('stranger'), `families/${F}/chats/family/messages/g1`)));
+});
+test('chat: the two people in a direct chat can read it', async () => {
+  await assertSucceeds(getDoc(doc(as('admin'), `families/${F}/chats/${DM}/messages/d1`)));
+  await assertSucceeds(getDoc(doc(as('member'), `families/${F}/chats/${DM}`)));
+});
+test('chat: nobody else can read a direct chat, not even the super admin', async () => {
+  await assertFails(getDoc(doc(as('owner'), `families/${F}/chats/${DM}`)));
+  await assertFails(getDoc(doc(as('owner'), `families/${F}/chats/${DM}/messages/d1`)));
+  await assertFails(getDocs(collection(as('owner'), `families/${F}/chats/${DM}/messages`)));
+});
+test('chat: a person can list only the direct chats they are in', async () => {
+  await assertSucceeds(getDocs(query(collection(as('member'), `families/${F}/chats`), where('memberUids', 'array-contains', 'member'))));
+  await assertFails(getDocs(query(collection(as('owner'), `families/${F}/chats`), where('memberUids', 'array-contains', 'member'))));
+  await assertFails(getDocs(collection(as('owner'), `families/${F}/chats`)));
+});
+test('chat: sending a message as yourself works; as someone else does not', async () => {
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/${DM}/messages/d2`), { senderUid: 'member', senderName: 'M', text: 'Hello', at: 2, clientAt: 2 }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/${DM}/messages/d3`), { senderUid: 'admin', senderName: 'A', text: 'Fake', at: 2, clientAt: 2 }));
+});
+test('chat: the super admin cannot post into a direct chat they are not in', async () => {
+  await assertFails(setDoc(doc(as('owner'), `families/${F}/chats/${DM}/messages/d4`), { senderUid: 'owner', senderName: 'O', text: 'Hi', at: 2, clientAt: 2 }));
+});
+test('chat: messages longer than 4000 characters or empty are refused', async () => {
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/messages/g2`), { senderUid: 'member', senderName: 'M', text: 'x'.repeat(4001), at: 2, clientAt: 2 }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/messages/g3`), { senderUid: 'member', senderName: 'M', text: '', at: 2, clientAt: 2 }));
+});
+test('chat: the sender can edit or delete for everyone; others cannot', async () => {
+  await assertSucceeds(updateDoc(doc(as('member'), `families/${F}/chats/family/messages/g1`), { text: 'Hi everyone', editedAt: 3 }));
+  await assertSucceeds(updateDoc(doc(as('member'), `families/${F}/chats/family/messages/g1`), { text: '', deletedForAll: true, editedAt: 4 }));
+  await assertFails(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { text: 'Changed by someone else' }));
+});
+test('chat: nobody can remove a message for good', async () => {
+  await assertFails(deleteDoc(doc(as('member'), `families/${F}/chats/family/messages/g1`)));
+  await assertFails(deleteDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`)));
+});
+test('chat: anyone in the chat may set only their own reaction', async () => {
+  await assertSucceeds(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.owner': '👍' }));
+  await assertFails(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.member': '👍' }));
+});
+test('chat: starting a direct chat with another active member works, and with yourself left out does not', async () => {
+  await assertSucceeds(setDoc(doc(as('owner'), `families/${F}/chats/dm_member_owner`), { type: 'direct', memberUids: ['member', 'owner'], createdByUid: 'owner', lastAt: 5 }));
+  await assertFails(setDoc(doc(as('owner'), `families/${F}/chats/dm_admin_member2`), { type: 'direct', memberUids: ['admin', 'member'], createdByUid: 'owner', lastAt: 5 }));
+});
+test('chat: a direct chat with someone still pending is refused', async () => {
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/dm_member_pending`), { type: 'direct', memberUids: ['member', 'pending'], createdByUid: 'member', lastAt: 5 }));
+});
+test('chat: looking up a direct chat that does not exist yet works only for its own people', async () => {
+  await assertSucceeds(getDoc(doc(as('owner'), `families/${F}/chats/dm_admin_owner`)));
+  await assertFails(getDoc(doc(as('member'), `families/${F}/chats/dm_admin_owner`)));
+});
+test('chat: read markers: each person sets only their own', async () => {
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/${DM}/reads/member`), { at: 9 }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/${DM}/reads/admin`), { at: 9 }));
+  await assertFails(getDoc(doc(as('owner'), `families/${F}/chats/${DM}/reads/member`)));
+});
+test('chat: sending updates the preview only as yourself', async () => {
+  await assertSucceeds(updateDoc(doc(as('member'), `families/${F}/chats/family`), { lastText: 'Hello', lastSenderUid: 'member', lastAt: 6 }));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/chats/family`), { lastText: 'Hello', lastSenderUid: 'owner', lastAt: 6 }));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/chats/${DM}`), { memberUids: ['member', 'owner'] }));
 });

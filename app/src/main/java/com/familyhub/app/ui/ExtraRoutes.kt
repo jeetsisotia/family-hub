@@ -60,8 +60,8 @@ val ExtraRouteIds: Set<String> = setOf(
     "accounts_home", "loans_home", "due_calendar", "transfer", "statement_import", "data_tools"
 )
 
-/** Screens for one account, card or loan: "acct:<id>", "ccard:<id>", "loan:<id>". */
-private val DetailPrefixes = listOf("acct:", "ccard:", "loan:")
+/** Screens for one account, card, loan or chat: "acct:<id>", "ccard:<id>", "loan:<id>", "chat:<id>". */
+private val DetailPrefixes = listOf("acct:", "ccard:", "loan:", "chat:")
 
 fun isExtraRoute(route: String?): Boolean =
     route != null && (route in ExtraRouteIds || DetailPrefixes.any { route.startsWith(it) })
@@ -72,6 +72,7 @@ fun ExtraRoute(route: String, env: AppEnv) {
         route.startsWith("acct:") -> { AccountDetailScreen(env, route.removePrefix("acct:")); return }
         route.startsWith("ccard:") -> { CardDetailScreen(env, route.removePrefix("ccard:")); return }
         route.startsWith("loan:") -> { LoanDetailScreen(env, route.removePrefix("loan:")); return }
+        route.startsWith("chat:") -> { com.familyhub.app.ui.chat.ChatScreen(env, route.removePrefix("chat:"), env.onBack); return }
     }
     when (route) {
         "profile" -> ProfileScreen(

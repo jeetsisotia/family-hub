@@ -33,6 +33,7 @@ enum class PrimaryTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Rounded.Home),
     FINANCE("Finance", Icons.Rounded.AccountBalanceWallet),
     HEALTH("Health", Icons.Rounded.FavoriteBorder),
+    CHATS("Chats", Icons.Rounded.ChatBubbleOutline),
     FAMILY("Family", Icons.Rounded.Groups),
     MORE("More", Icons.Rounded.GridView)
 }
