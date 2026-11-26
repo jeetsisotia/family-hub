@@ -191,6 +191,31 @@ The Phase 1 finance fixes were kept and retested (all 60 earlier ledger checks s
 
 ---
 
+## Phase 5: voice and video calls (Beta, bundle p26)
+
+**Can it be done for free? Yes, with limits.** The calls use WebRTC (`io.github.webrtc-sdk:android`, free, BSD licence, kept up to date, no account or sign-up). Firestore carries only the call setup, so it stays inside the Spark plan.
+
+What is in it:
+- A phone and a camera button at the top of every one-to-one chat, and a **Calls** screen (phone icon at the top of Chats) with everyone in the family and the call history (missed calls in red, with length).
+- Incoming call screen with Answer and Decline; outgoing "Calling…", then "Connecting…", then a running timer.
+- Controls: mute, speaker, Bluetooth headset (when one is connected), camera on/off, front/rear camera, end call. Your own video is a small window you can drag.
+- Leaving the app during a video call keeps it in a floating window (picture-in-picture).
+- A "Call in progress" notification while a call runs, as Android requires.
+- No answer after 45 seconds: "No answer", and it shows as a missed call for the other person. On another call: "busy".
+- If the connection drops: "Reconnecting…" for up to 15 seconds, then a clear message.
+
+**How it connects, and the limits (said in the app too):**
+- A free public Google STUN server (`stun.l.google.com`) helps each phone find its own internet address. It does not carry the call, has no guarantee, and sees both phones' internet addresses.
+- There is **no relay (TURN) server**, because every reliable one costs money. Where both phones are behind strict networks (common on mobile data), the call cannot connect. The app then says: try both phones on the same Wi-Fi.
+- **Calls only ring while Family Hub is open** on the other phone. Ringing a closed app needs a server push (Cloud Functions or a paid service), which is not allowed here.
+- Audio and video go directly between the two phones and are scrambled by WebRTC (DTLS-SRTP). The app does **not** call this end-to-end encrypted.
+
+**Privacy and rules:** only the two people on a call can read its record or its connection details, not admins and not other members (17 new rules tests). A call can only be started to an active member of the same family. Connection details are deleted when the call ends; the short record (who, when, how long) stays for the history.
+
+**Status:** code written; checked for syntax only here, because this computer cannot download the WebRTC library. The GitHub build compiles it. Two-phone tests are **Needs my phone**: same Wi-Fi, different Wi-Fi, mobile data, Bluetooth headset, picture-in-picture.
+
+---
+
 ## Phase 3: family chat (built, not yet tested on phones)
 
 ### What is in it
@@ -254,15 +279,15 @@ The Phase 1 finance fixes were kept and retested (all 60 earlier ledger checks s
 
 ## Next step
 
-1. Upload bundle p24: dark-mode text fix, swipe fix, @mentions, polls and the Home chat card. Check the build, the screenshots and the 49 rules tests, then publish the poll rules.
-2. Finish the chat extras (mentions, polls) and Phase 4 finance.
-3. Then Phase 5 calling (Beta), Phase 6 safety and location, Phase 7 reliability and reminders, Phase 8 extra features, and the final report.
-4. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
+1. Bundle p26 (calls): check the build and the rules tests (66 expected), then publish the call rules.
+2. Phase 6 safety and location, Phase 7 reliability and reminders, Phase 8 extra features, then the final report.
+3. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
 
 ### Restore points (git tags)
 
 - `restore-before-phase-1`: the app before this work started (commit 3cb30fb).
 - `restore-phase-1`: Phase 1 finished, the last version whose build fully passed before chat (commit 0b4ecc3).
+- `restore-phase-2-design` (c5c7dde), `restore-phase-3-chat-polls` (f17f14e), `restore-phase-4-finance` (the version before calls).
 
 From bundle p23, the bundle workflow can tag the version before each bundle (`.fhbundle/tag.txt`). To restore, download that tag's code from GitHub, or ask for a bundle that brings it back. Nothing is force-pushed.
 
@@ -280,4 +305,4 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - **Chats (Needs my phone):** send a message between two phones, then check unread counts, Retry when offline, and the notification within about 15 minutes.
 - **Reduce transparency and dark mode (Needs my phone):** switch them in Settings → Appearance and check that the text is easy to read.
 - **Merchant categories (Needs my phone):** change a transaction's category, pick "Apply to all", then import an SMS from the same shop.
-
+- **Calls (Needs my phone):** with the app open on both phones, call voice and video on the same Wi-Fi, on two different Wi-Fi networks, and with one phone on mobile data. Try mute, speaker, Bluetooth, camera switch, and leaving the app during a video call.

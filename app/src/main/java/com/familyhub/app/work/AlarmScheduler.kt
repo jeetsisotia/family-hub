@@ -38,6 +38,7 @@ object Notifier {
     const val CH_TIMED = "timed_reminders"
     const val CH_GENERAL = "family_reminders"
     const val CH_STEPS = "step_counter"
+    const val CH_CALLS = "calls"
 
     fun ensureChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -50,6 +51,9 @@ object Notifier {
         )
         nm.createNotificationChannel(
             NotificationChannel(CH_STEPS, "Step counter", NotificationManager.IMPORTANCE_MIN)
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_CALLS, "Calls", NotificationManager.IMPORTANCE_LOW)
         )
     }
 

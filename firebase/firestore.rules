@@ -200,6 +200,65 @@ service cloud.firestore {
         }
       }
 
+      // One-to-one calls (Beta). A call can be read only by its two people, admins included. The connection
+      // details (offer and answer) are separate small documents, so the call list stays light. State changes
+      // follow one path: ringing -> accepted / declined / busy / cancelled / missed, accepted -> ended.
+      match /calls/{callId} {
+        function callAfter() {
+          return getAfter(/databases/$(database)/documents/families/$(familyId)/calls/$(callId));
+        }
+        function callActive(uid) {
+          return get(/databases/$(database)/documents/families/$(familyId)/members/$(uid)).data.status == 'ACTIVE';
+        }
+        function isCaller() { return request.auth.uid == resource.data.callerUid; }
+        function isCallee() { return request.auth.uid == resource.data.calleeUid; }
+
+        allow get, list: if isFamilyMember(familyId) && request.auth.uid in resource.data.memberUids;
+        allow create: if isFamilyMember(familyId) &&
+          request.resource.data.keys().hasOnly(['callerUid', 'calleeUid', 'callerName', 'calleeName', 'memberUids', 'type', 'state', 'clientAt']) &&
+          request.resource.data.callerUid == request.auth.uid &&
+          request.resource.data.calleeUid is string &&
+          request.resource.data.calleeUid != request.auth.uid &&
+          request.resource.data.memberUids is list &&
+          request.resource.data.memberUids.size() == 2 &&
+          request.resource.data.memberUids[0] == request.resource.data.callerUid &&
+          request.resource.data.memberUids[1] == request.resource.data.calleeUid &&
+          request.resource.data.type in ['video', 'audio'] &&
+          request.resource.data.state == 'ringing' &&
+          request.resource.data.clientAt is int &&
+          request.resource.data.callerName is string && request.resource.data.callerName.size() <= 80 &&
+          request.resource.data.calleeName is string && request.resource.data.calleeName.size() <= 80 &&
+          callActive(request.resource.data.calleeUid) &&
+          existsAfter(/databases/$(database)/documents/families/$(familyId)/calls/$(callId)/signal/offer);
+        allow update: if isFamilyMember(familyId) && (isCaller() || isCallee()) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'answeredAt', 'endedAt', 'endReason']) &&
+          (request.resource.data.get('endReason', '') is string) &&
+          ((resource.data.state == 'ringing' && (
+              (isCaller() && request.resource.data.state in ['cancelled', 'missed']) ||
+              (isCallee() && request.resource.data.state in ['accepted', 'declined', 'busy', 'missed']))) ||
+           (resource.data.state == 'accepted' && request.resource.data.state == 'ended'));
+        allow delete: if false;
+
+        match /signal/{kind} {
+          function theCall() {
+            return get(/databases/$(database)/documents/families/$(familyId)/calls/$(callId));
+          }
+          allow read: if isFamilyMember(familyId) && request.auth.uid in theCall().data.memberUids;
+          allow create: if isFamilyMember(familyId) && (kind == 'offer' || kind == 'answer') &&
+            request.resource.data.keys().hasOnly(['from', 'type', 'sdp']) &&
+            request.resource.data.from == request.auth.uid &&
+            request.resource.data.type == kind &&
+            request.resource.data.sdp is string &&
+            request.resource.data.sdp.size() > 0 && request.resource.data.sdp.size() <= 60000 &&
+            ((kind == 'offer' && callAfter().data.callerUid == request.auth.uid && callAfter().data.state == 'ringing') ||
+             (kind == 'answer' && callAfter().data.calleeUid == request.auth.uid && callAfter().data.state == 'accepted'));
+          allow update: if false;
+          // Cleaning up once the call is over.
+          allow delete: if isFamilyMember(familyId) && request.auth.uid in theCall().data.memberUids &&
+            theCall().data.state in ['cancelled', 'declined', 'busy', 'missed', 'ended'];
+        }
+      }
+
       match /documents/{docId} {
         // Private documents stay visible only to their owner, the people they chose, and the Super Admin.
         allow read: if isFamilyMember(familyId) && (

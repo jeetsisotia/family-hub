@@ -41,6 +41,7 @@ import com.familyhub.app.data.remote.ChatRepository
 import com.familyhub.app.data.remote.ChatRepository.Chat
 import com.familyhub.app.data.remote.ChatRepository.Message
 import com.familyhub.app.ui.AppEnv
+import com.familyhub.app.ui.calls.CallButtons
 import com.familyhub.app.ui.common.PersonAvatar
 import com.familyhub.app.ui.common.ScreenTopBar
 import kotlinx.coroutines.launch
@@ -181,6 +182,7 @@ fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(title = "Chats", onBack = null) {
+            IconButton(onClick = { env.navigate("calls") }) { Icon(Icons.Rounded.Call, contentDescription = "Calls (Beta)") }
             IconButton(onClick = { newChat = true }) { Icon(Icons.Rounded.Edit, contentDescription = "New chat") }
         }
         com.familyhub.app.core.theme.GlassSearchField(
@@ -471,6 +473,8 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize().imePadding()) {
         ScreenTopBar(title = title, onBack = onBack, compact = true) {
+            val peer = if (chatId.startsWith("dm_")) env.members.firstOrNull { chat != null && it.uid in chat.memberUids && it.uid != env.uid } else null
+            if (peer != null) CallButtons(peer.uid, peer.name)
             IconButton(onClick = { searching = !searching; if (!searching) search = "" }) { Icon(Icons.Rounded.Search, "Search in this chat") }
         }
         if (searching) {

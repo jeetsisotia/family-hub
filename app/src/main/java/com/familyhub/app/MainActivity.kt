@@ -109,6 +109,19 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var familyRepository: FamilyRepository
     @Inject lateinit var recordRepository: RecordRepository
 
+    /** Leaving the app during a video call keeps the call in a small floating window. */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        val call = com.familyhub.app.calling.CallManager.ui.value
+        if (call.video && call.phase == com.familyhub.app.calling.CallPhase.ACTIVE && android.os.Build.VERSION.SDK_INT >= 26) {
+            try {
+                enterPictureInPictureMode(
+                    android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(9, 16)).build()
+                )
+            } catch (_: Exception) { }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -617,7 +630,16 @@ class MainActivity : FragmentActivity() {
                             }
                             }
                         }
+
                     }
+                    // Voice and video calls (Beta): they ring and run above every screen while the app is open.
+                    LaunchedEffect(activeFamilyId, uid, myStatus, profile.name) {
+                        if (activeFamilyId.isNotBlank() && uid.isNotBlank() && myStatus == "ACTIVE")
+                            com.familyhub.app.calling.CallManager.attach(context, activeFamilyId, uid, profile.name.ifBlank { "Family member" })
+                        else com.familyhub.app.calling.CallManager.detach()
+                    }
+                    DisposableEffect(uid) { onDispose { com.familyhub.app.calling.CallManager.detach() } }
+                    com.familyhub.app.ui.calls.CallOverlay(family?.let { envFor(it) })
                 }
 
                 // Fingerprint / screen-lock gate, if the person turned on the app lock.

@@ -251,3 +251,140 @@ test('chat: sending updates the preview only as yourself', async () => {
   await assertFails(updateDoc(doc(as('member'), `families/${F}/chats/family`), { lastText: 'Hello', lastSenderUid: 'owner', lastAt: 6 }));
   await assertFails(updateDoc(doc(as('member'), `families/${F}/chats/${DM}`), { memberUids: ['member', 'owner'] }));
 });
+
+// ---------- one-to-one calls (Beta) ----------
+// "admin" calls "member"; the owner (Super Admin) is not in the call and must not see it.
+const callData = (over = {}) => ({
+  callerUid: 'admin', calleeUid: 'member', callerName: 'Asha', calleeName: 'Meera',
+  memberUids: ['admin', 'member'], type: 'video', state: 'ringing', clientAt: 1000, ...over,
+});
+const OFFER = { from: 'admin', type: 'offer', sdp: 'v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\n' };
+const ANSWER = { from: 'member', type: 'answer', sdp: 'v=0\r\no=- 3 4 IN IP4 127.0.0.1\r\n' };
+const callPath = (id) => `families/${F}/calls/${id}`;
+
+async function startCall(id = 'c1', over = {}, offer = OFFER) {
+  const db = as('admin');
+  const b = writeBatch(db);
+  b.set(doc(db, callPath(id)), callData(over));
+  b.set(doc(db, `${callPath(id)}/signal/offer`), offer);
+  await b.commit();
+}
+async function seedCall(id, state, extra = {}) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, callPath(id)), callData({ state, ...extra }));
+    await setDoc(doc(db, `${callPath(id)}/signal/offer`), OFFER);
+  });
+}
+
+test('call: a member can start a call to an active member, with the offer saved together', async () => {
+  await assertSucceeds(startCall());
+});
+test('call: a call without its offer is refused', async () => {
+  await assertFails(setDoc(doc(as('admin'), callPath('c1')), callData()));
+});
+test('call: nobody can start a call as someone else, to themselves, or to a pending member', async () => {
+  await assertFails(startCall('c2', { callerUid: 'owner', memberUids: ['owner', 'member'] }));
+  await assertFails(startCall('c3', { calleeUid: 'admin', memberUids: ['admin', 'admin'] }));
+  await assertFails(startCall('c4', { calleeUid: 'pending', memberUids: ['admin', 'pending'] }));
+  await assertFails(startCall('c5', { calleeUid: 'stranger', memberUids: ['admin', 'stranger'] }));
+});
+test('call: a call must start ringing, be video or audio, and carry only the known fields', async () => {
+  await assertFails(startCall('c6', { state: 'accepted' }));
+  await assertFails(startCall('c7', { type: 'screen' }));
+  await assertFails(startCall('c8', { extra: 'x' }));
+  await assertFails(startCall('c9', { memberUids: ['admin', 'member', 'owner'] }));
+});
+test('call: the offer must come from the caller and stay under the size limit', async () => {
+  await assertFails(startCall('c10', {}, { ...OFFER, from: 'member' }));
+  await assertFails(startCall('c11', {}, { ...OFFER, sdp: 'x'.repeat(60001) }));
+  await assertFails(startCall('c12', {}, { ...OFFER, type: 'answer' }));
+});
+test('call: only the two people can read it, owner and admins outside the call included', async () => {
+  await startCall();
+  await assertSucceeds(getDoc(doc(as('admin'), callPath('c1'))));
+  await assertSucceeds(getDoc(doc(as('member'), callPath('c1'))));
+  await assertSucceeds(getDoc(doc(as('member'), `${callPath('c1')}/signal/offer`)));
+  await assertFails(getDoc(doc(as('owner'), callPath('c1'))));
+  await assertFails(getDoc(doc(as('owner'), `${callPath('c1')}/signal/offer`)));
+  await assertFails(getDoc(doc(as('stranger'), callPath('c1'))));
+  await assertFails(getDoc(doc(anon(), callPath('c1'))));
+});
+test('call: each person lists only their own calls', async () => {
+  await startCall();
+  await assertSucceeds(getDocs(query(collection(as('member'), `families/${F}/calls`), where('memberUids', 'array-contains', 'member'))));
+  await assertFails(getDocs(query(collection(as('owner'), `families/${F}/calls`), where('memberUids', 'array-contains', 'member'))));
+  await assertFails(getDocs(collection(as('owner'), `families/${F}/calls`)));
+});
+test('call: the person called can accept, saving the answer together', async () => {
+  await seedCall('c1', 'ringing');
+  const db = as('member');
+  const b = writeBatch(db);
+  b.update(doc(db, callPath('c1')), { state: 'accepted', answeredAt: 2000 });
+  b.set(doc(db, `${callPath('c1')}/signal/answer`), ANSWER);
+  await assertSucceeds(b.commit());
+});
+test('call: the caller cannot accept their own call, and a third person cannot touch it', async () => {
+  await seedCall('c1', 'ringing');
+  await assertFails(updateDoc(doc(as('admin'), callPath('c1')), { state: 'accepted' }));
+  await assertFails(updateDoc(doc(as('owner'), callPath('c1')), { state: 'declined' }));
+  await assertFails(updateDoc(doc(as('owner'), callPath('c1')), { state: 'ended' }));
+});
+test('call: an answer needs an accepted call, and only the person called can send it', async () => {
+  await seedCall('c1', 'ringing');
+  await assertFails(setDoc(doc(as('member'), `${callPath('c1')}/signal/answer`), ANSWER));
+  const db = as('admin');
+  const b = writeBatch(db);
+  b.update(doc(db, callPath('c1')), { state: 'cancelled' });
+  b.set(doc(db, `${callPath('c1')}/signal/answer`), { ...ANSWER, from: 'admin' });
+  await assertFails(b.commit());
+});
+test('call: the person called can decline or say busy; the caller can cancel or let it go unanswered', async () => {
+  await seedCall('c1', 'ringing');
+  await seedCall('c2', 'ringing');
+  await seedCall('c3', 'ringing');
+  await seedCall('c4', 'ringing');
+  await assertSucceeds(updateDoc(doc(as('member'), callPath('c1')), { state: 'declined', endedAt: 5, endReason: 'declined' }));
+  await assertSucceeds(updateDoc(doc(as('member'), callPath('c2')), { state: 'busy', endedAt: 5 }));
+  await assertSucceeds(updateDoc(doc(as('admin'), callPath('c3')), { state: 'cancelled', endedAt: 5 }));
+  await assertSucceeds(updateDoc(doc(as('admin'), callPath('c4')), { state: 'missed', endedAt: 5 }));
+});
+test('call: either person can end an accepted call', async () => {
+  await seedCall('c1', 'accepted');
+  await seedCall('c2', 'accepted');
+  await assertSucceeds(updateDoc(doc(as('admin'), callPath('c1')), { state: 'ended', endedAt: 9, endReason: 'hangup' }));
+  await assertSucceeds(updateDoc(doc(as('member'), callPath('c2')), { state: 'ended', endedAt: 9 }));
+});
+test('call: a call that is over cannot be brought back, and a ringing call cannot jump to ended', async () => {
+  await seedCall('c1', 'declined');
+  await seedCall('c2', 'ended');
+  await seedCall('c3', 'ringing');
+  await assertFails(updateDoc(doc(as('member'), callPath('c1')), { state: 'accepted' }));
+  await assertFails(updateDoc(doc(as('admin'), callPath('c2')), { state: 'ringing' }));
+  await assertFails(updateDoc(doc(as('admin'), callPath('c3')), { state: 'ended' }));
+  await assertFails(updateDoc(doc(as('member'), callPath('c3')), { state: 'ended' }));
+});
+test('call: nobody can change who is calling, the type or the names after the call starts', async () => {
+  await seedCall('c1', 'ringing');
+  await assertFails(updateDoc(doc(as('admin'), callPath('c1')), { state: 'cancelled', callerUid: 'owner' }));
+  await assertFails(updateDoc(doc(as('member'), callPath('c1')), { state: 'declined', memberUids: ['member', 'owner'] }));
+  await assertFails(updateDoc(doc(as('member'), callPath('c1')), { type: 'audio' }));
+});
+test('call: the offer and answer cannot be rewritten', async () => {
+  await seedCall('c1', 'ringing');
+  await assertFails(updateDoc(doc(as('admin'), `${callPath('c1')}/signal/offer`), { sdp: 'changed' }));
+  await assertFails(setDoc(doc(as('admin'), `${callPath('c1')}/signal/offer`), OFFER));
+});
+test('call: the offer and answer can be cleaned up only by the two people, and only once the call is over', async () => {
+  await seedCall('c1', 'ringing');
+  await seedCall('c2', 'ended');
+  await assertFails(deleteDoc(doc(as('admin'), `${callPath('c1')}/signal/offer`)));
+  await assertSucceeds(deleteDoc(doc(as('admin'), `${callPath('c2')}/signal/offer`)));
+  await seedCall('c3', 'ended');
+  await assertFails(deleteDoc(doc(as('owner'), `${callPath('c3')}/signal/offer`)));
+});
+test('call: a call record can never be deleted by anyone', async () => {
+  await seedCall('c1', 'ended');
+  await assertFails(deleteDoc(doc(as('admin'), callPath('c1'))));
+  await assertFails(deleteDoc(doc(as('owner'), callPath('c1'))));
+});

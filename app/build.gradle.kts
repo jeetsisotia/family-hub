@@ -120,5 +120,7 @@ dependencies {
     ksp("com.google.dagger:hilt-compiler:2.52")
     implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // Voice and video calls (Beta): free, BSD-licensed WebRTC build, no account or service needed.
+    implementation("io.github.webrtc-sdk:android:137.7151.04")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 }
