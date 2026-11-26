@@ -109,6 +109,13 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
         target(familyId, uid, collection, rec[PRIVATE_FLAG] == true).document(id).update(key, value).await()
     }
 
+    /** Updates several fields of one record in a single write. */
+    suspend fun setFieldsScoped(familyId: String, uid: String, collection: String, rec: Rec, fields: Map<String, Any?>) {
+        val id = rec["id"] as? String ?: return
+        if (fields.isEmpty()) return
+        target(familyId, uid, collection, rec[PRIVATE_FLAG] == true).document(id).update(fields).await()
+    }
+
     suspend fun deleteScoped(familyId: String, uid: String, collection: String, rec: Rec) {
         val id = rec["id"] as? String ?: return
         target(familyId, uid, collection, rec[PRIVATE_FLAG] == true).document(id).delete().await()

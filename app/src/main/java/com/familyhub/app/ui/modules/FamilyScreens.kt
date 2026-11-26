@@ -394,6 +394,7 @@ fun SettingsScreen(
                         Column(modifier = Modifier.padding(vertical = 4.dp)) {
                             SettingsLink(Icons.Rounded.AccountCircle, "My Profile", "Photo, details, IDs and app lock") { onOpen("profile") }
                             SettingsLink(Icons.Rounded.Diversity3, "My Families", "Switch, create or join a family") { onOpen("families") }
+                            SettingsLink(Icons.Rounded.Dashboard, "Arrange Home", "Move Home categories up or down, or hide them") { onOpen("arrange_home") }
                             SettingsLink(Icons.Rounded.Tune, "Arrange More", "Order and hide the More icons") { onOpen("arrange") }
                         }
                     }

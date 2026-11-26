@@ -61,6 +61,11 @@ fun ScreenTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowS
             onTextLayout = { r -> if ((r.didOverflowWidth || r.hasVisualOverflow) && level < styles.size - 1) level++ }
         )
         actions()
+        // The same assistant, opened with this page's context.
+        val pageAi = com.familyhub.app.ui.ai.LocalPageAi.current
+        if (pageAi != null) {
+            com.familyhub.app.ui.ai.PageAiButton("Ask AI about $title") { pageAi(title) }
+        }
     }
 }
 

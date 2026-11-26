@@ -252,3 +252,14 @@ fun AssistantBubble(text: String) {
         }
     }
 }
+
+/** The small glowing AI button every page shows in its title bar. */
+@Composable
+fun PageAiButton(description: String, onClick: () -> Unit) {
+    androidx.compose.material3.IconButton(
+        onClick = onClick,
+        modifier = Modifier.padding(end = 4.dp).glass(CircleShape, strong = true).aiGlowBorder(CircleShape, 1.2.dp)
+    ) {
+        Icon(Icons.Rounded.AutoAwesome, contentDescription = description, tint = AiAccent, modifier = Modifier.size(22.dp))
+    }
+}

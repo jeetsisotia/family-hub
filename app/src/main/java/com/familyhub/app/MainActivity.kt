@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.familyhub.app
 
 import android.Manifest
@@ -300,6 +302,20 @@ class MainActivity : FragmentActivity() {
                             }
                         }
                     }
+                    // Families this person belongs to, for "share with which family".
+                    var familyList by remember { mutableStateOf(emptyList<com.familyhub.app.data.remote.FamilyInfo>()) }
+                    LaunchedEffect(profile.familyIds, activeFamilyId) {
+                        familyList = try {
+                            recordRepository.familyInfos((profile.familyIds + activeFamilyId).filter { it.isNotBlank() })
+                        } catch (e: Exception) {
+                            emptyList()
+                        }
+                    }
+                    // Every page's AI button opens the one assistant with that page's context.
+                    val askAi: (String, String) -> Unit = { page, text ->
+                        com.familyhub.app.ui.ai.AiDraft.open(page, text)
+                        navigate("assistant")
+                    }
                     val signOut: () -> Unit = {
                         scope.launch { authRepository.signOutAndSwitchAccount(context) }
                     }
@@ -356,7 +372,7 @@ class MainActivity : FragmentActivity() {
                             )
                         }
                     ) { innerPadding ->
-                        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+                        Box(modifier = Modifier.fillMaxSize().padding(innerPadding).consumeWindowInsets(innerPadding)) {
                             val currentFamily = family
                             // Screens cross-fade and settle into place when switching tabs or opening a module.
                             AnimatedContent(
@@ -369,6 +385,9 @@ class MainActivity : FragmentActivity() {
                                 label = "screen"
                             ) { (shownTab, route) ->
                             val moduleDef = route?.let { ModuleByRoute[it] }
+                            val openPageAi: (String) -> Unit = { title -> askAi(title, "") }
+                            val pageAi: ((String) -> Unit)? = if (route?.startsWith("assistant") == true) null else openPageAi
+                            androidx.compose.runtime.CompositionLocalProvider(com.familyhub.app.ui.ai.LocalPageAi provides pageAi) {
 
                             if (activeFamilyId.isBlank()) {
                                 SetupScreen(profile = profile, familyRepository = familyRepository, onSignOut = signOut)
@@ -419,7 +438,9 @@ class MainActivity : FragmentActivity() {
                                         onBack = goBack,
                                         onSaveBudget = saveBudget,
                                         onOpen = navigate,
-                                        extraOptions = mapOf("cards" to cardTitles)
+                                        extraOptions = mapOf("cards" to cardTitles),
+                                        families = familyList,
+                                        onAskAi = { t -> askAi(moduleDef.title, t) }
                                     )
                                 }
                             } else {
@@ -446,7 +467,10 @@ class MainActivity : FragmentActivity() {
                                                     { AiBriefCard(envFor(currentFamily)) }
                                                 } else {
                                                     null
-                                                }
+                                                },
+                                                records = recordData,
+                                                homeOrder = userDoc.stringList("homeOrder"),
+                                                homeHidden = userDoc.stringList("homeHidden").toSet()
                                             )
                                         }
                                     }
@@ -459,7 +483,9 @@ class MainActivity : FragmentActivity() {
                                         monthlyBudget = currentFamily.monthlyBudget,
                                         isOwner = isOwner,
                                         repo = recordRepository,
-                                        onBack = null
+                                        onBack = null,
+                                        families = familyList,
+                                        onAskAi = { t -> askAi("Calendar", t) }
                                     )
                                     PrimaryTab.FAMILY -> FamilyScreen(
                                         family = currentFamily,
@@ -498,6 +524,8 @@ class MainActivity : FragmentActivity() {
                                         onSaveBudget = saveBudget,
                                         onOpen = navigate,
                                         extraOptions = mapOf("cards" to cardTitles),
+                                        families = familyList,
+                                        onAskAi = { t -> askAi(FinanceModule.title, t) },
                                         onExport = {
                                             try {
                                                 FinanceReportExporter.exportToCsvAndShare(context, currentFamily.name, transactions)
@@ -513,6 +541,7 @@ class MainActivity : FragmentActivity() {
                                         onEdit = { subRoute = "arrange" }
                                     )
                                 }
+                            }
                             }
                             }
                         }

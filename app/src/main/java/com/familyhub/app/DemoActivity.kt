@@ -90,10 +90,35 @@ class DemoActivity : FragmentActivity() {
                                 tasks = emptyList(),
                                 trips = emptyList(),
                                 onQuickNavigate = {},
-                                aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) }
+                                aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) },
+                                records = env.data
                             )
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
                             route == "assistant_new" -> AssistantScreen(env)
+                            route == "assistant_tidy" -> AssistantScreen(
+                                env,
+                                autoAsks = listOf(
+                                    "Find duplicate transactions",
+                                    "Merge refunds",
+                                    "Add emergency contact Papa 98765 43210",
+                                    "Act on tasks added by the owner"
+                                )
+                            )
+                            route == "txn_sheet" || route == "txn_select" -> ModuleScreen(
+                                def = com.familyhub.app.ui.modules.FinanceModule,
+                                familyId = DemoData.FAMILY,
+                                uid = DemoData.UID,
+                                userName = "Demo User",
+                                memberNames = env.memberNames,
+                                monthlyBudget = env.family.monthlyBudget,
+                                isOwner = true,
+                                repo = recordRepository,
+                                onBack = null,
+                                onOpen = {},
+                                onAskAi = {},
+                                preview = env.data["expenses"],
+                                previewState = if (route == "txn_sheet") "sheet" else "select"
+                            )
                             route == "settings" -> com.familyhub.app.ui.modules.SettingsScreen(
                                 family = env.family, user = env.profile, isOwner = true,
                                 onBack = {}, onSignOut = {}, onOpen = {}
@@ -116,7 +141,9 @@ class DemoActivity : FragmentActivity() {
                                 isOwner = true,
                                 repo = recordRepository,
                                 onBack = {},
-                                onOpen = {}
+                                onOpen = {},
+                                onAskAi = {},
+                                preview = env.data[def.collection]
                             )
                             else -> Text("Unknown screen: $route", modifier = Modifier.padding(24.dp))
                         }
@@ -202,6 +229,19 @@ object DemoData {
                 )
             )
         }
+        // A payment saved twice (by hand and from SMS), and a refund to merge.
+        expenses.add(0, rec("type" to "EXPENSE", "title" to "Swiggy order from Meghana Foods Koramangala", "category" to "Dining",
+            "amountInr" to 645.0, "dateMillis" to now - 2 * d, "paymentMethod" to "UPI", "memberName" to "Demo User", "memberUid" to UID,
+            "isPaid" to true, "isDeleted" to false))
+        expenses.add(rec("type" to "EXPENSE", "title" to "SWIGGY", "category" to "Other",
+            "amountInr" to 645.0, "dateMillis" to now - 2 * d + 600_000L, "paymentMethod" to "UPI", "isPaid" to true, "isDeleted" to false))
+        expenses.add(rec("type" to "EXPENSE", "title" to "Myntra shoes", "category" to "Shopping", "amountInr" to 2499.0,
+            "dateMillis" to now - 9 * d, "paymentMethod" to "Credit card", "card" to "HDFC Millennia", "memberName" to "Demo User",
+            "memberUid" to UID, "isPaid" to true, "isDeleted" to false))
+        expenses.add(rec("type" to "INCOME", "title" to "Myntra refund", "category" to "Other", "amountInr" to 2499.0,
+            "dateMillis" to now - 4 * d, "isDeleted" to false))
+        expenses.add(rec("type" to "EXPENSE", "title" to "Transfer to self HDFC", "category" to "Other", "amountInr" to 10000.0,
+            "dateMillis" to now - 3 * d, "paymentMethod" to "Net banking", "isPaid" to true, "isDeleted" to false, "notExpense" to true))
         expenses.add(rec("type" to "INCOME", "title" to "Salary", "category" to "Salary", "amountInr" to 85000.0,
             "dateMillis" to now - 20 * d, "memberName" to "Demo User", "memberUid" to UID, "isDeleted" to false))
         expenses.add(rec("type" to "BILL", "title" to "Electricity bill", "category" to "Utilities", "amountInr" to 1840.0,
@@ -213,7 +253,10 @@ object DemoData {
         val tasks = listOf(
             rec("type" to "SHOPPING", "title" to "Milk", "isCompleted" to false),
             rec("type" to "SHOPPING", "title" to "Atta 5 kg", "isCompleted" to false),
-            rec("type" to "TASK", "title" to "Car service", "dueDateMillis" to now + 6 * d, "isCompleted" to false, "assignedToName" to "Ravi")
+            rec("type" to "TASK", "title" to "Car service", "dueDateMillis" to now + 6 * d, "isCompleted" to false, "assignedToName" to "Ravi"),
+            rec("type" to "TASK", "title" to "Book a cab to the airport for Friday", "dueDateMillis" to now + 2 * d, "isCompleted" to false,
+                "createdByUid" to UID, "createdByName" to "Demo User"),
+            rec("type" to "TASK", "title" to "Order milk and eggs", "isCompleted" to false, "createdByUid" to UID, "createdByName" to "Demo User")
         )
         val trips = listOf(
             rec("destination" to "Jaipur", "startDateMillis" to now + 20 * d, "endDateMillis" to now + 23 * d)

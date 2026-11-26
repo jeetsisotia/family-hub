@@ -59,6 +59,9 @@ data class AiAction(
     val dateText: String = "",
     /** Understood on the phone and never sent to the AI (health). */
     val local: Boolean = false,
+    /** For tidy-up actions made on the phone: the records they change and where those live. */
+    val collection: String = "",
+    val refs: List<Rec> = emptyList(),
     var state: String = "new", // new, added, dismissed, failed
     var error: String = ""
 )
@@ -196,6 +199,11 @@ fun actionLabel(a: AiAction): String {
         "workout" -> "Workout"
         "medicine_taken" -> "Medicine taken"
         "open" -> "Open " + SmartLinks.label(a.service)
+        "delete_dups" -> "Duplicate"
+        "merge_refund" -> "Merge refund"
+        "not_expense" -> "Not an expense"
+        "task_done" -> "Mark done"
+        "emergency" -> "Emergency contact ${a.count ?: 1}"
         else -> "Note"
     }
     val main = when (a.kind) {
@@ -204,7 +212,14 @@ fun actionLabel(a: AiAction): String {
         "water" -> "+${a.count ?: 1} glass(es)"
         "workout" -> "${a.title}, ${a.minutes ?: 0} min"
         "open" -> a.title.takeIf { !it.equals(SmartLinks.label(a.service), true) }.orEmpty()
+        "emergency" -> listOf(a.title, a.value.takeIf { it.isNotBlank() && !it.equals(a.title, true) }?.let { "($it)" })
+            .filterNotNull().joinToString(" ") + " • " + a.phone
         else -> a.title
+    }
+    if (a.kind in TIDY_KINDS || a.kind == "emergency") {
+        return listOf(what + if (main.isNotBlank()) ": $main" else "",
+            listOfNotNull(a.amount?.let { inr(it) }, a.dateText.takeIf { it.isNotBlank() }).joinToString(" • "))
+            .filter { it.isNotBlank() }.joinToString("\n")
     }
     val details = listOfNotNull(
         a.amount?.let { inr(it) },
@@ -240,7 +255,37 @@ fun actionIcon(kind: String): ImageVector = when (kind) {
     "workout" -> Icons.Rounded.FitnessCenter
     "medicine_taken" -> Icons.Rounded.Medication
     "open" -> Icons.Rounded.OpenInNew
+    "delete_dups" -> Icons.Rounded.ContentCopy
+    "merge_refund" -> Icons.Rounded.CallMerge
+    "not_expense" -> Icons.Rounded.RemoveCircleOutline
+    "task_done" -> Icons.Rounded.TaskAlt
+    "emergency" -> Icons.Rounded.Phone
     else -> Icons.Rounded.StickyNote2
+}
+
+/** Actions that change records already saved, made on the phone. */
+val TIDY_KINDS = setOf("delete_dups", "merge_refund", "not_expense", "task_done")
+
+/** The button on an action card. */
+fun actionButton(kind: String): String = when (kind) {
+    "open" -> "Open"
+    "delete_dups" -> "Remove"
+    "merge_refund" -> "Merge"
+    "not_expense" -> "Mark"
+    "task_done" -> "Mark done"
+    "emergency" -> "Save"
+    else -> "Add"
+}
+
+/** What the card says once the action is done. */
+fun actionDone(kind: String): String = when (kind) {
+    "open" -> "Opened ✓"
+    "delete_dups" -> "Removed ✓"
+    "merge_refund" -> "Merged ✓"
+    "not_expense" -> "Marked ✓"
+    "task_done" -> "Done ✓"
+    "emergency" -> "Saved to My Profile ✓"
+    else -> "Added ✓"
 }
 
 /** The period in progress (started within the last 12 days and not ended before today), if any. */
@@ -359,6 +404,43 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
             val slot = dayKey(now) + "_" + "%02d%02d".format(h, m)
             repo.setFieldScoped(env.familyId, env.uid, "items", med, "taken.$slot", true)
             if (med.num("stock") != null) repo.setFieldScoped(env.familyId, env.uid, "items", med, "stock", FieldValue.increment(-1))
+        }
+        "delete_dups" -> {
+            for (r in a.refs) {
+                if (a.collection == "expenses" || a.collection == "events") {
+                    repo.setFieldScoped(env.familyId, env.uid, a.collection, r, "isDeleted", true)
+                } else {
+                    repo.deleteScoped(env.familyId, env.uid, a.collection, r)
+                }
+            }
+        }
+        "merge_refund" -> {
+            val target = a.refs.getOrNull(0) ?: throw IllegalStateException("Purchase not found.")
+            val refund = a.refs.getOrNull(1) ?: throw IllegalStateException("Refund not found.")
+            val amount = refund.num("amountInr") ?: 0.0
+            repo.setFieldsScoped(env.familyId, env.uid, "expenses", target,
+                mapOf("refundAmount" to (target.num("refundAmount") ?: 0.0) + amount, "updatedAt" to now))
+            repo.setFieldsScoped(env.familyId, env.uid, "expenses", refund,
+                mapOf("refundOf" to target.str("id"), "notExpense" to true, "updatedAt" to now))
+        }
+        "not_expense" -> a.refs.forEach { r ->
+            repo.setFieldsScoped(env.familyId, env.uid, "expenses", r, mapOf("notExpense" to true, "updatedAt" to now))
+        }
+        "task_done" -> a.refs.forEach { r ->
+            repo.setFieldScoped(env.familyId, env.uid, a.collection, r, if (a.collection == "items") "done" else "isCompleted", true)
+        }
+        "emergency" -> {
+            val slot = a.count ?: 1
+            val data = mapOf(
+                "emergency${slot}Name" to a.title,
+                "emergency${slot}Relation" to a.value,
+                "emergency${slot}Phone" to a.phone
+            )
+            repo.updateUserDoc(env.uid, data)
+            // The family sees contact 1 on the member card only if the person shares their contact details.
+            if (slot == 1 && env.userDoc["shareContact"] == true) {
+                repo.updateMemberCards(env.uid, env.familyIds, mapOf("emergencyName" to a.title, "emergencyPhone" to a.phone))
+            }
         }
         else -> throw IllegalStateException("Not supported.")
     }

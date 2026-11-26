@@ -81,7 +81,10 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val messages = AssistantMemory.messages
-    var input by rememberSaveable { mutableStateOf("") }
+    // A page's AI button can hand over a starting text and the page it came from.
+    var input by rememberSaveable { mutableStateOf(AiDraft.takeText().orEmpty()) }
+    val page = AiDraft.page
+    DisposableEffect(Unit) { onDispose { AiDraft.page = null } }
     var busy by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     var refresh by remember { mutableStateOf(0) }
@@ -91,6 +94,14 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
         if (q.isEmpty()) return
         busy = true
         try {
+            // Tidy-ups and changes across the app are worked out on the phone and shown as cards to confirm.
+            val local = AppCommands.handle(q, env, page)
+            if (local != null) {
+                messages.add(ChatMsg(true, q, aiText = null))
+                messages.add(ChatMsg(false, local.reply, local.actions, aiText = null))
+                busy = false
+                return
+            }
             val items = env.data["items"].orEmpty()
             val meds = items.filter { it.str("type") == "medicine" }
             val health = HealthCommands.parse(q, meds, currentPeriod(items) != null)
@@ -238,6 +249,15 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
         if (startVoice) listen()
     }
 
+    // Keep the newest message in view when the keyboard opens.
+    val imeOpen = WindowInsets.isImeVisible
+    LaunchedEffect(imeOpen) {
+        if (imeOpen && messages.isNotEmpty()) {
+            val last = listState.layoutInfo.totalItemsCount - 1
+            if (last >= 0) listState.scrollToItem(last)
+        }
+    }
+
     LaunchedEffect(messages.size, busy) {
         if (messages.isNotEmpty()) {
             val last = listState.layoutInfo.totalItemsCount - 1
@@ -266,6 +286,14 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                         AiOrb(size = 64.dp)
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("How can I help?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        if (!page.isNullOrBlank()) {
+                            Text(
+                                "From $page. I can work on anything in the app.",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = AiAccent,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
                         Text(
                             "Type or speak to add expenses, tasks, reminders, events and health entries, or ask about your family's plans and spending.",
                             style = MaterialTheme.typography.bodyMedium,
@@ -280,6 +308,7 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        AppCommands.suggestionsFor(page).forEach { s -> AiSuggestion(Icons.Rounded.AutoAwesome, s) { send(s) } }
                         SUGGESTIONS.forEach { (icon, s) -> AiSuggestion(icon, s) { send(s) } }
                     }
                 }
@@ -364,12 +393,12 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
                             Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 when (a.state) {
                                     "added" -> Text(
-                                        if (a.kind == "open") "Opened ✓" else "Added ✓",
+                                        actionDone(a.kind),
                                         color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold
                                     )
                                     else -> {
                                         AiPillButton(
-                                            if (a.state == "failed") "Retry" else if (a.kind == "open") "Open" else "Add",
+                                            if (a.state == "failed") "Retry" else actionButton(a.kind),
                                             onClick = { onAction(a, true) }
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
@@ -394,8 +423,9 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
         }
         val pending = m.actions.count { it.state == "new" && it.kind != "open" }
         if (pending >= 2) {
+            val allAdds = m.actions.none { it.kind in TIDY_KINDS }
             Box(modifier = Modifier.padding(top = 8.dp, start = cardStart)) {
-                AiPillButton("Add all $pending", Icons.Rounded.DoneAll, onClick = onAddAll)
+                AiPillButton((if (allAdds) "Add all " else "Do all ") + pending, Icons.Rounded.DoneAll, onClick = onAddAll)
             }
         }
     }

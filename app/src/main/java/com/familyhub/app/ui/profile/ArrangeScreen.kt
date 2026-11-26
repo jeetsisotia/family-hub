@@ -19,7 +19,7 @@ import com.familyhub.app.core.theme.GlassCard
 import com.familyhub.app.core.theme.tileBrush
 import com.familyhub.app.ui.common.ScreenTopBar
 import com.familyhub.app.ui.navigation.MoreDestinations
-import com.familyhub.app.ui.navigation.arrangedDestinations
+import com.familyhub.app.ui.navigation.SecondaryDestination
 
 /** Lets the person reorder the icons on the More screen and hide the ones they never use. */
 @Composable
@@ -27,20 +27,28 @@ fun ArrangeScreen(
     order: List<String>,
     hidden: Set<String>,
     onSave: (List<String>, List<String>) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    all: List<SecondaryDestination> = MoreDestinations,
+    title: String = "Arrange More",
+    help: String = "Use the arrows to move icons. Turn the switch off to hide an icon from the More screen."
 ) {
-    val routes = remember { mutableStateListOf<String>().also { l -> l.addAll(arrangedDestinations(order).map { it.route }) } }
+    val routes = remember {
+        mutableStateListOf<String>().also { l ->
+            val pos = order.withIndex().associate { it.value to it.index }
+            l.addAll(all.withIndex().sortedBy { (i, d) -> pos[d.route] ?: (order.size + i) }.map { it.value.route })
+        }
+    }
     val hiddenNow = remember { mutableStateMapOf<String, Boolean>().also { m -> hidden.forEach { m[it] = true } } }
-    val byRoute = remember { MoreDestinations.associateBy { it.route } }
+    val byRoute = remember { all.associateBy { it.route } }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Arrange", onBack = onBack) {
+        ScreenTopBar(title = title, onBack = onBack) {
             TextButton(onClick = {
                 onSave(routes.toList(), hiddenNow.filterValues { it }.keys.toList())
             }) { Text("Done", fontWeight = FontWeight.Bold) }
         }
         Text(
-            "Use the arrows to move icons. Turn the switch off to hide an icon from the More screen.",
+            help,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f),
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
@@ -90,7 +98,7 @@ fun ArrangeScreen(
             item {
                 TextButton(onClick = {
                     routes.clear()
-                    routes.addAll(MoreDestinations.map { it.route })
+                    routes.addAll(all.map { it.route })
                     hiddenNow.clear()
                 }, modifier = Modifier.fillMaxWidth()) { Text("Reset to default order") }
             }

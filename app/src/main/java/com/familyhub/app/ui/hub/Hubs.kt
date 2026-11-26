@@ -33,8 +33,14 @@ import com.familyhub.app.core.theme.GlassCard
 import com.familyhub.app.core.theme.tileBrush
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.common.ScreenTopBar
+import com.familyhub.app.data.remote.PRIVATE_FLAG
+import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.ui.modules.ModuleByRoute
+import com.familyhub.app.ui.modules.bool
+import com.familyhub.app.ui.modules.lng
 import com.familyhub.app.ui.modules.recordsFor
+import com.familyhub.app.ui.modules.startOfDay
+import com.familyhub.app.ui.modules.str
 
 /** One screen reachable from a hub. */
 data class HubItem(val route: String, val title: String, val icon: ImageVector)
@@ -98,11 +104,97 @@ object Hubs {
         )
     )
 
+    /** Everything with a date to remember: bills, renewals, services, documents and birthdays. */
+    val reminders = Hub(
+        "reminders_hub", "Reminders", "Renewals, services, bills and dates", Icons.Rounded.Alarm,
+        listOf(
+            HubItem("reminders", "My reminders", Icons.Rounded.Alarm),
+            HubItem("alerts", "Due soon", Icons.Rounded.NotificationsActive),
+            HubItem("vehicles", "Vehicle service", Icons.Rounded.DirectionsCar),
+            HubItem("maintenance", "Home service", Icons.Rounded.Build),
+            HubItem("documents", "Document renewals", Icons.Rounded.FolderShared),
+            HubItem("subscriptions", "Subscriptions", Icons.Rounded.Subscriptions),
+            HubItem("cards", "Card bills", Icons.Rounded.CreditCard),
+            HubItem("birthdays", "Birthdays", Icons.Rounded.Cake)
+        )
+    )
+
     /** Hubs that open their own screen (Health has its own dashboard, Money is the Finance tab). */
-    val screens: Map<String, Hub> = listOf(home, life).associateBy { it.route }
+    val screens: Map<String, Hub> = listOf(home, life, reminders).associateBy { it.route }
 
     /** Every route that lives inside a hub, so it is left off the More grid. */
-    val grouped: Set<String> = listOf(health, money, home, life).flatMap { h -> h.items.map { it.route } }.toSet()
+    val grouped: Set<String> = listOf(health, money, home, life, reminders).flatMap { h -> h.items.map { it.route } }.toSet()
+}
+
+/** A top category on the Home screen, with how many entries it holds for the chosen view. */
+data class HomeCategory(
+    val route: String,
+    val title: String,
+    val icon: ImageVector,
+    val unit: String,
+    val count: (Map<String, List<Rec>>, (Rec) -> Boolean) -> Int
+)
+
+private val HEALTH_TYPES = setOf("medicine", "vital", "workout", "habit", "health", "period", "emergency")
+private val REMINDER_TYPES = setOf("reminder", "maintenance", "vehicle", "document", "subscription", "card", "birthday")
+private val LIFE_TYPES = setOf("birthday", "school", "memory", "notice", "note")
+
+private fun monthStart(): Long = java.util.Calendar.getInstance().apply {
+    set(java.util.Calendar.DAY_OF_MONTH, 1)
+    set(java.util.Calendar.HOUR_OF_DAY, 0)
+    set(java.util.Calendar.MINUTE, 0)
+    set(java.util.Calendar.SECOND, 0)
+    set(java.util.Calendar.MILLISECOND, 0)
+}.timeInMillis
+
+val HomeCategories: List<HomeCategory> = listOf(
+    HomeCategory("finance", "Finance", Icons.Rounded.AccountBalanceWallet, "this month") { d, f ->
+        val m = monthStart()
+        d["expenses"].orEmpty().count { f(it) && !it.bool("isDeleted") && (it.lng("dateMillis") ?: 0L) >= m }
+    },
+    HomeCategory("health_hub", "Health", Icons.Rounded.FavoriteBorder, "entries") { d, f ->
+        d["items"].orEmpty().count { f(it) && it.str("type") in HEALTH_TYPES }
+    },
+    HomeCategory("reminders_hub", "Reminders", Icons.Rounded.Alarm, "set") { d, f ->
+        d["items"].orEmpty().count { f(it) && it.str("type") in REMINDER_TYPES }
+    },
+    HomeCategory("calendar", "Calendar", Icons.Rounded.CalendarMonth, "upcoming") { d, f ->
+        val today = startOfDay(System.currentTimeMillis())
+        d["events"].orEmpty().count { f(it) && !it.bool("isDeleted") && (it.lng("startTimeMillis") ?: 0L) >= today }
+    },
+    HomeCategory("home_hub", "Home & Living", Icons.Rounded.HomeWork, "to do") { d, f ->
+        d["tasks"].orEmpty().count { f(it) && !it.bool("isCompleted") } +
+            d["items"].orEmpty().count { f(it) && it.str("type") == "chore" && !it.bool("done") }
+    },
+    HomeCategory("life_hub", "Family Life", Icons.Rounded.FamilyRestroom, "saved") { d, f ->
+        d["items"].orEmpty().count { f(it) && it.str("type") in LIFE_TYPES } + d["trips"].orEmpty().count { f(it) }
+    },
+    HomeCategory("documents", "Documents", Icons.Rounded.FolderShared, "saved") { d, f ->
+        d["items"].orEmpty().count { f(it) && it.str("type") == "document" }
+    },
+    HomeCategory("assistant", "AI Assistant", Icons.Rounded.AutoAwesome, "") { _, _ -> 0 }
+)
+
+/** Home categories in the person's order, without the hidden ones. */
+fun arrangedHomeCategories(order: List<String>, hidden: Set<String>): List<HomeCategory> {
+    val pos = order.withIndex().associate { it.value to it.index }
+    return HomeCategories.withIndex()
+        .sortedBy { (i, c) -> pos[c.route] ?: (order.size + i) }
+        .map { it.value }
+        .filter { it.route !in hidden }
+}
+
+/** Which records a Home view counts: the family's shared ones, or the person's own. */
+fun homeViewFilter(familyView: Boolean, uid: String, name: String): (Rec) -> Boolean {
+    if (familyView) return { r -> r[PRIVATE_FLAG] != true }
+    val first = name.substringBefore(' ').lowercase()
+    return { r ->
+        r[PRIVATE_FLAG] == true || r.str("createdByUid") == uid || r.str("memberUid") == uid ||
+            listOf("memberName", "assignedToName", "assignedTo", "createdByName").any { k ->
+                val v = r.str(k).lowercase()
+                v.isNotBlank() && first.isNotBlank() && (v == name.lowercase() || v.substringBefore(' ') == first)
+            }
+    }
 }
 
 /** How many records a hub item holds, or null for screens that are not plain lists. */

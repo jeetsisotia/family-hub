@@ -50,15 +50,14 @@ val MoreDestinations: List<SecondaryDestination> =
         SecondaryDestination(Hubs.health.route, Hubs.health.title, Hubs.health.icon),
         SecondaryDestination(Hubs.money.route, Hubs.money.title, Hubs.money.icon),
         SecondaryDestination(Hubs.home.route, Hubs.home.title, Hubs.home.icon),
-        SecondaryDestination(Hubs.life.route, Hubs.life.title, Hubs.life.icon)
+        SecondaryDestination(Hubs.life.route, Hubs.life.title, Hubs.life.icon),
+        SecondaryDestination(Hubs.reminders.route, Hubs.reminders.title, Hubs.reminders.icon)
     ) +
         AllModules
             .filter { it.route != "calendar" && it.route != "finance" && it.route !in HiddenFromMore && it.route !in Hubs.grouped }
             .map { SecondaryDestination(it.route, it.title, it.icon) } +
         listOf(
-            SecondaryDestination("alerts", "Due soon", Icons.Rounded.NotificationsActive),
-            SecondaryDestination("profile", "My Profile", Icons.Rounded.AccountCircle),
-            SecondaryDestination("families", "My Families", Icons.Rounded.Diversity3),
+            // My Profile and My Families open from the picture on Home (and from Settings).
             SecondaryDestination("settings", "Settings", Icons.Rounded.Settings)
         )
 

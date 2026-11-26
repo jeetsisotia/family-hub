@@ -47,7 +47,7 @@ fun Rec.stringList(key: String): List<String> = (this[key] as? List<*>)?.mapNotN
 /** Routes handled here instead of by the generic record screen. */
 val ExtraRouteIds: Set<String> = setOf(
     "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos",
-    "home_hub", "life_hub"
+    "home_hub", "life_hub", "reminders_hub", "arrange_home"
 )
 
 @Composable
@@ -86,6 +86,20 @@ fun ExtraRoute(route: String, env: AppEnv) {
                 env.onBack()
             },
             onBack = env.onBack
+        )
+        "arrange_home" -> ArrangeScreen(
+            order = env.userDoc.stringList("homeOrder"),
+            hidden = env.userDoc.stringList("homeHidden").toSet(),
+            onSave = { order, hidden ->
+                env.repo.updateUserDoc(env.uid, mapOf("homeOrder" to order, "homeHidden" to hidden))
+                env.onBack()
+            },
+            onBack = env.onBack,
+            all = com.familyhub.app.ui.hub.HomeCategories.map {
+                com.familyhub.app.ui.navigation.SecondaryDestination(it.route, it.title, it.icon)
+            },
+            title = "Arrange Home",
+            help = "Use the arrows to move the categories on Home up or down. Turn the switch off to hide one."
         )
         "assistant" -> AssistantScreen(env)
         "assistant_voice" -> AssistantScreen(env, startVoice = true)

@@ -107,13 +107,19 @@ fun ModuleScreen(
     onSaveBudget: (Double) -> Unit = {},
     onExport: (() -> Unit)? = null,
     onOpen: ((String) -> Unit)? = null,
-    extraOptions: Map<String, List<String>> = emptyMap()
+    extraOptions: Map<String, List<String>> = emptyMap(),
+    families: List<com.familyhub.app.data.remote.FamilyInfo> = emptyList(),
+    onAskAi: ((String) -> Unit)? = null,
+    /** Test screens only: show these records instead of the saved ones, and start in a given state. */
+    preview: List<Rec>? = null,
+    previewState: String? = null
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     // Family records plus my own "Only me" records of this kind.
     val flow = remember(familyId, uid, def.collection) { repo.observeMerged(familyId, uid, def.collection) }
-    val all by flow.collectAsState(initial = emptyList<Rec>())
+    val saved by flow.collectAsState(initial = emptyList<Rec>())
+    val all = preview ?: saved
     val records = remember(all) { recordsFor(def, all) }
     val sorted = remember(records) { sortRecords(def, records) }
     var query by remember { mutableStateOf("") }
@@ -126,6 +132,20 @@ fun ModuleScreen(
     var editing by remember { mutableStateOf<Rec?>(null) }
     var toDelete by remember { mutableStateOf<Rec?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    // Finance: tap a transaction for actions, long-press to select several.
+    var selected by remember {
+        mutableStateOf(
+            if (previewState == "select") sortRecords(def, recordsFor(def, all)).take(3).map { com.familyhub.app.ui.money.recKey(it) }.toSet()
+            else emptySet<String>()
+        )
+    }
+    var sheetKey by remember {
+        mutableStateOf(
+            if (previewState == "sheet") sortRecords(def, recordsFor(def, all)).firstOrNull()?.let { com.familyhub.app.ui.money.recKey(it) } else null
+        )
+    }
+    val isFinance = def.kind == "finance"
+    androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptySet() }
 
     fun save(map: Map<String, Any?>, existing: Rec?) {
         val data = HashMap<String, Any?>(map)
@@ -134,7 +154,10 @@ fun ModuleScreen(
         }
         val tv = def.typeValue
         if (tv != null) data["type"] = tv
-        data["familyId"] = familyId
+        // A new family entry can go to any family the person belongs to.
+        val chosen = (data.remove("targetFamilyId") as? String).orEmpty()
+        val destFamily = if (existing == null && chosen.isNotBlank()) chosen else familyId
+        data["familyId"] = destFamily
         data["updatedAt"] = System.currentTimeMillis()
         if (existing == null) {
             data["createdByUid"] = uid
@@ -145,7 +168,7 @@ fun ModuleScreen(
         val private = data["visibility"] == VIS_PRIVATE
         scope.launch {
             try {
-                repo.saveScoped(familyId, uid, def.collection, existing, data, private)
+                repo.saveScoped(destFamily, uid, def.collection, existing, data, private)
                 error = null
             } catch (e: Exception) {
                 error = "Could not save: ${e.message}"
@@ -176,9 +199,52 @@ fun ModuleScreen(
         }
     }
 
+    fun setFields(rec: Rec, fields: Map<String, Any?>) {
+        scope.launch {
+            try {
+                repo.setFieldsScoped(familyId, uid, def.collection, rec, fields + ("updatedAt" to System.currentTimeMillis()))
+            } catch (e: Exception) {
+                error = "Could not update: ${e.message}"
+            }
+        }
+    }
+
+    fun setPrivate(rec: Rec, private: Boolean) {
+        if ((rec[PRIVATE_FLAG] == true) == private) return
+        scope.launch {
+            try {
+                repo.saveScoped(
+                    familyId, uid, def.collection, rec,
+                    mapOf("visibility" to (if (private) VIS_PRIVATE else VIS_FAMILY), "updatedAt" to System.currentTimeMillis()),
+                    private
+                )
+            } catch (e: Exception) {
+                error = "Could not move: ${e.message}"
+            }
+        }
+    }
+
+    fun toggleSelect(rec: Rec) {
+        val k = com.familyhub.app.ui.money.recKey(rec)
+        selected = if (k in selected) selected - k else selected + k
+    }
+
+    fun selectedRecs(): List<Rec> = records.filter { com.familyhub.app.ui.money.recKey(it) in selected }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
+            if (isFinance && selected.isNotEmpty()) {
+                com.familyhub.app.ui.money.BulkActionBar(
+                    count = selected.size,
+                    total = shown.size,
+                    onClose = { selected = emptySet() },
+                    onSelectAll = { selected = shown.map { com.familyhub.app.ui.money.recKey(it) }.toSet() },
+                    onCategory = { c -> selectedRecs().forEach { setFields(it, mapOf("category" to c)) }; selected = emptySet() },
+                    onNotExpense = { b -> selectedRecs().forEach { setFields(it, mapOf("notExpense" to b)) }; selected = emptySet() },
+                    onPrivate = { b -> selectedRecs().forEach { setPrivate(it, b) }; selected = emptySet() },
+                    onDelete = { selectedRecs().forEach { remove(it) }; selected = emptySet() }
+                )
+            } else Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -195,6 +261,9 @@ fun ModuleScreen(
                     style = MaterialTheme.typography.headlineLarge,
                     modifier = Modifier.weight(1f)
                 )
+                if (onAskAi != null) {
+                    com.familyhub.app.ui.ai.PageAiButton("Ask AI about ${def.title}") { onAskAi("") }
+                }
                 if (onExport != null) {
                     IconButton(
                         onClick = onExport,
@@ -266,7 +335,18 @@ fun ModuleScreen(
                 }
                 items(shown, key = { (it[PRIVATE_FLAG] == true).toString() + it.str("id") }) { rec ->
                     Box(modifier = Modifier.animateItem()) {
-                    RecordCard(
+                    if (isFinance) {
+                        com.familyhub.app.ui.money.TransactionRow(
+                            rec = rec,
+                            selected = com.familyhub.app.ui.money.recKey(rec) in selected,
+                            selecting = selected.isNotEmpty(),
+                            onClick = {
+                                if (selected.isNotEmpty()) toggleSelect(rec)
+                                else sheetKey = com.familyhub.app.ui.money.recKey(rec)
+                            },
+                            onLongClick = { toggleSelect(rec) }
+                        )
+                    } else RecordCard(
                         def = def,
                         rec = rec,
                         onClick = { editing = rec; showForm = true },
@@ -285,7 +365,25 @@ fun ModuleScreen(
             }
         }
 
-        FloatingActionButton(
+        val sheetRec = sheetKey?.let { k -> records.firstOrNull { com.familyhub.app.ui.money.recKey(it) == k } }
+        if (sheetRec != null) {
+            com.familyhub.app.ui.money.TransactionSheet(
+                rec = sheetRec,
+                all = records,
+                onDismiss = { sheetKey = null },
+                onEdit = { sheetKey = null; editing = sheetRec; showForm = true },
+                onSet = { r, f -> setFields(r, f) },
+                onDelete = { sheetKey = null; remove(sheetRec) },
+                onAskAi = onAskAi?.let { ask ->
+                    {
+                        sheetKey = null
+                        ask("About \"${sheetRec.str("title")}\" (${money(sheetRec.num("amountInr") ?: 0.0)}): ")
+                    }
+                }
+            )
+        }
+
+        if (selected.isEmpty()) FloatingActionButton(
             onClick = { editing = null; showForm = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
             shape = RoundedCornerShape(22.dp),
@@ -302,6 +400,8 @@ fun ModuleScreen(
                     memberNames = memberNames,
                     userName = userName,
                     extraOptions = extraOptions,
+                    families = families,
+                    currentFamilyId = familyId,
                     onDismiss = { showForm = false },
                     onSave = { m ->
                         save(m, current)
@@ -557,20 +657,22 @@ private fun FinanceHeader(
     }
 
     fun isSpend(r: Rec): Boolean {
+        if (r.bool("notExpense")) return false
         val t = r.str("type")
         return t == "EXPENSE" || ((t == "BILL" || t == "EMI") && r.bool("isPaid"))
     }
 
-    fun amt(r: Rec): Double = r.num("amountInr") ?: 0.0
+    // Merged refunds reduce what a purchase counts for.
+    fun amt(r: Rec): Double = ((r.num("amountInr") ?: 0.0) - (r.num("refundAmount") ?: 0.0)).coerceAtLeast(0.0)
 
     val monthRecs = records.filter { inMonth(it) }
     val spent = monthRecs.filter { isSpend(it) }.sumOf { amt(it) }
-    val income = monthRecs.filter { it.str("type") == "INCOME" }.sumOf { amt(it) }
+    val income = monthRecs.filter { it.str("type") == "INCOME" && !it.bool("notExpense") }.sumOf { amt(it) }
     val saved = monthRecs.filter { it.str("type") == "SAVING" }.sumOf { amt(it) }
     val dueBills = records.filter { (it.str("type") == "BILL" || it.str("type") == "EMI") && !it.bool("isPaid") }
     val yearRecs = records.filter { inYear(it) }
     val yearSpent = yearRecs.filter { isSpend(it) }.sumOf { amt(it) }
-    val yearIncome = yearRecs.filter { it.str("type") == "INCOME" }.sumOf { amt(it) }
+    val yearIncome = yearRecs.filter { it.str("type") == "INCOME" && !it.bool("notExpense") }.sumOf { amt(it) }
     val topCategories = monthRecs.filter { isSpend(it) }
         .groupBy { it.str("category").ifBlank { "Other" } }
         .mapValues { e -> e.value.sumOf { amt(it) } }
@@ -709,7 +811,7 @@ private fun SettleHeader(records: List<Rec>, memberNames: List<String>) {
 
 // ---------- add / edit form ----------
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun RecordForm(
     def: ModuleDef,
@@ -717,6 +819,8 @@ private fun RecordForm(
     memberNames: List<String>,
     userName: String,
     extraOptions: Map<String, List<String>>,
+    families: List<com.familyhub.app.data.remote.FamilyInfo> = emptyList(),
+    currentFamilyId: String = "",
     onDismiss: () -> Unit,
     onSave: (Map<String, Any?>) -> Unit
 ) {
@@ -755,6 +859,22 @@ private fun RecordForm(
                     value = (draft["visibility"] as? String) ?: VIS_FAMILY,
                     onChange = { draft["visibility"] = it }
                 )
+                // In more than one family: choose which family a new entry is shared with.
+                val joined = families.filter { it.ownerUid.isNotBlank() }
+                if (initial == null && draft["visibility"] != VIS_PRIVATE && joined.size > 1) {
+                    val chosen = (draft["targetFamilyId"] as? String)?.takeIf { it.isNotBlank() } ?: currentFamilyId
+                    Text("Share with", style = MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        joined.forEach { f ->
+                            FilterChip(
+                                selected = chosen == f.id,
+                                onClick = { draft["targetFamilyId"] = f.id },
+                                label = { Text(f.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                leadingIcon = { Icon(Icons.Rounded.FamilyRestroom, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                        }
+                    }
+                }
                 def.fields.forEach { f ->
                     val label = if (f.required) "${f.label} *" else f.label
                     when (f.type) {

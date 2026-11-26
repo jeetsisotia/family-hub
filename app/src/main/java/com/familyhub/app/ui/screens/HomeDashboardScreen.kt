@@ -45,9 +45,14 @@ fun HomeDashboardScreen(
     trips: List<FamilyTrip>,
     onQuickNavigate: (String) -> Unit,
     /** The Gemini daily brief; when present it replaces the simple offline assistant card. */
-    aiCard: (@Composable () -> Unit)? = null
+    aiCard: (@Composable () -> Unit)? = null,
+    /** Family plus "Only me" records by collection, for the category counts. */
+    records: Map<String, List<com.familyhub.app.data.remote.Rec>> = emptyMap(),
+    homeOrder: List<String> = emptyList(),
+    homeHidden: Set<String> = emptySet()
 ) {
     var familyWideView by remember { mutableStateOf(true) }
+    var profileMenu by remember { mutableStateOf(false) }
     var aiQuestion by remember { mutableStateOf("") }
     var aiResponse by remember { mutableStateOf<String?>(null) }
     val assistant = remember { FamilyAiAssistant() }
@@ -91,20 +96,36 @@ fun HomeDashboardScreen(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                     )
                 }
-                // Tap your picture to open your profile.
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .glass(CircleShape, strong = true)
-                        .clickable { onQuickNavigate("profile") }
-                        .padding(3.dp)
-                ) {
-                    PersonAvatar(
-                        name = currentUser.name,
-                        photoData = currentMember.photoData,
-                        photoUrl = currentUser.photoUrl,
-                        size = 46.dp
-                    )
+                // Tap your picture for your profile, families and settings.
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .glass(CircleShape, strong = true)
+                            .clickable { profileMenu = true }
+                            .padding(3.dp)
+                    ) {
+                        PersonAvatar(
+                            name = currentUser.name,
+                            photoData = currentMember.photoData,
+                            photoUrl = currentUser.photoUrl,
+                            size = 46.dp
+                        )
+                    }
+                    DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                        listOf(
+                            Triple("profile", "Manage my profile", Icons.Rounded.AccountCircle),
+                            Triple("families", "My families", Icons.Rounded.Diversity3),
+                            Triple("arrange_home", "Arrange Home", Icons.Rounded.Dashboard),
+                            Triple("settings", "Settings", Icons.Rounded.Settings)
+                        ).forEach { (route, label, icon) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                leadingIcon = { Icon(icon, contentDescription = null) },
+                                onClick = { profileMenu = false; onQuickNavigate(route) }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -121,6 +142,53 @@ fun HomeDashboardScreen(
                     onClick = { familyWideView = false },
                     shape = SegmentedButtonDefaults.itemShape(1, 2)
                 ) { Text("My View") }
+            }
+        }
+
+        // The top categories, counted for the family or just for me.
+        item {
+            val filter = remember(familyWideView, currentUser.uid, currentUser.name) {
+                com.familyhub.app.ui.hub.homeViewFilter(familyWideView, currentUser.uid, currentUser.name)
+            }
+            val cats = remember(homeOrder, homeHidden) { com.familyhub.app.ui.hub.arrangedHomeCategories(homeOrder, homeHidden) }
+            Column(modifier = Modifier.riseIn(1), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (familyWideView) "FAMILY CATEGORIES" else "MY CATEGORIES",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { onQuickNavigate("arrange_home") }) { Text("Arrange") }
+                }
+                cats.chunked(3).forEachIndexed { row, line ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        line.forEachIndexed { col, c ->
+                            val n = remember(records, filter) { c.count(records, filter) }
+                            GlassCard(
+                                onClick = { onQuickNavigate(c.route) },
+                                shape = RoundedCornerShape(22.dp),
+                                modifier = Modifier.weight(1f).height(112.dp)
+                            ) {
+                                Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                                    IconTile(c.icon, row * 3 + col)
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    com.familyhub.app.ui.hub.FitLabel(
+                                        c.title, MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Start
+                                    )
+                                    Text(
+                                        if (c.unit.isBlank()) "Ask anything" else "$n ${c.unit}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                        maxLines = 1
+                                    )
+                                }
+                            }
+                        }
+                        repeat(3 - line.size) { Spacer(modifier = Modifier.weight(1f)) }
+                    }
+                }
             }
         }
 
