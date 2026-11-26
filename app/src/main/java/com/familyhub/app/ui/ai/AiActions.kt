@@ -63,6 +63,21 @@ data class AiAction(
     var error: String = ""
 )
 
+private val DONE_CLAIM = Regex(
+    "\\b(i've|i have|i'?ve now|has been|have been|is now|are now|done|booked|added|applied|logged|saved|set up|searched|ordered|sent)\\b",
+    RegexOption.IGNORE_CASE
+)
+
+private fun offerText(acts: List<AiAction>): String {
+    val add = acts.any { it.kind != "open" }
+    val open = acts.any { it.kind == "open" }
+    return when {
+        add && open -> "Tap Add to save, or Open to continue in the app:"
+        open -> "Tap Open to continue in the app; you confirm there:"
+        else -> "Here's what I can add. Tap Add to save:"
+    }
+}
+
 private val AI_KINDS = setOf("shopping", "task", "event", "reminder", "expense", "income", "bill", "note", "open")
 
 fun parseAiDate(s: String): Long? {
@@ -116,7 +131,10 @@ fun parseAiReply(text: String): ChatMsg {
                 )
             )
         }
-        ChatMsg(false, o.optString("reply").ifBlank { if (acts.isEmpty()) raw else "Here's what I can add:" }, acts.take(15))
+        var reply = o.optString("reply").trim()
+        // The actions are only offers, so a short reply claiming they are done is replaced.
+        if (acts.isNotEmpty() && reply.length < 200 && DONE_CLAIM.containsMatchIn(reply)) reply = ""
+        ChatMsg(false, reply.ifBlank { if (acts.isEmpty()) raw else offerText(acts) }, acts.take(15))
     } catch (e: Exception) {
         ChatMsg(false, raw)
     }

@@ -48,9 +48,10 @@ private fun lastLocation(ctx: Context): Location? {
         .maxByOrNull { it.time }
 }
 
-private fun dial(ctx: Context, phone: String) {
+/** Opens the dialer with the number; only the SOS button (after its countdown) calls straight away. */
+private fun dial(ctx: Context, phone: String, direct: Boolean = false) {
     val clean = phone.filter { it.isDigit() || it == '+' }
-    val canCall = ctx.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+    val canCall = direct && ctx.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
     try {
         ctx.startActivity(Intent(if (canCall) Intent.ACTION_CALL else Intent.ACTION_DIAL, Uri.parse("tel:$clean")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (e: Exception) {
@@ -59,8 +60,9 @@ private fun dial(ctx: Context, phone: String) {
 }
 
 /**
- * Emergency help: one tap calls your emergency contact (or 112), and another shares a message with your
- * location by WhatsApp or SMS. Nothing is sent without you choosing the app and tapping send.
+ * Emergency help: the SOS button calls your emergency contact (or 112) after a 3-second countdown you can
+ * cancel, and another button shares a message with your location by WhatsApp or SMS. Nothing is sent
+ * without you choosing the app and tapping send.
  */
 @Composable
 fun SosScreen(env: AppEnv) {
@@ -75,6 +77,7 @@ fun SosScreen(env: AppEnv) {
         )
     } + env.members.filter { it.uid != env.uid && it.phone.isNotBlank() }.map { Contact(it.name, "Family", it.phone) }
     val primary = contacts.firstOrNull()
+    var countdown by remember { mutableStateOf<Int?>(null) }
 
     var afterPermission by remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -117,6 +120,17 @@ fun SosScreen(env: AppEnv) {
         }
     }
 
+    LaunchedEffect(countdown) {
+        val c = countdown ?: return@LaunchedEffect
+        if (c > 0) {
+            kotlinx.coroutines.delay(1000)
+            if (countdown == c) countdown = c - 1
+        } else {
+            countdown = null
+            withPermissions(arrayOf(Manifest.permission.CALL_PHONE)) { dial(context, primary?.phone ?: "112", direct = true) }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenTopBar(title = "SOS", onBack = env.onBack)
         LazyColumn(
@@ -130,17 +144,16 @@ fun SosScreen(env: AppEnv) {
                         .size(190.dp)
                         .clip(CircleShape)
                         .background(Brush.radialGradient(listOf(Color(0xFFFF453A), Color(0xFFC20F0F))))
-                        .clickable {
-                            withPermissions(arrayOf(Manifest.permission.CALL_PHONE)) { dial(context, primary?.phone ?: "112") }
-                        },
+                        .clickable { countdown = if (countdown == null) 3 else null },
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.Call, contentDescription = null, tint = Color.White, modifier = Modifier.size(44.dp))
-                        Text("SOS", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Black)
+                        val who = if (primary != null) primary.name.substringBefore(' ') else "112"
+                        Text(countdown?.let { "$it" } ?: "SOS", color = Color.White, fontSize = 34.sp, fontWeight = FontWeight.Black)
                         Text(
-                            if (primary != null) "Call ${primary.name.substringBefore(' ')}" else "Call 112",
-                            color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp
+                            if (countdown != null) "Calling $who… tap to cancel" else "Call $who",
+                            color = Color.White.copy(alpha = 0.9f), fontSize = 13.sp, textAlign = TextAlign.Center
                         )
                     }
                 }

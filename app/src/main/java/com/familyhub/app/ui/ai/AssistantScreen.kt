@@ -379,6 +379,14 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
                 }
             }
         }
+        if (m.actions.any { it.kind == "open" && it.state != "dismissed" }) {
+            Text(
+                "Open takes you to the official app or site with the details filled in. You book, pay, apply or send there.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp).widthIn(max = 320.dp)
+            )
+        }
         val pending = m.actions.count { it.state == "new" && it.kind != "open" }
         if (pending >= 2) {
             FilledTonalButton(onClick = onAddAll, modifier = Modifier.padding(top = 6.dp)) {
