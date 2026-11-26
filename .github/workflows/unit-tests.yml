@@ -1,0 +1,71 @@
+name: Unit tests
+
+# The plain-Kotlin test suites in tools/ (money engine, imports, chat mentions, assistant questions, health,
+# reminders, safety). Each prints ALL PASSED or the number of failures; any failure fails this run.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install the Kotlin compiler
+        run: |
+          curl -sSL -o kc.zip https://github.com/JetBrains/kotlin/releases/download/v1.9.24/kotlin-compiler-1.9.24.zip
+          unzip -q kc.zip -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/kotlinc/bin" >> "$GITHUB_PATH"
+
+      - name: Run the test suites
+        run: |
+          set -u
+          A=$PWD/app/src/main/java/com/familyhub/app
+          fails=0
+          run() {
+            name=$1; shift
+            echo "::group::$name"
+            out=$(java -jar "$@" 2>&1); echo "$out" | tail -n 60
+            echo "::endgroup::"
+            last=$(echo "$out" | tail -n 1)
+            echo "$name: $last"
+            case "$last" in "ALL PASSED"*) ;; *) fails=$((fails + 1)) ;; esac
+          }
+          W=$RUNNER_TEMP/w; mkdir -p $W
+
+          (cd tools/ledger-test && cp $A/money/Ledger.kt $A/money/MerchantRules.kt $A/money/FinanceMonth.kt $A/money/Recategorize.kt $A/money/Duplicates.kt $W/ && \
+            kotlinc $W/Ledger.kt $W/MerchantRules.kt $W/FinanceMonth.kt $W/Recategorize.kt $W/Duplicates.kt LedgerTest.kt -include-runtime -d $W/ledger.jar 2>&1 | grep -v warning || true)
+          run "Money engine (ledger-test)" $W/ledger.jar
+
+          (cd tools/import-test && \
+            kotlinc $A/money/TxnParser.kt $A/money/AlertParser.kt $A/money/StatementImport.kt $A/money/StatementParser.kt $A/money/Ledger.kt TxnTest.kt -include-runtime -d $W/txn.jar 2>&1 | grep -v warning || true; \
+            kotlinc $A/money/StatementParser.kt $A/money/StatementImport.kt $A/money/TxnParser.kt $A/money/AlertParser.kt $A/money/Ledger.kt StmtTest.kt -include-runtime -d $W/stmt.jar 2>&1 | grep -v warning || true)
+          run "SMS and email alerts (import-test)" $W/txn.jar
+          pushd tools/import-test >/dev/null; run "Statement import (import-test)" $W/stmt.jar; popd >/dev/null
+
+          (cd tools/chat-test && kotlinc $A/ui/chat/Mentions.kt ChatTest.kt -include-runtime -d $W/chat.jar 2>&1 | grep -v warning || true)
+          run "Chat mentions (chat-test)" $W/chat.jar
+
+          (cd tools/ai-test && python3 extract.py && kotlinc Regexes.kt AiTest.kt -include-runtime -d $W/ai.jar 2>&1 | grep -v warning || true)
+          run "Assistant questions (ai-test)" $W/ai.jar
+
+          (cd tools/health-test && kotlinc $A/health/HealthMath.kt $A/core/ai/AiLimiter.kt HealthTest.kt -include-runtime -d $W/health.jar 2>&1 | grep -v warning || true)
+          run "Health and AI limits (health-test)" $W/health.jar
+
+          (cd tools/reminder-test && kotlinc $A/work/ReminderRules.kt ReminderTest.kt -include-runtime -d $W/rem.jar 2>&1 | grep -v warning || true)
+          run "Reminder rules (reminder-test)" $W/rem.jar
+
+          (cd tools/safety-test && kotlinc $A/safety/SafetyLogic.kt SafetyTest.kt -include-runtime -d $W/safety.jar 2>&1 | grep -v warning || true)
+          run "Safety logic (safety-test)" $W/safety.jar
+
+          echo "Suites failed: $fails"
+          [ "$fails" = "0" ]
