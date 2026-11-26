@@ -165,13 +165,20 @@ jobs:
                 shot "demo_${1}_$n"
               done
             fi
+            if [ "$4" = "up" ]; then
+              for n in 2 3 4 5; do
+                adb shell input swipe $((SW / 2)) $((SH * 3 / 10)) $((SW / 2)) $((SH * 8 / 10)) 500
+                sleep 2
+                shot "demo_${1}_$n"
+              done
+            fi
             after=$(adb logcat -d | grep -c "FATAL EXCEPTION")
             [ "$after" != "$before" ] && echo "DEMO_CRASH: $1"
             adb shell am force-stop $PKG
           }
           for r in home more sos profile families arrange medicines workouts; do demo "$r" "" 6 no; done
           for r in health_hub insights periods cards import; do demo "$r" "" 6 scroll; done
-          demo assistant "What_is_due_this_week_and_how_much_did_we_spend_this_month?" 75 scroll
+          demo assistant "What_is_due_this_week_and_how_much_did_we_spend_this_month?" 75 up
           adb shell am start -n $PKG/.MainActivity >/dev/null 2>&1
           sleep 5
           adb logcat -d > shots/logcat.txt
