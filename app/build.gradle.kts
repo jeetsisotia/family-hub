@@ -1,5 +1,3 @@
-import java.util.Base64
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -26,12 +24,7 @@ android {
 
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
 
-        // Gemini key for the AI assistant. Stored reversed and base64-encoded so it is not a plain string in the APK.
-        val geminiKey = (project.findProperty("GEMINI_API_KEY")?.toString()
-            ?: System.getenv("GEMINI_API_KEY")
-            ?: "").trim()
-        val geminiEncoded = Base64.getEncoder().encodeToString(geminiKey.reversed().toByteArray())
-        buildConfigField("String", "GEMINI_KEY_ENC", "\"$geminiEncoded\"")
+
     }
 
     signingConfigs {
@@ -99,6 +92,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-functions")
     implementation("com.google.firebase:firebase-crashlytics")
 
     implementation("androidx.room:room-runtime:2.6.1")
