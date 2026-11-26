@@ -93,6 +93,18 @@ class DemoActivity : FragmentActivity() {
                                 aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) }
                             )
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
+                            route == "assistant_new" -> AssistantScreen(env)
+                            route == "settings" -> com.familyhub.app.ui.modules.SettingsScreen(
+                                family = env.family, user = env.profile, isOwner = true,
+                                onBack = {}, onSignOut = {}, onOpen = {}
+                            )
+                            route == "family_tab" -> com.familyhub.app.ui.modules.FamilyScreen(
+                                family = env.family, members = env.members, currentUid = env.uid, isOwner = true,
+                                onApprove = {}, onRemove = {}
+                            )
+                            route == "alerts" -> com.familyhub.app.ui.modules.AlertsScreen(
+                                alerts = com.familyhub.app.ui.modules.buildAlerts(env.data), onBack = {}, onOpen = {}
+                            )
                             route in ExtraRouteIds -> ExtraRoute(route, env)
                             def != null -> ModuleScreen(
                                 def = def,
@@ -103,7 +115,8 @@ class DemoActivity : FragmentActivity() {
                                 monthlyBudget = env.family.monthlyBudget,
                                 isOwner = true,
                                 repo = recordRepository,
-                                onBack = {}
+                                onBack = {},
+                                onOpen = {}
                             )
                             else -> Text("Unknown screen: $route", modifier = Modifier.padding(24.dp))
                         }

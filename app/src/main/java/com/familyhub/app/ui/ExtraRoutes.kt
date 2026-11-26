@@ -9,6 +9,8 @@ import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.data.remote.RecordRepository
 import com.familyhub.app.ui.ai.AssistantScreen
 import com.familyhub.app.ui.health.HealthScreen
+import com.familyhub.app.ui.hub.HubScreen
+import com.familyhub.app.ui.hub.Hubs
 import com.familyhub.app.ui.health.PeriodScreen
 import com.familyhub.app.ui.money.CardsScreen
 import com.familyhub.app.ui.money.ImportScreen
@@ -44,7 +46,8 @@ fun Rec.stringList(key: String): List<String> = (this[key] as? List<*>)?.mapNotN
 
 /** Routes handled here instead of by the generic record screen. */
 val ExtraRouteIds: Set<String> = setOf(
-    "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos"
+    "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos",
+    "home_hub", "life_hub"
 )
 
 @Composable
@@ -92,5 +95,6 @@ fun ExtraRoute(route: String, env: AppEnv) {
         "insights" -> InsightsScreen(env)
         "cards" -> CardsScreen(env)
         "import" -> ImportScreen(env)
+        else -> Hubs.screens[route]?.let { HubScreen(it, env) }
     }
 }

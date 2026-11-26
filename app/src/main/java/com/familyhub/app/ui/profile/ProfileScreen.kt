@@ -94,6 +94,12 @@ fun ProfileScreen(
     var appLock by remember { mutableStateOf(AppLock.isEnabled(context)) }
     var saving by remember { mutableStateOf(false) }
 
+    // What was last saved, to know whether there are changes to keep before leaving.
+    fun snapshot(): List<Any?> = listOf(text.toMap(), dates.toMap(), share.toMap(), photo)
+    var baseline by remember(loaded) { mutableStateOf(snapshot()) }
+    val dirty = snapshot() != baseline
+    var askLeave by remember { mutableStateOf(false) }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             val big = PhotoCodec.encode(context, uri, 320, 80)
@@ -109,6 +115,7 @@ fun ProfileScreen(
 
     fun save() {
         saving = true
+        baseline = snapshot()
         val data = HashMap<String, Any?>()
         for (k in TEXT_KEYS) data[k] = text[k].orEmpty().trim()
         for (k in NUMBER_KEYS) data[k] = parseNumber(text[k].orEmpty())
@@ -142,9 +149,37 @@ fun ProfileScreen(
         repo.updateMemberCards(uid, familyIds, card)
     }
 
+    androidx.activity.compose.BackHandler(enabled = dirty) { askLeave = true }
+    if (askLeave) {
+        AlertDialog(
+            onDismissRequest = { askLeave = false },
+            title = { Text("Save your changes?") },
+            text = { Text("You changed your profile. Save before leaving?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    askLeave = false
+                    save()
+                    onBack()
+                }) { Text("Save", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    askLeave = false
+                    onBack()
+                }) { Text("Discard") }
+            }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "My Profile", onBack = onBack) {
-            TextButton(onClick = { save() }, enabled = !saving) { Text("Save", fontWeight = FontWeight.Bold) }
+        ScreenTopBar(title = "My Profile", onBack = { if (dirty) askLeave = true else onBack() }) {
+            Button(
+                onClick = { save() },
+                enabled = dirty && !saving,
+                shape = RoundedCornerShape(50),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 6.dp),
+                modifier = Modifier.padding(end = 8.dp)
+            ) { Text(if (saving) "Saving…" else "Save", fontWeight = FontWeight.Bold) }
         }
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
@@ -366,13 +401,6 @@ fun ProfileScreen(
                 }
             }
 
-            item {
-                AccentCard(onClick = { save() }, shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().height(54.dp)) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(if (saving) "Saving..." else "Save profile", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
         }
     }
 }

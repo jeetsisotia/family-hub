@@ -150,6 +150,10 @@ fun HealthScreen(env: AppEnv) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Everything health-related in one place.
+            item {
+                com.familyhub.app.ui.hub.HubTiles(com.familyhub.app.ui.hub.Hubs.health.items, env.navigate)
+            }
             // Steps
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {

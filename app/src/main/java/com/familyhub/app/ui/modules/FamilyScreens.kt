@@ -11,8 +11,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.familyhub.app.core.theme.GlassCard
+import com.familyhub.app.ui.common.ScreenTopBar
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,10 +49,10 @@ private fun AlertRow(alert: AlertItem, onClick: () -> Unit) {
         days == 1 -> "tomorrow"
         else -> "in $days days"
     }
-    Card(
+    GlassCard(
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
@@ -74,9 +80,8 @@ private fun AlertRow(alert: AlertItem, onClick: () -> Unit) {
 @Composable
 fun AlertsStrip(alerts: List<AlertItem>, onSeeAll: () -> Unit, onOpen: (String) -> Unit) {
     if (alerts.isEmpty()) return
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    GlassCard(
+        shape = RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -85,7 +90,7 @@ fun AlertsStrip(alerts: List<AlertItem>, onSeeAll: () -> Unit, onOpen: (String) 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Reminders (${alerts.size})", fontWeight = FontWeight.Bold)
+                Text("Due soon (${alerts.size})", fontWeight = FontWeight.Bold)
                 TextButton(onClick = onSeeAll) { Text("See all") }
             }
             alerts.take(3).forEach { a -> AlertRow(a) { onOpen(a.route) } }
@@ -96,16 +101,7 @@ fun AlertsStrip(alerts: List<AlertItem>, onSeeAll: () -> Unit, onOpen: (String) 
 @Composable
 fun AlertsScreen(alerts: List<AlertItem>, onBack: () -> Unit, onOpen: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = "Back") }
-            Text(
-                "Reminders",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-            )
-        }
+        ScreenTopBar(title = "Due soon", onBack = onBack)
         if (alerts.isEmpty()) {
             Text(
                 "All clear. Nothing is due or expiring in the next 30 days.",
@@ -218,7 +214,7 @@ fun FamilyScreen(
         if (isOwner && pending.isNotEmpty()) {
             item { Text("Waiting for your approval", fontWeight = FontWeight.Bold) }
             items(pending, key = { "p_" + it.uid }) { m ->
-                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -242,7 +238,7 @@ fun FamilyScreen(
 
         item { Text("Members (${active.size})", fontWeight = FontWeight.Bold) }
         items(active, key = { "a_" + it.uid }) { m ->
-            Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -331,25 +327,32 @@ fun SettingsScreen(
     user: UserProfile,
     isOwner: Boolean,
     onBack: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onOpen: ((String) -> Unit)? = null
 ) {
+    var confirmSignOut by remember { mutableStateOf(false) }
+    if (confirmSignOut) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text("Sign out?") },
+            text = { Text("You can sign back in with the same Google account. Data saved only on this phone (steps, water, app lock) stays here.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmSignOut = false
+                    onSignOut()
+                }) { Text("Sign out", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel") } }
+        )
+    }
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, contentDescription = "Back") }
-            Text(
-                "Settings",
-                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
-            )
-        }
+        ScreenTopBar(title = "Settings", onBack = onBack)
         LazyColumn(
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
-                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Your account", fontWeight = FontWeight.Bold)
                         Text(user.name)
@@ -361,8 +364,19 @@ fun SettingsScreen(
                     }
                 }
             }
+            if (onOpen != null) {
+                item {
+                    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                            SettingsLink(Icons.Rounded.AccountCircle, "My Profile", "Photo, details, IDs and app lock") { onOpen("profile") }
+                            SettingsLink(Icons.Rounded.Diversity3, "My Families", "Switch, create or join a family") { onOpen("families") }
+                            SettingsLink(Icons.Rounded.Tune, "Arrange More", "Order and hide the More icons") { onOpen("arrange") }
+                        }
+                    }
+                }
+            }
             item {
-                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Family", fontWeight = FontWeight.Bold)
                         Text(family.name)
@@ -380,7 +394,7 @@ fun SettingsScreen(
                 }
             }
             item {
-                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Privacy", fontWeight = FontWeight.Bold)
                         Text(
@@ -391,10 +405,26 @@ fun SettingsScreen(
                 }
             }
             item {
-                OutlinedButton(onClick = onSignOut, modifier = Modifier.fillMaxWidth()) {
-                    Text("Sign out / switch Google account")
+                OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Sign out / switch Google account", color = MaterialTheme.colorScheme.error)
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SettingsLink(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, note: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold)
+            Text(note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+        }
+        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
     }
 }

@@ -20,12 +20,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.familyhub.app.core.ai.AiContext
 import com.familyhub.app.core.ai.AiException
 import com.familyhub.app.core.ai.GeminiClient
 import com.familyhub.app.core.theme.GlassCard
-import com.familyhub.app.core.theme.IosBlue
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.common.ScreenTopBar
 import com.familyhub.app.ui.common.dayKey
@@ -49,15 +49,15 @@ object AssistantMemory {
 }
 
 private val SUGGESTIONS = listOf(
-    "Add ₹40 travel expense today via UPI from HDFC to Rajesh",
-    "Book an Uber to the airport",
-    "Find Java developer jobs in Gurugram on LinkedIn",
-    "Period started today, heavy flow",
-    "Weight 63.5 kg, BP 120/80",
-    "Add milk, eggs and bread to shopping",
-    "Remind me to pay rent on the 1st at 9 am every month",
-    "What's due this week?",
-    "How much did we spend this month?"
+    Icons.Rounded.CurrencyRupee to "Add ₹40 travel expense today via UPI from HDFC to Rajesh",
+    Icons.Rounded.LocalTaxi to "Book an Uber to the airport",
+    Icons.Rounded.Work to "Find Java developer jobs in Gurugram on LinkedIn",
+    Icons.Rounded.WaterDrop to "Period started today, heavy flow",
+    Icons.Rounded.MonitorHeart to "Weight 63.5 kg, BP 120/80",
+    Icons.Rounded.ShoppingCart to "Add milk, eggs and bread to shopping",
+    Icons.Rounded.Alarm to "Remind me to pay rent on the 1st at 9 am every month",
+    Icons.Rounded.Event to "What's due this week?",
+    Icons.Rounded.PieChart to "How much did we spend this month?"
 )
 
 /** History for the AI: only what it may see, starting with the user and alternating roles. */
@@ -75,6 +75,7 @@ private fun aiTurns(messages: List<ChatMsg>): List<GeminiClient.Turn> {
     return turns
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = false, autoAsks: List<String> = emptyList()) {
     val context = LocalContext.current
@@ -238,7 +239,10 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
     }
 
     LaunchedEffect(messages.size, busy) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size + 1)
+        if (messages.isNotEmpty()) {
+            val last = listState.layoutInfo.totalItemsCount - 1
+            if (last >= 0) listState.animateScrollToItem(last)
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().imePadding()) {
@@ -253,34 +257,30 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
-                        Box(
-                            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(12.dp))
-                                .background(Brush.linearGradient(listOf(Color(0xFF5E5CE6), IosBlue))),
-                            contentAlignment = Alignment.Center
-                        ) { Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = Color.White) }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                "Type or speak to add expenses, tasks, reminders, events and health entries, or ask about your family's plans and spending.",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                "Private: health entries are understood on your phone. ID numbers, health, medicines, periods, vitals and notes are never sent to the AI.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
-                    }
-                }
-            }
             if (messages.isEmpty()) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SUGGESTIONS.forEach { s -> SuggestionChip(onClick = { send(s) }, label = { Text(s) }) }
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        AiOrb(size = 64.dp)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("How can I help?", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Type or speak to add expenses, tasks, reminders, events and health entries, or ask about your family's plans and spending.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 4.dp, start = 8.dp, end = 8.dp)
+                        )
+                    }
+                }
+                item {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SUGGESTIONS.forEach { (icon, s) -> AiSuggestion(icon, s) { send(s) } }
                     }
                 }
             }
@@ -299,38 +299,35 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                 }
             }
             if (busy) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Thinking…", style = MaterialTheme.typography.bodySmall)
-                    }
+                item { AiThinking() }
+            }
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Rounded.Lock, contentDescription = null, modifier = Modifier.size(12.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        "Health, IDs and notes stay on your phone. They're never sent to the AI.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    )
                 }
             }
         }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = { input = it },
-                placeholder = { Text("Type, or tap the mic to speak…") },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(22.dp),
-                maxLines = 4
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            if (input.isBlank()) {
-                FilledIconButton(onClick = { listen() }, enabled = !busy) {
-                    Icon(Icons.Rounded.Mic, contentDescription = "Speak")
-                }
-            } else {
-                FilledIconButton(onClick = { send(input) }, enabled = !busy) {
-                    Icon(Icons.Rounded.ArrowUpward, contentDescription = "Send")
-                }
-            }
-        }
+        AiInputBar(
+            value = input,
+            onValueChange = { input = it },
+            busy = busy,
+            onMic = { listen() },
+            onSend = { send(input) },
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 10.dp)
+        )
     }
 }
 
@@ -340,36 +337,39 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (m.fromUser) Alignment.End else Alignment.Start
     ) {
-        Box(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(if (m.fromUser) IosBlue else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Text(m.text, color = if (m.fromUser) Color.White else MaterialTheme.colorScheme.onSurface)
-        }
+        if (m.fromUser) UserBubble(m.text) else AssistantBubble(m.text)
+        // Action cards sit under the reply, lined up with the bubble rather than the orb.
+        val cardStart = if (m.fromUser) 0.dp else 34.dp
         m.actions.forEach { a ->
             AnimatedVisibility(visible = a.state != "dismissed") {
-                GlassCard(modifier = Modifier.padding(top = 6.dp).widthIn(max = 340.dp), shape = RoundedCornerShape(16.dp)) {
+                GlassCard(
+                    modifier = Modifier.padding(top = 6.dp, start = cardStart).widthIn(max = 340.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    strong = true
+                ) {
                     Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            actionIcon(a.kind), contentDescription = null,
-                            tint = if (a.local) Color(0xFFFF2D55) else IosBlue, modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(
+                                if (a.local) Brush.linearGradient(listOf(Color(0xFFFF6B8B), Color(0xFFFF2D55)))
+                                else aiFillBrush()
+                            ),
+                            contentAlignment = Alignment.Center
+                        ) { Icon(actionIcon(a.kind), contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(actionLabel(a), style = MaterialTheme.typography.bodySmall)
                             if (a.state == "failed" && a.error.isNotBlank()) {
                                 Text(a.error, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF3B30))
                             }
                         }
+                        Spacer(modifier = Modifier.width(6.dp))
                         when (a.state) {
                             "added" -> Text(if (a.kind == "open") "Opened ✓" else "Added ✓", color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold)
                             else -> {
-                                TextButton(onClick = { onAction(a, true) }) {
-                                    Text(if (a.state == "failed") "Retry" else if (a.kind == "open") "Open" else "Add")
-                                }
+                                AiPillButton(
+                                    if (a.state == "failed") "Retry" else if (a.kind == "open") "Open" else "Add",
+                                    onClick = { onAction(a, true) }
+                                )
                                 IconButton(onClick = { onAction(a, false) }, modifier = Modifier.size(32.dp)) {
                                     Icon(Icons.Rounded.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
                                 }
@@ -384,15 +384,13 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
                 "Open takes you to the official app or site with the details filled in. You book, pay, apply or send there.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp, start = 4.dp).widthIn(max = 320.dp)
+                modifier = Modifier.padding(top = 4.dp, start = cardStart + 4.dp).widthIn(max = 320.dp)
             )
         }
         val pending = m.actions.count { it.state == "new" && it.kind != "open" }
         if (pending >= 2) {
-            FilledTonalButton(onClick = onAddAll, modifier = Modifier.padding(top = 6.dp)) {
-                Icon(Icons.Rounded.DoneAll, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Add all $pending")
+            Box(modifier = Modifier.padding(top = 8.dp, start = cardStart)) {
+                AiPillButton("Add all $pending", Icons.Rounded.DoneAll, onClick = onAddAll)
             }
         }
     }
@@ -438,10 +436,13 @@ fun AiBriefCard(env: AppEnv, modifier: Modifier = Modifier) {
         if (brief == null && hasData) load()
     }
 
-    GlassCard(modifier = modifier.fillMaxWidth(), onClick = { env.navigate("assistant") }) {
+    GlassCard(
+        modifier = modifier.fillMaxWidth().aiGlowBorder(RoundedCornerShape(24.dp), width = 1.dp, active = loading),
+        onClick = { env.navigate("assistant") }
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = Color(0xFF5E5CE6), modifier = Modifier.size(20.dp))
+                AiOrb(size = 24.dp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     if (brief != null || loading) "Today's brief" else "AI Assistant",
@@ -455,7 +456,7 @@ fun AiBriefCard(env: AppEnv, modifier: Modifier = Modifier) {
             }
             Spacer(modifier = Modifier.height(6.dp))
             when {
-                loading && brief == null -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                loading && brief == null -> LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = AiAccent)
                 brief != null -> Text(brief.orEmpty(), style = MaterialTheme.typography.bodyMedium)
                 error != null -> Text(error.orEmpty(), style = MaterialTheme.typography.bodySmall)
                 else -> Text("Say or type things like \"₹40 auto fare today via UPI\" or \"period started today\".",
@@ -464,15 +465,12 @@ fun AiBriefCard(env: AppEnv, modifier: Modifier = Modifier) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
                 Text(
                     "Ask or add →",
-                    color = IosBlue,
+                    color = AiAccent,
                     style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f)
                 )
-                FilledTonalButton(onClick = { env.navigate("assistant_voice") }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) {
-                    Icon(Icons.Rounded.Mic, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Speak")
-                }
+                AiPillButton("Speak", Icons.Rounded.Mic) { env.navigate("assistant_voice") }
             }
         }
     }

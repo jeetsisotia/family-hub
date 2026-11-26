@@ -119,6 +119,11 @@ class MainActivity : FragmentActivity() {
                 var errorMessage by remember { mutableStateOf<String?>(null) }
                 var selectedTab by remember { mutableStateOf(PrimaryTab.HOME) }
                 var subRoute by remember { mutableStateOf<String?>(null) }
+                // Screens opened from another screen (for example Medicines from the Health hub), so Back returns there.
+                val backStack = remember { mutableStateListOf<String>() }
+                val goBack: () -> Unit = {
+                    subRoute = if (backStack.isEmpty()) null else backStack.removeAt(backStack.size - 1)
+                }
 
                 val fbUser = firebaseUser
                 if (fbUser == null) {
@@ -273,16 +278,26 @@ class MainActivity : FragmentActivity() {
                             "calendar" -> {
                                 selectedTab = PrimaryTab.CALENDAR
                                 subRoute = null
+                                backStack.clear()
                             }
                             "finance" -> {
                                 selectedTab = PrimaryTab.FINANCE
                                 subRoute = null
+                                backStack.clear()
                             }
                             "family" -> {
                                 selectedTab = PrimaryTab.FAMILY
                                 subRoute = null
+                                backStack.clear()
                             }
-                            else -> subRoute = r
+                            else -> {
+                                val from = subRoute
+                                if (from != null && from != r) {
+                                    backStack.remove(r)
+                                    backStack.add(from)
+                                }
+                                subRoute = r
+                            }
                         }
                     }
                     val signOut: () -> Unit = {
@@ -298,7 +313,7 @@ class MainActivity : FragmentActivity() {
                         }
                     }
 
-                    BackHandler(enabled = subRoute != null) { subRoute = null }
+                    BackHandler(enabled = subRoute != null) { goBack() }
 
                     // Open the screen a notification asked for.
                     val pending by pendingRoute
@@ -323,7 +338,7 @@ class MainActivity : FragmentActivity() {
                         repo = recordRepository,
                         familyRepository = familyRepository,
                         scope = scope,
-                        onBack = { subRoute = null },
+                        onBack = goBack,
                         navigate = navigate
                     )
 
@@ -336,6 +351,7 @@ class MainActivity : FragmentActivity() {
                                 onSelect = { i ->
                                     selectedTab = PrimaryTab.entries[i]
                                     subRoute = null
+                                    backStack.clear()
                                 }
                             )
                         }
@@ -377,14 +393,15 @@ class MainActivity : FragmentActivity() {
                                     onSignOut = signOut
                                 )
                             } else if (route == "alerts") {
-                                AlertsScreen(alerts = alerts, onBack = { subRoute = null }, onOpen = navigate)
+                                AlertsScreen(alerts = alerts, onBack = goBack, onOpen = navigate)
                             } else if (route == "settings") {
                                 SettingsScreen(
                                     family = currentFamily,
                                     user = profile,
                                     isOwner = isOwner,
-                                    onBack = { subRoute = null },
-                                    onSignOut = signOut
+                                    onBack = goBack,
+                                    onSignOut = signOut,
+                                    onOpen = navigate
                                 )
                             } else if (route != null && route in ExtraRouteIds) {
                                 ExtraRoute(route = route, env = envFor(currentFamily))
@@ -399,7 +416,7 @@ class MainActivity : FragmentActivity() {
                                         monthlyBudget = currentFamily.monthlyBudget,
                                         isOwner = isOwner,
                                         repo = recordRepository,
-                                        onBack = { subRoute = null },
+                                        onBack = goBack,
                                         onSaveBudget = saveBudget,
                                         onOpen = navigate,
                                         extraOptions = mapOf("cards" to cardTitles)

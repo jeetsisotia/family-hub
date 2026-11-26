@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.familyhub.app.ui.modules.AllModules
 import com.familyhub.app.ui.modules.HiddenFromMore
+import com.familyhub.app.ui.hub.Hubs
 
 enum class PrimaryTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Rounded.Home),
@@ -38,27 +39,26 @@ enum class PrimaryTab(val label: String, val icon: ImageVector) {
 
 data class SecondaryDestination(val route: String, val title: String, val icon: ImageVector)
 
-/** Screens that are not plain record lists (profile, families, health, money insights, AI). */
-val ExtraDestinations: List<SecondaryDestination> = listOf(
-    SecondaryDestination("assistant", "AI Assistant", Icons.Rounded.AutoAwesome),
-    SecondaryDestination("sos", "SOS", Icons.Rounded.Warning),
-    SecondaryDestination("health_hub", "Health & Fitness", Icons.Rounded.FavoriteBorder),
-    SecondaryDestination("periods", "Period Tracker", Icons.Rounded.WaterDrop),
-    SecondaryDestination("insights", "Money Insights", Icons.Rounded.PieChart),
-    SecondaryDestination("cards", "Card Bills", Icons.Rounded.CreditCard),
-    SecondaryDestination("import", "Import Expenses", Icons.Rounded.MarkEmailRead),
-    SecondaryDestination("profile", "My Profile", Icons.Rounded.AccountCircle),
-    SecondaryDestination("families", "My Families", Icons.Rounded.Diversity3)
-)
-
-/** Everything except the Calendar and Finance tabs shows up in the More grid. */
+/**
+ * The More grid: a few hubs that group related screens (Health, Money, Home, Family life) plus the
+ * things people open directly. Screens inside a hub are opened from that hub.
+ */
 val MoreDestinations: List<SecondaryDestination> =
-    ExtraDestinations +
+    listOf(
+        SecondaryDestination("assistant", "AI Assistant", Icons.Rounded.AutoAwesome),
+        SecondaryDestination("sos", "SOS", Icons.Rounded.Warning),
+        SecondaryDestination(Hubs.health.route, Hubs.health.title, Hubs.health.icon),
+        SecondaryDestination(Hubs.money.route, Hubs.money.title, Hubs.money.icon),
+        SecondaryDestination(Hubs.home.route, Hubs.home.title, Hubs.home.icon),
+        SecondaryDestination(Hubs.life.route, Hubs.life.title, Hubs.life.icon)
+    ) +
         AllModules
-            .filter { it.route != "calendar" && it.route != "finance" && it.route !in HiddenFromMore }
+            .filter { it.route != "calendar" && it.route != "finance" && it.route !in HiddenFromMore && it.route !in Hubs.grouped }
             .map { SecondaryDestination(it.route, it.title, it.icon) } +
         listOf(
             SecondaryDestination("alerts", "Due soon", Icons.Rounded.NotificationsActive),
+            SecondaryDestination("profile", "My Profile", Icons.Rounded.AccountCircle),
+            SecondaryDestination("families", "My Families", Icons.Rounded.Diversity3),
             SecondaryDestination("settings", "Settings", Icons.Rounded.Settings)
         )
 
@@ -95,7 +95,7 @@ fun MoreHubGrid(
             }
         }
         Text(
-            text = "Everything your family keeps track of",
+            text = "Grouped so it's quick to find",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
             modifier = Modifier.padding(start = 4.dp, bottom = 16.dp)

@@ -219,7 +219,9 @@ fun ModuleScreen(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget)
-                        if (def.kind == "finance" && onOpen != null) FinanceShortcuts(onOpen)
+                        if (def.kind == "finance" && onOpen != null) {
+                            com.familyhub.app.ui.hub.HubTiles(com.familyhub.app.ui.hub.Hubs.money.items, onOpen)
+                        }
                     }
                 }
                 if (records.size > 3) {
