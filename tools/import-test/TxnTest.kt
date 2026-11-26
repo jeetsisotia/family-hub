@@ -1,4 +1,5 @@
 import com.familyhub.app.money.TxnParser
+import com.familyhub.app.money.StatementImport
 
 var failures = 0
 fun check(name: String, cond: Boolean, detail: Any? = null) {
@@ -26,5 +27,11 @@ fun main() {
     check("vague message is low confidence or skipped", f == null || f.confidence == "LOW", f)
     val g = TxnParser.parse("Rs.12,601.00 debited from A/c XX1234 towards your HDFC Credit Card payment on 05-11-26. Avl Bal Rs 45,210.00", "VM-HDFCBK", now, "SMS")
     check("bank-side card payment", g != null && g.isCardPayment && !g.isCredit && g.balance == 45210.0, g)
+    val r = TxnParser.parse("Rs.2,000.00 refunded to your A/c XX1234 on 25-11-26 by MYNTRA. Avl Bal Rs 47,210.00 - HDFC Bank", "VM-HDFCBK", now, "SMS")
+    check("refund SMS is a refund, not income", r != null && r.isCredit && r.isRefund, r)
+    val e2 = StatementImport.entryFor(r!!, emptyList(), "Shopping")
+    check("refund entry lowers spending and is not income", e2["isRefund"] == true && e2["notExpense"] == true && e2["type"] == "INCOME", e2)
+    val sal = TxnParser.parse("Rs.85,000.00 credited to A/c XX1234 on 01-11-26 by NEFT from ACME PVT LTD. Avl Bal Rs 1,30,210.00", "VM-HDFCBK", now, "SMS")
+    check("salary credit is not a refund", sal != null && sal.isCredit && !sal.isRefund, sal)
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

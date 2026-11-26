@@ -39,6 +39,14 @@ object Ledger {
     fun live(r: Map<String, Any?>): Boolean = !r.b("isDeleted")
     fun amount(r: Map<String, Any?>): Double = r.n("amountInr") ?: 0.0
 
+    /**
+     * Money is added up in whole paise (a Long), never by adding Doubles, so totals cannot drift
+     * (0.10 + 0.20 − 0.30 is exactly zero). Rupee figures are made from the paise total at the end.
+     */
+    fun paise(v: Double): Long = Math.round(v * 100.0)
+    fun rupees(p: Long): Double = p / 100.0
+    fun paiseOf(r: Map<String, Any?>): Long = paise(amount(r))
+
     /** Money types that only move money around and never count as income or spending. */
     val MOVES = setOf("TRANSFER", "CARD_PAYMENT", "ADJUSTMENT")
 
@@ -55,10 +63,17 @@ object Ledger {
         }
     }
 
-    fun isIncome(r: Map<String, Any?>): Boolean = live(r) && !r.b("notExpense") && type(r) == "INCOME"
+    fun isIncome(r: Map<String, Any?>): Boolean = live(r) && !r.b("notExpense") && !r.b("isRefund") && type(r) == "INCOME"
+
+    /**
+     * Money back for a purchase (a refund or reversal) that has not been merged into that purchase.
+     * It lowers spending in the month it arrives and is never income. A merged refund ("refundOf" set)
+     * is already taken off its purchase, so it is not counted again.
+     */
+    fun isRefund(r: Map<String, Any?>): Boolean = live(r) && r.b("isRefund") && type(r) == "INCOME" && r.s("refundOf").isBlank()
 
     /** What a purchase counts for after merged refunds. */
-    fun spendAmount(r: Map<String, Any?>): Double = max(0.0, amount(r) - (r.n("refundAmount") ?: 0.0))
+    fun spendAmount(r: Map<String, Any?>): Double = rupees(max(0L, paise(amount(r)) - paise(r.n("refundAmount") ?: 0.0)))
 
     // ---------- matching records to accounts and cards ----------
 
@@ -106,15 +121,15 @@ object Ledger {
         val opening = account.n("openingBalance") ?: 0.0
         // The opening balance is the balance at the start of that day.
         val from = account.l("openingDateMillis")?.let { startOfDay(it) } ?: 0L
-        var inflow = 0.0
-        var outflow = 0.0
+        var inflow = 0L
+        var outflow = 0L
         val aid = id(account)
         for (t in txns) {
             if (!live(t) || t.s("dueKind") == "card") continue
             val at = t.l("dateMillis") ?: 0L
             if (at < from || at > upTo) continue
             val ty = type(t)
-            val a = amount(t)
+            val a = paiseOf(t)
             // Money arriving from a transfer.
             if (ty == "TRANSFER" && (t.s("toAccountId") == aid || (t.s("toAccount").isNotBlank() && t.s("toAccount") == account.s("title")))) {
                 inflow += a
@@ -129,7 +144,10 @@ object Ledger {
                 else -> if (!isCardPurchase(t)) outflow += a
             }
         }
-        return AccountBalance(aid, account.s("title"), account.s("category").ifBlank { "Savings" }, opening, inflow, outflow, opening + inflow - outflow)
+        return AccountBalance(
+            aid, account.s("title"), account.s("category").ifBlank { "Savings" }, opening,
+            rupees(inflow), rupees(outflow), rupees(paise(opening) + inflow - outflow)
+        )
     }
 
     // ---------- credit cards ----------
@@ -184,23 +202,25 @@ object Ledger {
         val opening = card.n("openingOutstanding") ?: 0.0
         val openingAt = card.l("openingDateMillis")?.let { startOfDay(it) } ?: 0L
 
-        fun charge(t: Map<String, Any?>): Double {
-            if (!live(t) || !touchesCard(t, card)) return 0.0
+        // In paise.
+        fun charge(t: Map<String, Any?>): Long {
+            if (!live(t) || !touchesCard(t, card)) return 0L
             // A saved card bill only repeats purchases already charged.
-            if (t.s("dueKind") == "card") return 0.0
+            if (t.s("dueKind") == "card") return 0L
             val ty = type(t)
-            if (ty == "CARD_PAYMENT" || ty == "TRANSFER" || ty == "ADJUSTMENT") return 0.0
-            if (ty == "INCOME") return -amount(t) // refund or cashback to the card
-            if ((ty == "BILL" || ty == "EMI") && !isPaidDue(t)) return 0.0
-            return if (isCardPurchase(t) || t.s("cardKind") == "credit" || t.s("paymentMethod").isBlank()) amount(t) else 0.0
+            if (ty == "CARD_PAYMENT" || ty == "TRANSFER" || ty == "ADJUSTMENT") return 0L
+            if (ty == "INCOME") return -paiseOf(t) // refund or cashback to the card
+            if ((ty == "BILL" || ty == "EMI") && !isPaidDue(t)) return 0L
+            return if (isCardPurchase(t) || t.s("cardKind") == "credit" || t.s("paymentMethod").isBlank()) paiseOf(t) else 0L
         }
-        fun payment(t: Map<String, Any?>): Double =
-            if (live(t) && type(t) == "CARD_PAYMENT" && touchesCard(t, card)) amount(t) else 0.0
+        fun payment(t: Map<String, Any?>): Long =
+            if (live(t) && type(t) == "CARD_PAYMENT" && touchesCard(t, card)) paiseOf(t) else 0L
 
-        var chargesToStatement = 0.0
-        var paidToStatement = 0.0
-        var unbilled = 0.0
-        var paidSince = 0.0
+        val openingP = paise(opening)
+        var chargesToStatement = 0L
+        var paidToStatement = 0L
+        var unbilled = 0L
+        var paidSince = 0L
         for (t in txns) {
             val at = t.l("dateMillis") ?: continue
             if (at < openingAt) continue
@@ -208,30 +228,34 @@ object Ledger {
             val p = payment(t)
             if (at <= lastSt) { chargesToStatement += c; paidToStatement += p } else { unbilled += c; paidSince += p }
         }
-        val statementAmount = max(0.0, opening + chargesToStatement - paidToStatement)
-        val outstanding = max(0.0, statementAmount + unbilled - paidSince)
-        val amountDue = max(0.0, statementAmount - paidSince)
-        // Card statements usually ask for 5% (at least ₹200) unless a bill alert said otherwise.
-        val minFromAlert = card.n("lastMinDue")?.takeIf { (card.l("lastMinDueFor") ?: 0L) >= lastSt - 5 * DAY }
-        val minDue = if (amountDue <= 0.0) 0.0 else min(amountDue, minFromAlert ?: max(200.0, (amountDue * 0.05).roundToLong().toDouble()))
+        val statementP = max(0L, openingP + chargesToStatement - paidToStatement)
+        val outstandingP = max(0L, statementP + unbilled - paidSince)
+        val dueP = max(0L, statementP - paidSince)
+        // Card statements usually ask for 5% (at least ₹200, in whole rupees) unless a bill alert said otherwise.
+        val minFromAlert = card.n("lastMinDue")?.takeIf { (card.l("lastMinDueFor") ?: 0L) >= lastSt - 5 * DAY }?.let { paise(it) }
+        val minP = if (dueP <= 0L) 0L else min(dueP, minFromAlert ?: max(20_000L, ((dueP * 5 + 50) / 100 + 50) / 100 * 100))
+        val statementAmount = rupees(statementP)
+        val outstanding = rupees(outstandingP)
+        val amountDue = rupees(dueP)
+        val minDue = rupees(minP)
         val limit = card.n("limitInr")
         val history = (0 until 6).map { k ->
             val end = endOfDay(dayOfMonth(lastSt, stDay, -k))
             val start = endOfDay(dayOfMonth(lastSt, stDay, -k - 1))
-            var spent = 0.0
-            var paid = 0.0
-            var closing = opening
+            var spent = 0L
+            var paid = 0L
+            var closing = openingP
             for (t in txns) {
                 val at = t.l("dateMillis") ?: continue
                 if (at < openingAt) continue
                 if (at in (start + 1)..end) { spent += charge(t); paid += payment(t) }
                 if (at <= end) closing += charge(t) - payment(t)
             }
-            CardCycle(end, spent, paid, max(0.0, closing))
+            CardCycle(end, rupees(spent), rupees(paid), rupees(max(0L, closing)))
         }
         return CardStatus(
-            id(card), card.s("title"), limit, outstanding, limit?.let { max(0.0, it - outstanding) },
-            lastSt, nextSt, due, statementAmount, paidSince, amountDue, minDue, unbilled, history
+            id(card), card.s("title"), limit, outstanding, limit?.let { rupees(max(0L, paise(it) - outstandingP)) },
+            lastSt, nextSt, due, statementAmount, rupees(paidSince), amountDue, minDue, rupees(unbilled), history
         )
     }
 
@@ -402,8 +426,8 @@ object Ledger {
                 val isCurrent = stAt == st.lastStatementMillis
                 val amountDue = if (isCurrent) st.statementAmount else if (stAt > now) st.unbilled else 0.0
                 if (amountDue <= 0.0 && stAt <= now && !isCurrent) continue
-                val paidAmt = payments.filter { touchesCard(it, card) && (it.l("dateMillis") ?: 0L) > stAt && (it.l("dateMillis") ?: 0L) <= due + 20 * DAY }.sumOf { amount(it) }
-                val paid = amountDue > 0 && paidAmt + 0.5 >= amountDue
+                val paidAmt = payments.filter { touchesCard(it, card) && (it.l("dateMillis") ?: 0L) > stAt && (it.l("dateMillis") ?: 0L) <= due + 20 * DAY }.sumOf { paiseOf(it) }
+                val paid = amountDue > 0 && paidAmt + 50 >= paise(amountDue)
                 if (amountDue <= 0.0 && stAt <= now) continue
                 out.add(
                     Due(key, "card", st.title + " bill", if (isCurrent) st.statementAmount else amountDue,
@@ -472,20 +496,23 @@ object Ledger {
         val cards = items.filter { it.s("type") == "card" }.map { cardStatus(it, all, now) }
         val loans = items.filter { it.s("type") == "loan" }.map { loanStatus(it, all, now) }
         val month = expenses.filter { (it.l("dateMillis") ?: 0L) in monthFrom..monthTo }
-        val income = month.filter { isIncome(it) }.sumOf { amount(it) }
-        val spent = month.filter { isSpend(it) }.sumOf { spendAmount(it) }
+        // All totals in paise.
+        val income = month.filter { isIncome(it) }.sumOf { paiseOf(it) }
+        // Refunds that arrive this month (and were not merged into their purchase) lower spending.
+        val refunds = month.filter { isRefund(it) }.sumOf { paiseOf(it) }
+        val spent = max(0L, month.filter { isSpend(it) }.sumOf { paise(spendAmount(it)) } - refunds)
         val dues = dues(mapOf("items" to items, "expenses" to all), monthFrom, monthTo, now).filter { it.status != "PAID" }
-        val emis = dues.filter { it.kind == "emi" }.sumOf { it.amount }
-        val cardBills = dues.filter { it.kind == "card" }.sumOf { it.amount }
-        val otherBills = dues.filter { it.kind != "emi" && it.kind != "card" }.sumOf { it.amount }
-        val cash = accounts.filter { it.kind.equals("Cash", true) || it.kind.equals("Wallet", true) }.sumOf { it.balance }
-        val bank = accounts.sumOf { it.balance } - cash
+        val emis = dues.filter { it.kind == "emi" }.sumOf { paise(it.amount) }
+        val cardBills = dues.filter { it.kind == "card" }.sumOf { paise(it.amount) }
+        val otherBills = dues.filter { it.kind != "emi" && it.kind != "card" }.sumOf { paise(it.amount) }
+        val cash = accounts.filter { it.kind.equals("Cash", true) || it.kind.equals("Wallet", true) }.sumOf { paise(it.balance) }
+        val bank = accounts.sumOf { paise(it.balance) } - cash
         val savings = income - spent
         return Summary(
-            round2(bank), round2(cash), round2(income), round2(spent), round2(savings),
-            if (income > 0) ((savings / income) * 100).roundToLong().toInt() else 0,
-            round2(cards.sumOf { it.outstanding }), round2(loans.sumOf { it.outstandingPrincipal }),
-            round2(emis), round2(cardBills), round2(emis + cardBills + otherBills), accounts, cards, loans
+            rupees(bank), rupees(cash), rupees(income), rupees(spent), rupees(savings),
+            if (income > 0) Math.round(savings * 100.0 / income).toInt() else 0,
+            rupees(cards.sumOf { paise(it.outstanding) }), rupees(loans.sumOf { paise(it.outstandingPrincipal) }),
+            rupees(emis), rupees(cardBills), rupees(emis + cardBills + otherBills), accounts, cards, loans
         )
     }
 
@@ -498,7 +525,7 @@ object Ledger {
     fun sameTransaction(a: Map<String, Any?>, b: Map<String, Any?>): Boolean {
         if (id(a).isNotBlank() && id(a) == id(b)) return false
         if (type(a) == "INCOME" != (type(b) == "INCOME")) return false
-        if (kotlin.math.abs(amount(a) - amount(b)) > 0.5) return false
+        if (kotlin.math.abs(paiseOf(a) - paiseOf(b)) > 50) return false
         val ta = a.l("dateMillis") ?: return false
         val tb = b.l("dateMillis") ?: return false
         if (kotlin.math.abs(ta - tb) > DAY + DAY / 2) return false

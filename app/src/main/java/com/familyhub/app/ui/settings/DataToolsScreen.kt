@@ -63,7 +63,7 @@ private fun fromJson(v: Any?): Any? = when (v) {
     else -> v
 }
 
-data class Backup(val familyName: String, val createdAt: Long, val data: Map<String, List<Rec>>) {
+data class Backup(val familyName: String, val createdAt: Long, val data: Map<String, List<Rec>>, val photos: Map<String, String> = emptyMap()) {
     val count get() = data.values.sumOf { it.size }
 }
 
@@ -75,7 +75,10 @@ private fun parseBackup(text: String): Backup {
         val arr = cols.optJSONArray(c) ?: JSONArray()
         (0 until arr.length()).mapNotNull { i -> @Suppress("UNCHECKED_CAST") (fromJson(arr.getJSONObject(i)) as? Map<String, Any?>) }
     }
-    return Backup(o.optString("familyName"), o.optLong("createdAt"), data)
+    // Pictures kept on the phone (receipts, payment proofs), by their reference.
+    val photos = HashMap<String, String>()
+    o.optJSONObject("photos")?.let { p -> p.keys().forEach { k -> photos[k] = p.optString(k) } }
+    return Backup(o.optString("familyName"), o.optLong("createdAt"), data, photos)
 }
 
 /**
@@ -110,10 +113,15 @@ fun DataToolsScreen(env: AppEnv) {
     fun backupJson(): String {
         val cols = JSONObject()
         raw.forEach { (c, l) -> cols.put(c, JSONArray().also { a -> l.forEach { a.put(toJson(it)) } }) }
+        // Pictures saved on this phone that the entries refer to go into the file too, so a backup moved to a
+        // new phone brings them along. The file stays wherever you save it; nothing is uploaded by the app.
+        val refs = raw.values.flatten().flatMap { r -> r.values.mapNotNull { v -> (v as? String)?.takeIf { com.familyhub.app.ui.common.LocalPhotos.isLocal(it) } } }
+        val photos = JSONObject()
+        com.familyhub.app.ui.common.LocalPhotos.export(context, refs).forEach { (k, v) -> photos.put(k, v) }
         return JSONObject()
-            .put("app", "FamilyHub").put("version", 2).put("createdAt", System.currentTimeMillis())
+            .put("app", "FamilyHub").put("version", 3).put("createdAt", System.currentTimeMillis())
             .put("familyId", env.familyId).put("familyName", env.family.name).put("byUid", env.uid)
-            .put("collections", cols).toString()
+            .put("collections", cols).put("photos", photos).toString()
     }
 
     /** Entries of one kind (one section of the app), deleted ones included. */
@@ -198,10 +206,11 @@ fun DataToolsScreen(env: AppEnv) {
                 )
             },
             confirmButton = {
-                TextButton(enabled = shared + mine > 0, onClick = {
+                TextButton(enabled = shared + mine > 0 || b.photos.isNotEmpty(), onClick = {
                     restoreFile = null
                     busy = true
                     scope.launch {
+                        val pics = withContext(Dispatchers.IO) { com.familyhub.app.ui.common.LocalPhotos.import(context, b.photos) }
                         var ok = 0
                         var failed = 0
                         for ((c, l) in missing) for (r in l) {
@@ -211,7 +220,8 @@ fun DataToolsScreen(env: AppEnv) {
                             } catch (e: Exception) { failed++ }
                         }
                         busy = false
-                        message = "Restored ${plural(ok, "entry", "entries")}" + if (failed > 0) "; $failed could not be restored." else "."
+                        message = "Restored ${plural(ok, "entry", "entries")}" + (if (pics > 0) " and ${plural(pics, "picture", "pictures")}" else "") +
+                            if (failed > 0) "; $failed could not be restored." else "."
                         reload++
                     }
                 }) { Text("Restore", fontWeight = FontWeight.Bold) }

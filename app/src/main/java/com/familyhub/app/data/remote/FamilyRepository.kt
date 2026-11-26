@@ -40,7 +40,7 @@ class FamilyRepository @Inject constructor(
     }
 
     /** Creates users/{uid} if it does not exist yet (e.g. the app was closed right after sign-in). */
-    suspend fun ensureUserProfile(user: FirebaseUser): Result<Unit> = runCatching {
+    suspend fun ensureUserProfile(user: FirebaseUser): Result<Unit> = try {
         val ref = firestore.collection("users").document(user.uid)
         if (!ref.get().await().exists()) {
             val profile = UserProfile(
@@ -51,6 +51,12 @@ class FamilyRepository @Inject constructor(
             )
             ref.set(profile, SetOptions.merge()).await()
         }
+        Result.success(Unit)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        // The screen closed while this was running: stop here instead of carrying on.
+        throw e
+    } catch (e: Exception) {
+        Result.failure(e)
     }
 
     fun observeFamily(familyId: String): Flow<FamilyGroup?> = callbackFlow {
@@ -93,6 +99,8 @@ class FamilyRepository @Inject constructor(
         firestore.runBatch { batch ->
             batch.set(familyRef(familyId), family)
             batch.set(familyRef(familyId).collection("members").document(user.uid), ownerMember)
+            // The code points to the family, so someone with the code can ask to join without seeing other families.
+            batch.set(inviteRef(inviteCode), inviteDoc(familyId, family.name, user.uid))
             batch.set(
                 firestore.collection("users").document(user.uid),
                 mapOf(
@@ -105,16 +113,38 @@ class FamilyRepository @Inject constructor(
         family
     }
 
-    suspend fun joinFamilyByCode(user: UserProfile, inviteCode: String, relation: String): Result<String> = runCatching {
-        val query = firestore.collection("families")
-            .whereEqualTo("inviteCode", inviteCode.trim().uppercase())
-            .limit(1)
-            .get()
-            .await()
+    private fun inviteRef(code: String) = firestore.collection("invites").document(code.trim().uppercase())
 
-        val familyDoc = query.documents.firstOrNull()
-            ?: throw IllegalArgumentException("Invalid invitation code.")
-        val familyId = familyDoc.id
+    private fun inviteDoc(familyId: String, familyName: String, byUid: String) = mapOf(
+        "familyId" to familyId, "familyName" to familyName, "createdByUid" to byUid, "updatedAt" to System.currentTimeMillis()
+    )
+
+    /**
+     * Makes sure the family's invite code can be looked up (admins only; families made before invites existed
+     * get theirs the first time an admin opens the app). Quietly does nothing for members or when offline.
+     */
+    suspend fun ensureInvite(family: FamilyGroup, uid: String) {
+        if (family.id.isBlank() || family.inviteCode.isBlank()) return
+        try {
+            val ref = inviteRef(family.inviteCode)
+            val snap = ref.get().await()
+            if (!snap.exists() || snap.getString("familyId") != family.id || snap.getString("familyName") != family.name) {
+                ref.set(inviteDoc(family.id, family.name, uid)).await()
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Not an admin, offline or the rules are not updated yet: the code can still be typed later.
+        }
+    }
+
+    suspend fun joinFamilyByCode(user: UserProfile, inviteCode: String, relation: String): Result<String> = runCatching {
+        val code = inviteCode.trim().uppercase()
+        if (!Regex("[A-Z0-9-]{4,32}").matches(code)) throw IllegalArgumentException("That invite code doesn't look right.")
+        // Look the code up directly; families cannot be listed or searched.
+        val invite = try { inviteRef(code).get().await() } catch (e: Exception) { null }
+        val familyId = invite?.getString("familyId")?.takeIf { invite.exists() && it.isNotBlank() }
+            ?: throw IllegalArgumentException("Invite code not found. Check it, or ask your family admin to open Family Hub once (it activates the code).")
 
         val pendingMember = FamilyMember(
             uid = user.uid,

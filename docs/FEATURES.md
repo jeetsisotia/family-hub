@@ -108,6 +108,6 @@ Everything listed as Done is a working screen on real data, not a placeholder. S
 
 | Item | Status | Notes |
 |---|---|---|
-| Family data kept apart | Done | Firestore rules: only a family's approved members can read it. Only admins can delete for good. Private ("Only me") entries are readable by their owner, the people they chose, and the Super Admin. |
+| Family data kept apart | Done | Firestore rules: only a family's approved members can read it. Only admins can delete for good. "Only me" entries are readable only by their owner. Private documents are readable by their owner, the people they chose and the Super Admin. Families cannot be listed; joining looks up one invite code. |
 | Sensitive data | Done | Health data, ID numbers and notes never go to the AI. Only the last 4 digits of cards and accounts are kept. |
 | Network | Done | HTTPS only (Firebase and Google APIs). AI calls time out after 45 seconds with a clear message, and another model is tried when the first is busy. Firestore keeps working offline and syncs when the phone is back online. |

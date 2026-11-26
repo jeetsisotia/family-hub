@@ -28,7 +28,9 @@ data class ParsedTxn(
     val refNo: String = "",
     val bank: String = "",
     /** HIGH, MEDIUM or LOW: how sure the reading is. Low ones start unticked. */
-    val confidence: String = "HIGH"
+    val confidence: String = "HIGH",
+    /** Money back for a purchase (refund or reversal): it lowers spending and is never income. */
+    val isRefund: Boolean = false
 )
 
 /**
@@ -42,6 +44,8 @@ object TxnParser {
     private val debitRx = Regex(
         """(?i)\b(debited|spent|paid|purchase|withdrawn|withdrawal|sent|debit|charged|deducted|used at|used for|txn of|transaction of)\b"""
     )
+    /** Words that mark money coming back for a purchase rather than new income. */
+    val refundRx = Regex("""(?i)\b(refund(?:ed)?|revers(?:ed|al)|chargeback)\b""")
     private val creditRx = Regex("""(?i)\b(credited|received|deposited|refund(?:ed)?|reversed|credit of)\b""")
     private val skipRx = Regex(
         """(?i)(\botp\b|one.time.password|verification code|\boffer\b|cashback up ?to|you have won|pre.?approved|apply now|""" +
@@ -162,7 +166,8 @@ object TxnParser {
             availableLimit = limit,
             refNo = refNo,
             bank = bank,
-            confidence = confidence
+            confidence = confidence,
+            isRefund = isCredit && !isTransfer && refundRx.containsMatchIn(t)
         )
     }
 

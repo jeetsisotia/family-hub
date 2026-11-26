@@ -27,6 +27,7 @@
 - **Only what Health Connect has.** Sleep, heart rate, weight and calories appear only if a watch or another app writes them to Health Connect, or you log them yourself. A missing value shows "—" and is never estimated.
 - **Steps on the phone** need a step sensor. Distance and calories worked out from steps are labelled "(est.)".
 - **Nutrition:** there is a meal planner, but no food or calorie diary.
+- **Pictures** (receipts, payment proofs, profile photo) added from this version on are saved only on the phone that added them, in the app's private storage. They are not uploaded, and other phones show "The picture is saved on the phone that added it". They are included in backup files, so a backup moved to a new phone brings them along. Uninstalling the app deletes them unless you made a backup first. Pictures saved by earlier versions stay where they are.
 - **Where health data is kept:**
   - Health Connect readings stay on the phone.
   - Health records you log yourself (medicines, vitals, periods and so on) are saved as **Only me** entries.
@@ -40,7 +41,7 @@
 ### Family and access
 - **Older app versions:** members on an app version older than this release get "Could not delete" when deleting shared entries, because the new rules move shared deletes to Recently deleted. Updating the app fixes it.
 - **Restore adds, it does not replace.** Entries that are already there are left as they are. To go back to a backup exactly, reset first and then restore.
-- **Only me entries and the Super Admin.** The database rules let the Super Admin read members' Only me entries, as before v2. The app does not show them other members' private entries, but the rules allow it. If you want them fully private, the rules can be tightened. That would stop the Super Admin from backing up members' private entries.
+- **Only me entries** are stored under your own account, and the database rules let only you read them, including against the Super Admin. A rules test checks this. The one exception is the separate private Documents section, where the Super Admin can also see private documents, as before.
 - **QR scanning** uses Google Play services' code scanner. On phones without Play services, type the invite code instead.
 
 ### Build and testing

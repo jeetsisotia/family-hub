@@ -102,11 +102,11 @@ fun ProfileScreen(
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            val big = PhotoCodec.encode(context, uri, 320, 80)
-            val small = PhotoCodec.encode(context, uri, 96, 70)
-            if (big != null && small != null) {
-                photo = big
-                photoThumb = small
+            // Saved on this phone only. The family sees your Google photo instead.
+            val ref = com.familyhub.app.ui.common.LocalPhotos.save(context, uri, 640, 85)
+            if (ref != null) {
+                photo = ref
+                photoThumb = ""
             } else {
                 Toast.makeText(context, "Could not read that picture.", Toast.LENGTH_LONG).show()
             }

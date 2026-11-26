@@ -116,5 +116,39 @@ fun main() {
     check("card payment seen from bank and card is one payment", Ledger.sameTransaction(bankSide, cardSide))
     check("payments to two different cards are not duplicates", !Ledger.sameTransaction(cardSide + ("id" to "p1"), cardSide + mapOf("id" to "p2", "cardId" to "c2")))
 
+    // ---------- money is added up in paise: no floating-point drift ----------
+    val zeroAcct = mapOf("id" to "z1", "type" to "account", "title" to "Wallet", "openingBalance" to 0.0)
+    val tiny = listOf(
+        mapOf("id" to "p1", "type" to "INCOME", "amountInr" to 0.1, "dateMillis" to at(2026, 11, 2), "accountId" to "z1"),
+        mapOf("id" to "p2", "type" to "INCOME", "amountInr" to 0.2, "dateMillis" to at(2026, 11, 2), "accountId" to "z1"),
+        mapOf("id" to "p3", "type" to "EXPENSE", "amountInr" to 0.3, "dateMillis" to at(2026, 11, 3), "paymentMethod" to "UPI", "accountId" to "z1")
+    )
+    val zb = Ledger.accountBalance(zeroAcct, tiny, emptyList())
+    check("0.10 + 0.20 - 0.30 leaves exactly zero", zb.balance == 0.0, zb.balance)
+    val card3 = mapOf("id" to "c3", "type" to "card", "title" to "ICICI Amazon", "statementDay" to 5.0, "dueDay" to 23.0)
+    val split = listOf(
+        mapOf("id" to "q1", "type" to "EXPENSE", "amountInr" to 300.3, "dateMillis" to at(2026, 11, 2), "paymentMethod" to "Credit card", "cardId" to "c3"),
+        mapOf("id" to "q2", "type" to "CARD_PAYMENT", "amountInr" to 100.1, "dateMillis" to at(2026, 11, 10), "cardId" to "c3"),
+        mapOf("id" to "q3", "type" to "CARD_PAYMENT", "amountInr" to 200.2, "dateMillis" to at(2026, 11, 12), "cardId" to "c3")
+    )
+    val cs3 = Ledger.cardStatus(card3, split, now)
+    check("card bill paid in two parts leaves nothing due", cs3.amountDue == 0.0 && cs3.minDue == 0.0 && cs3.outstanding == 0.0, cs3)
+    val month3 = Ledger.summary(mapOf("expenses" to List(3) { i -> mapOf("id" to "m$i", "type" to "EXPENSE", "amountInr" to 0.1, "dateMillis" to at(2026, 11, 4)) }, "items" to emptyList()),
+        at(2026, 11, 1), at(2026, 11, 30), now)
+    check("three spends of 0.10 add up to exactly 0.30", month3.spent == 0.3, month3.spent)
+
+    // ---------- refunds are not income ----------
+    val refundTx = listOf(
+        mapOf("id" to "r1", "type" to "INCOME", "title" to "Salary", "amountInr" to 50000.0, "dateMillis" to at(2026, 11, 1)),
+        mapOf("id" to "r2", "type" to "EXPENSE", "title" to "Myntra", "amountInr" to 2000.0, "dateMillis" to at(2026, 11, 5), "paymentMethod" to "UPI"),
+        mapOf("id" to "r3", "type" to "INCOME", "title" to "Refund", "amountInr" to 2000.0, "dateMillis" to at(2026, 11, 9), "isRefund" to true, "notExpense" to true)
+    )
+    val rs = Ledger.summary(mapOf("expenses" to refundTx, "items" to emptyList()), at(2026, 11, 1), at(2026, 11, 30), now)
+    check("a refund is not income", rs.income == 50000.0, rs.income)
+    check("a refund lowers spending", rs.spent == 0.0, rs.spent)
+    val merged = refundTx.toMutableList().also { it[1] = it[1] + ("refundAmount" to 2000.0); it[2] = it[2] + ("refundOf" to "r2") }
+    val ms = Ledger.summary(mapOf("expenses" to merged, "items" to emptyList()), at(2026, 11, 1), at(2026, 11, 30), now)
+    check("a merged refund is not counted twice", ms.spent == 0.0 && ms.income == 50000.0, ms.spent)
+
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

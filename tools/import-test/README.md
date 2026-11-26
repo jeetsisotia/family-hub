@@ -7,7 +7,7 @@ These check the bank SMS/email reader (`money/TxnParser.kt`) and the statement i
 ```
 M=../../app/src/main/java/com/familyhub/app/money
 cp $M/TxnParser.kt $M/AlertParser.kt $M/StatementParser.kt $M/StatementImport.kt $M/Ledger.kt .
-kotlinc TxnParser.kt AlertParser.kt TxnTest.kt -include-runtime -d txn.jar && java -jar txn.jar
+kotlinc TxnParser.kt AlertParser.kt StatementImport.kt StatementParser.kt Ledger.kt TxnTest.kt -include-runtime -d txn.jar && java -jar txn.jar
 kotlinc StatementParser.kt StatementImport.kt TxnParser.kt AlertParser.kt Ledger.kt StmtTest.kt -include-runtime -d stmt.jar && java -jar stmt.jar
 ```
 

@@ -1010,7 +1010,7 @@ private fun DateField(label: String, value: Long?, required: Boolean, onChange: 
     }
 }
 
-/** A picture kept with the record (a receipt or payment proof), made small enough to store. */
+/** A picture kept with the record (a receipt or payment proof), saved on this phone. */
 @Composable
 private fun PhotoField(label: String, value: String?, onChange: (String?) -> Unit) {
     val context = LocalContext.current
@@ -1018,13 +1018,17 @@ private fun PhotoField(label: String, value: String?, onChange: (String?) -> Uni
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri ->
         if (uri != null) {
-            val enc = com.familyhub.app.ui.common.PhotoCodec.encode(context, uri, 900, 70)
-            if (enc != null) onChange(enc) else Toast.makeText(context, "Could not read that picture", Toast.LENGTH_SHORT).show()
+            // Saved as a file on this phone; the record keeps only its reference.
+            val ref = com.familyhub.app.ui.common.LocalPhotos.save(context, uri)
+            if (ref != null) onChange(ref) else Toast.makeText(context, "Could not read that picture", Toast.LENGTH_SHORT).show()
         }
     }
     val img = com.familyhub.app.ui.common.rememberPhoto(value)
+    val elsewhere = img == null && com.familyhub.app.ui.common.LocalPhotos.isLocal(value)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.labelLarge)
+        if (elsewhere) Text(com.familyhub.app.ui.common.photoElsewhereText(), style = MaterialTheme.typography.bodySmall)
+        Text("Pictures stay on this phone and are not uploaded. They are included in backup files.", style = MaterialTheme.typography.labelSmall)
         if (img != null) {
             androidx.compose.foundation.Image(
                 bitmap = img, contentDescription = label,
@@ -1032,8 +1036,8 @@ private fun PhotoField(label: String, value: String?, onChange: (String?) -> Uni
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { pick.launch("image/*") }) { Text(if (img == null) "Add picture" else "Replace") }
-            if (img != null) TextButton(onClick = { onChange(null) }) { Text("Remove") }
+            OutlinedButton(onClick = { pick.launch("image/*") }) { Text(if (img == null && !elsewhere) "Add picture" else "Replace") }
+            if (img != null || elsewhere) TextButton(onClick = { onChange(null) }) { Text("Remove") }
         }
     }
 }

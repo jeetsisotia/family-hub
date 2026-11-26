@@ -238,7 +238,8 @@ fun DueSheet(env: AppEnv, d: Ledger.Due, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
-            val enc = PhotoCodec.encode(context, uri, 900, 70)
+            // Saved as a file on this phone; the payment keeps only its reference.
+            val enc = com.familyhub.app.ui.common.LocalPhotos.save(context, uri)
             if (enc != null) {
                 proof = enc
                 if (d.status == "PAID") scope.launch { DueActions.attachProof(env, d, enc); onDismiss() }
@@ -307,6 +308,7 @@ fun DueSheet(env: AppEnv, d: Ledger.Due, onDismiss: () -> Unit) {
                     val rec = env.data["expenses"].orEmpty().firstOrNull { it.str("id") == d.paidTxnId }
                     val proofImg = com.familyhub.app.ui.common.rememberPhoto(rec?.str("proofPhoto"))
                     if (proofImg != null) androidx.compose.foundation.Image(proofImg, contentDescription = "Payment proof", modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(14.dp)))
+                    else if (com.familyhub.app.ui.common.LocalPhotos.isLocal(rec?.str("proofPhoto"))) Text(com.familyhub.app.ui.common.photoElsewhereText(), style = MaterialTheme.typography.bodySmall)
                     Text(listOfNotNull(rec?.str("account")?.takeIf { it.isNotBlank() }?.let { "From $it" }, rec?.let { formatDate((it["paidOnMillis"] as? Number)?.toLong()) }).joinToString(" • "))
                     TextButton(onClick = { pick.launch("image/*") }) { Icon(Icons.Rounded.AttachFile, null); Text(if (proofImg == null) "Add payment proof" else "Replace proof") }
                 }

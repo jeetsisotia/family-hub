@@ -47,8 +47,26 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == userId;
     }
 
+    // An invite code points to its family. Anyone signed in may look up a code they were given, but codes
+    // cannot be listed, so families cannot be found by browsing. Admins create and update their family's code.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn() &&
+        request.resource.data.keys().hasOnly(['familyId', 'familyName', 'createdByUid', 'updatedAt']) &&
+        request.resource.data.familyId is string &&
+        getAfter(/databases/$(database)/documents/families/$(request.resource.data.familyId)).data.inviteCode == code &&
+        (getAfter(/databases/$(database)/documents/families/$(request.resource.data.familyId)).data.ownerUid == request.auth.uid ||
+          isFamilyAdmin(request.resource.data.familyId));
+      allow delete: if signedIn() && isFamilyAdmin(resource.data.familyId);
+    }
+
     match /families/{familyId} {
-      allow read: if isFamilyMember(familyId) || (signedIn() && resource.data.inviteCode != null);
+      // Members read their family; someone who asked to join may read its name while waiting.
+      // Families can never be listed or searched (joining uses /invites).
+      allow get: if isFamilyMember(familyId) ||
+        (signedIn() && exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)));
+      allow list: if false;
       allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
       // Admins may change family settings; only the Super Admin may hand over or delete the family.
       allow update: if isFamilyOwner(familyId) ||

@@ -9,7 +9,6 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -73,6 +72,23 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
+    /**
+     * Registered with the activity itself, so it exists every time the activity is created (also after it is
+     * recreated). A launcher made inside the screen could be gone by the time it was used.
+     */
+    private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Asks once for notification permission on Android 13 and later, only while this screen is showing. */
+    fun askNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) return
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) return
+        if (isFinishing || isDestroyed || !lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return
+        try {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } catch (e: IllegalStateException) {
+            android.util.Log.w("MainActivity", "Notification permission not asked", e)
+        }
+    }
 
     companion object {
         /** Screen to open, set by notifications (for example "health_hub" or "import"). */
@@ -153,11 +169,10 @@ class MainActivity : FragmentActivity() {
                 } else {
                     val uid = fbUser.uid
 
-                    val permissionLauncher = rememberLauncherForActivityResult(
-                        ActivityResultContracts.RequestPermission()
-                    ) { }
-
                     LaunchedEffect(uid) {
+                        // Ask for notifications first, before any network call: asking after a slow call could
+                        // reach a screen that was already closed, which crashed the app on Android 16.
+                        askNotificationPermission()
                         // The profile document may be missing (e.g. the app was closed right after the first sign-in).
                         familyRepository.ensureUserProfile(fbUser)
                         // Daily reminder check for bills, renewals, expiries and events.
@@ -169,9 +184,6 @@ class MainActivity : FragmentActivity() {
                             )
                         } catch (e: Exception) {
                             android.util.Log.w("MainActivity", "Could not schedule reminders", e)
-                        }
-                        if (Build.VERSION.SDK_INT >= 33) {
-                            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
 
@@ -276,6 +288,11 @@ class MainActivity : FragmentActivity() {
                     // The family's creator is its Super Admin; they can make others Family Admins.
                     val isOwner = family?.ownerUid == uid || currentMember.role == FamilyRole.OWNER
                     val isAdmin = isOwner || currentMember.isAdmin
+                    // Admins keep the family's invite code working (needed for joining by code or QR).
+                    LaunchedEffect(family?.id, family?.inviteCode, family?.name, isAdmin) {
+                        val f = family
+                        if (isAdmin && f != null) familyRepository.ensureInvite(f, uid)
+                    }
                     val activeNames = remember(members) { members.filter { it.status == "ACTIVE" }.map { it.name } }
                     val memberNames = if (activeNames.isEmpty()) listOf(profile.name) else activeNames
 

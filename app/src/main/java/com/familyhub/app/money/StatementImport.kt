@@ -54,6 +54,8 @@ object StatementImport {
         m["refNo"] = t.refNo
         m["last4"] = t.last4
         m["confidence"] = t.confidence
+        // A refund or reversal lowers spending in the month it arrives and is never counted as income.
+        if (t.isRefund) { m["isRefund"] = true; m["notExpense"] = true }
         m["isPaid"] = true
         m["isDeleted"] = false
         m["notes"] = "Added from bank ${if (t.source == "SMS") "SMS" else "email"}" + (if (t.last4.isNotBlank()) " (ending ${t.last4})" else "")
@@ -153,6 +155,7 @@ object StatementImport {
                 m["cardId"] = target!!.s("id"); m["card"] = target.s("title")
                 // A refund or cashback lowers what is owed; it is not income.
                 if (r.isCredit) m["notExpense"] = true
+                if (r.isCredit && TxnParser.refundRx.containsMatchIn(r.description)) m["isRefund"] = true
             }
             !r.isCredit && StatementParser.isCardPayment(r.description) -> {
                 m["type"] = "CARD_PAYMENT"; m["category"] = "Credit card"; linkAccount()
@@ -173,6 +176,7 @@ object StatementImport {
             else -> {
                 m["type"] = if (r.isCredit) "INCOME" else "EXPENSE"
                 m["title"] = merchant.ifBlank { if (r.isCredit) "Money received" else "Payment" }
+                if (r.isCredit && TxnParser.refundRx.containsMatchIn(r.description)) { m["isRefund"] = true; m["notExpense"] = true }
                 m["category"] = category
                 val d = r.description.lowercase()
                 m["paymentMethod"] = when {
