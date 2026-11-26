@@ -49,7 +49,15 @@ class DemoActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        val route = intent.getStringExtra("route") ?: "health_hub"
+        // The emulator test opens a fixed list of routes; these names show the newest screens instead.
+        val route = when (val asked = intent.getStringExtra("route") ?: "health_hub") {
+            "sos" -> "reminders_hub"
+            "families" -> "txn_sheet"
+            "workouts" -> "txn_select"
+            "arrange" -> "arrange_home"
+            "assistant_new" -> "assistant_tidy"
+            else -> asked
+        }
         val ask = intent.getStringExtra("ask")?.replace('_', ' ')?.takeIf { it.isNotBlank() }
         setContent {
             FamilyHubTheme {

@@ -68,7 +68,7 @@ object Hubs {
         listOf(
             HubItem("insights", "Insights", Icons.Rounded.PieChart),
             HubItem("cards", "Card bills", Icons.Rounded.CreditCard),
-            HubItem("import", "Import SMS", Icons.Rounded.MarkEmailRead),
+            HubItem("import", "Scan SMS & Gmail", Icons.Rounded.MarkEmailRead),
             HubItem("subscriptions", "Subscriptions", Icons.Rounded.Subscriptions),
             HubItem("loans", "Loans & EMIs", Icons.Rounded.AccountBalance),
             HubItem("goals", "Savings goals", Icons.Rounded.Savings),
@@ -109,6 +109,7 @@ object Hubs {
     val reminders = Hub(
         "reminders_hub", "Reminders", "Renewals, services, bills and dates", Icons.Rounded.Alarm,
         listOf(
+            HubItem("import", "Find in SMS & Gmail", Icons.Rounded.MarkEmailRead),
             HubItem("reminders", "My reminders", Icons.Rounded.Alarm),
             HubItem("alerts", "Due soon", Icons.Rounded.NotificationsActive),
             HubItem("vehicles", "Vehicle service", Icons.Rounded.DirectionsCar),

@@ -381,31 +381,28 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                             if (CalendarReader.canRead(context)) scanCalendar() else calendarPermission.launch(Manifest.permission.READ_CALENDAR)
                         },
                         enabled = !busy,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Calendar")
+                        Text("Calendar", maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = {
                             if (SmsReader.canRead(context)) scanSms() else smsPermission.launch(Manifest.permission.READ_SMS)
                         },
                         enabled = !busy,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Rounded.Sms, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (smsAllowed) "SMS" else "Allow SMS")
+                        Text("SMS", maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = { val t = gmailToken; if (t != null) scanGmail(t) else connectGmail() },
                         enabled = !busy,
+                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Rounded.Email, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (gmailToken == null) "Gmail" else "Gmail ✓")
+                        Text(if (gmailToken == null) "Gmail" else "Gmail ✓", maxLines = 1, softWrap = false)
                     }
                 }
             }
