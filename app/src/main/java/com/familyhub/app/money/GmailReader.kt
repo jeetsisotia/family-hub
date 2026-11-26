@@ -71,6 +71,53 @@ object GmailReader {
     @Suppress("DEPRECATION")
     private fun decode(s: String): String = Html.fromHtml(s).toString()
 
+    /** Bills, renewals, policy dates and pending actions in email from the last [days] days. */
+    suspend fun fetchAlerts(token: String, days: Int, max: Int = 150): List<ParsedAlert> = withContext(Dispatchers.IO) {
+        val q = "newer_than:${days}d -category:promotions -category:social " +
+            "(\"due date\" OR \"payment due\" OR \"is due\" OR renewal OR renew OR expiry OR expires OR premium OR " +
+            "statement OR \"action required\" OR kyc OR subscription OR \"bill\")"
+        val list = get("$API/messages?maxResults=$max&q=" + URLEncoder.encode(q, "UTF-8"), token)
+        val msgs = list.optJSONArray("messages") ?: return@withContext emptyList()
+        val out = ArrayList<ParsedAlert>()
+        for (i in 0 until msgs.length()) {
+            val id = msgs.getJSONObject(i).optString("id")
+            if (id.isBlank()) continue
+            val m = try {
+                get("$API/messages/$id?format=metadata&metadataHeaders=From&metadataHeaders=Subject", token)
+            } catch (e: GmailAuthException) {
+                throw e
+            } catch (e: Exception) {
+                continue
+            }
+            val headers = m.optJSONObject("payload")?.optJSONArray("headers")
+            var from = ""
+            var subject = ""
+            if (headers != null) {
+                for (h in 0 until headers.length()) {
+                    val o = headers.getJSONObject(h)
+                    when (o.optString("name").lowercase()) {
+                        "from" -> from = o.optString("value")
+                        "subject" -> subject = o.optString("value")
+                    }
+                }
+            }
+            val sender = from.substringAfter('<', from).substringBefore('>').substringAfter('@', from)
+            val text = decode(subject) + ". " + decode(m.optString("snippet"))
+            val date = m.optString("internalDate").toLongOrNull() ?: continue
+            AlertParser.parse(text, sender, date, "Email", "mail$id")?.let { out.add(it) }
+        }
+        out.sortedByDescending { it.receivedMillis }
+            .distinctBy { it.kind + "|" + it.title.lowercase() + "|" + (it.dueMillis?.let { d -> d / 86_400_000L } ?: "") }
+    }
+
+    /** A token without showing anything, if the person already allowed Gmail; null otherwise. */
+    suspend fun silentToken(context: Context): String? = try {
+        val r = Identity.getAuthorizationClient(context).authorize(request()).await()
+        if (r.hasResolution()) null else r.accessToken
+    } catch (e: Exception) {
+        null
+    }
+
     /** Bank and card alert emails from the last [days] days, newest first. */
     suspend fun fetch(token: String, days: Int, max: Int = 120): List<ParsedTxn> = withContext(Dispatchers.IO) {
         val q = "newer_than:${days}d -category:promotions " +

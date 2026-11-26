@@ -16,8 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Email
-import androidx.compose.material.icons.rounded.Sms
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -32,7 +31,11 @@ import com.familyhub.app.core.theme.AccentCard
 import com.familyhub.app.core.theme.GlassCard
 import com.familyhub.app.money.GmailAuthException
 import com.familyhub.app.money.GmailReader
+import com.familyhub.app.money.AlertParser
+import com.familyhub.app.money.CalendarReader
+import com.familyhub.app.money.ParsedAlert
 import com.familyhub.app.money.ParsedTxn
+import com.familyhub.app.money.PhoneEvent
 import com.familyhub.app.money.SmsReader
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.common.*
@@ -75,7 +78,13 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     val scope = rememberCoroutineScope()
     val expenses = env.data["expenses"].orEmpty()
     val cards = env.data["items"].orEmpty().filter { it.str("type") == "card" }
-    val known = remember(expenses) { expenses.mapNotNull { it["sourceKey"] as? String }.toSet() }
+    val known = remember(env.data) {
+        (expenses + env.data["items"].orEmpty() + env.data["events"].orEmpty()).mapNotNull { it["sourceKey"] as? String }.toSet()
+    }
+    // Cards and accounts already saved are recognised by their last four digits.
+    val knownLast4 = remember(env.data) {
+        env.data["items"].orEmpty().filter { it.str("type") == "card" || it.str("type") == "account" }.map { it.str("last4") }.filter { it.isNotBlank() }.toSet()
+    }
 
     var visibility by rememberSaveable { mutableStateOf("Only me") }
     var days by rememberSaveable { mutableStateOf(30) }
@@ -89,6 +98,27 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     var gmailToken by remember { mutableStateOf<String?>(null) }
     var smsAllowed by remember { mutableStateOf(SmsReader.canRead(context)) }
     var smsDenied by remember { mutableStateOf(false) }
+    var alerts by remember { mutableStateOf<List<ParsedAlert>>(emptyList()) }
+    var events by remember { mutableStateOf<List<PhoneEvent>>(emptyList()) }
+    val alertSel = remember { mutableStateMapOf<String, Boolean>() }
+    val alertEdit = remember { mutableStateMapOf<String, AlertEdit>() }
+    val eventSel = remember { mutableStateMapOf<String, Boolean>() }
+    var section by rememberSaveable { mutableStateOf("Bills & renewals") }
+    var scanningAll by remember { mutableStateOf(false) }
+    val freshAlerts = alerts.filter { a ->
+        a.key !in known && a.key !in ignored && !((a.kind == "card" || a.kind == "account") && a.last4 in knownLast4)
+    }
+    val freshEvents = events.filter { it.key !in known && it.key !in ignored }
+
+    fun acceptAlerts(list: List<ParsedAlert>, source: String) {
+        alerts = (alerts.filter { it.source != source } + list).distinctBy { it.key }
+            .sortedWith(compareBy<ParsedAlert> { listOf("card_due", "bill_due", "policy", "subscription", "action", "card", "account").indexOf(it.kind) }
+                .thenBy { it.dueMillis ?: Long.MAX_VALUE })
+        for (a in list) {
+            if (alertSel[a.key] == null) alertSel[a.key] = a.kind != "action" || (a.dueMillis ?: 0L) >= System.currentTimeMillis() - DAY_MS
+            if (alertEdit[a.key] == null) alertEdit[a.key] = defaultEdit(a)
+        }
+    }
 
     val fresh = found.filter { it.key !in known && it.key !in ignored }
     val alreadyAdded = found.count { it.key in known }
@@ -112,8 +142,12 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
         busy = true
         message = null
         scope.launch {
-            val list = withContext(Dispatchers.IO) { SmsReader.read(context, System.currentTimeMillis() - days * DAY_MS) }
-            accept(list, "SMS")
+            val scan = withContext(Dispatchers.IO) { SmsReader.scan(context, System.currentTimeMillis() - days * DAY_MS) }
+            accept(scan.txns, "SMS")
+            acceptAlerts(scan.alerts, "SMS")
+            if (scan.alerts.isNotEmpty()) {
+                message = (message ?: "") + " Also found " + com.familyhub.app.ui.common.plural(scan.alerts.size, "bill, renewal or account", "bills, renewals or accounts") + "."
+            }
             busy = false
         }
     }
@@ -122,9 +156,14 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     LaunchedEffect(demoTexts) {
         if (demoTexts != null) {
             val now = System.currentTimeMillis()
-            accept(demoTexts.mapIndexedNotNull { i, t ->
-                com.familyhub.app.money.TxnParser.parse(t, "VM-BANKAL", now - i * 3_600_000L, "SMS")
-            }, "SMS")
+            val txns = demoTexts.mapIndexedNotNull { i, t ->
+                com.familyhub.app.money.TxnParser.parse(t, "VM-HDFCBK", now - i * 3_600_000L, "SMS")
+            }
+            accept(txns, "SMS")
+            acceptAlerts(demoTexts.mapIndexedNotNull { i, t ->
+                if (com.familyhub.app.money.TxnParser.parse(t, "VM-HDFCBK", now, "SMS") != null) null
+                else AlertParser.parse(t, "VM-HDFCBK", now - i * 3_600_000L, "SMS", "demo$i")
+            } + AlertParser.accounts(txns), "SMS")
         }
     }
 
@@ -139,7 +178,10 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
         message = null
         scope.launch {
             try {
-                accept(GmailReader.fetch(token, days), "Email")
+                val mailTxns = GmailReader.fetch(token, days, if (days > 90) 300 else 120)
+                accept(mailTxns, "Email")
+                acceptAlerts(GmailReader.fetchAlerts(token, days, if (days > 90) 300 else 150) + AlertParser.accounts(mailTxns), "Email")
+                context.getSharedPreferences("family_hub_worker", Context.MODE_PRIVATE).edit().putBoolean("gmailConnected", true).apply()
             } catch (e: GmailAuthException) {
                 gmailToken = null
                 message = e.message
@@ -188,6 +230,74 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
         }
     }
 
+    fun scanCalendar() {
+        scope.launch {
+            val now = System.currentTimeMillis()
+            events = withContext(Dispatchers.IO) { CalendarReader.read(context, now - DAY_MS, now + 180 * DAY_MS) }
+            events.forEach { if (eventSel[it.key] == null) eventSel[it.key] = true }
+            if (events.isEmpty()) message = "No upcoming events in this phone's calendars."
+        }
+    }
+
+    val calendarPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) scanCalendar() else message = "Calendar access was not given."
+    }
+
+    // One tap: SMS, the phone's calendars (Google calendars synced from Gmail included) and Gmail if connected.
+    val allPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
+        smsAllowed = SmsReader.canRead(context)
+        if (smsAllowed) scanSms() else smsDenied = res[Manifest.permission.READ_SMS] == false
+        if (CalendarReader.canRead(context)) scanCalendar()
+        val t = gmailToken
+        if (t != null) scanGmail(t) else scope.launch {
+            GmailReader.silentToken(context)?.let { tok -> gmailToken = tok; scanGmail(tok) }
+        }
+    }
+
+    fun scanEverything() {
+        scanningAll = true
+        section = "Bills & renewals"
+        val need = listOf(Manifest.permission.READ_SMS, Manifest.permission.READ_CALENDAR)
+            .filter { context.checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
+        if (need.isNotEmpty()) allPermissions.launch(need.toTypedArray())
+        else {
+            scanSms()
+            scanCalendar()
+            val t = gmailToken
+            if (t != null) scanGmail(t) else scope.launch {
+                GmailReader.silentToken(context)?.let { tok -> gmailToken = tok; scanGmail(tok) }
+            }
+        }
+    }
+
+    fun addAlerts() {
+        val chosen = freshAlerts.filter { alertSel[it.key] == true }
+        val chosenEvents = freshEvents.filter { eventSel[it.key] == true }
+        if (chosen.isEmpty() && chosenEvents.isEmpty()) return
+        busy = true
+        scope.launch {
+            var ok = 0
+            for (a in chosen) {
+                try {
+                    saveFoundAlert(env, a, alertEdit[a.key] ?: defaultEdit(a), visibility == "Family", cards, alerts)
+                    ok++
+                } catch (e: Exception) {
+                    // keep going
+                }
+            }
+            for (ev in chosenEvents) {
+                try {
+                    saveFoundEvent(env, ev, ev.title, visibility == "Family")
+                    ok++
+                } catch (e: Exception) {
+                }
+            }
+            busy = false
+            Toast.makeText(context, "${com.familyhub.app.ui.common.plural(ok, "item")} added", Toast.LENGTH_SHORT).show()
+            message = "$ok added. Bills show in Finance and Due soon; renewals and policies in Reminders; events in Calendar."
+        }
+    }
+
     fun addSelected() {
         val chosen = fresh.filter { selected[it.key] == true }
         if (chosen.isEmpty()) return
@@ -233,7 +343,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Import Expenses", onBack = env.onBack)
+        ScreenTopBar(title = "Scan SMS & Gmail", onBack = env.onBack)
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -247,15 +357,37 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text("Look back", style = MaterialTheme.typography.labelLarge)
-                        ChoiceChips(listOf("30 days", "90 days"), "$days days", { days = if (it.startsWith("90")) 90 else 30 })
+                        ChoiceChips(
+                            listOf("30 days", "90 days", "1 year", "All"),
+                            when (days) { 30 -> "30 days"; 90 -> "90 days"; 365 -> "1 year"; else -> "All" },
+                            { days = when (it) { "90 days" -> 90; "1 year" -> 365; "All" -> 1825; else -> 30 } }
+                        )
                         Text("Save new entries for", style = MaterialTheme.typography.labelLarge)
                         ChoiceChips(listOf("Only me", "Family"), visibility, { visibility = it.ifBlank { "Only me" } })
                     }
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Button(
+                Button(onClick = { scanEverything() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.TravelExplore, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Scan everything: SMS, Gmail and calendar")
+                }
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilledTonalButton(
+                        onClick = {
+                            if (CalendarReader.canRead(context)) scanCalendar() else calendarPermission.launch(Manifest.permission.READ_CALENDAR)
+                        },
+                        enabled = !busy,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Calendar")
+                    }
+                    FilledTonalButton(
                         onClick = {
                             if (SmsReader.canRead(context)) scanSms() else smsPermission.launch(Manifest.permission.READ_SMS)
                         },
@@ -264,7 +396,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     ) {
                         Icon(Icons.Rounded.Sms, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (smsAllowed) "Scan SMS" else "Allow SMS")
+                        Text(if (smsAllowed) "SMS" else "Allow SMS")
                     }
                     FilledTonalButton(
                         onClick = { val t = gmailToken; if (t != null) scanGmail(t) else connectGmail() },
@@ -273,7 +405,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     ) {
                         Icon(Icons.Rounded.Email, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(if (gmailToken == null) "Connect Gmail" else "Scan Gmail")
+                        Text(if (gmailToken == null) "Gmail" else "Gmail ✓")
                     }
                 }
             }
@@ -310,7 +442,77 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
             if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
             message?.let { m -> item { Text(m, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) } }
 
-            if (fresh.isNotEmpty()) {
+            if (freshAlerts.isNotEmpty() || freshEvents.isNotEmpty() || fresh.isNotEmpty()) {
+                item {
+                    val bills = freshAlerts.count { it.kind !in setOf("card", "account") }
+                    val accts = freshAlerts.count { it.kind in setOf("card", "account") }
+                    ChoiceChips(
+                        listOf("Bills & renewals ($bills)", "Transactions (${fresh.size})", "Cards & accounts ($accts)", "Calendar (${freshEvents.size})"),
+                        listOf("Bills & renewals ($bills)", "Transactions (${fresh.size})", "Cards & accounts ($accts)", "Calendar (${freshEvents.size})")
+                            .firstOrNull { it.startsWith(section) }.orEmpty(),
+                        { c -> section = c.substringBefore(" (") }
+                    )
+                }
+            }
+            if (section != "Transactions") {
+                val shownAlerts = when (section) {
+                    "Cards & accounts" -> freshAlerts.filter { it.kind in setOf("card", "account") }
+                    "Calendar" -> emptyList()
+                    else -> freshAlerts.filter { it.kind !in setOf("card", "account") }
+                }
+                val shownEvents = if (section == "Calendar") freshEvents else emptyList()
+                if (shownAlerts.isNotEmpty() || shownEvents.isNotEmpty()) {
+                    item {
+                        val n = shownAlerts.count { alertSel[it.key] == true } + shownEvents.count { eventSel[it.key] == true }
+                        AccentCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Text(
+                                    "$n selected • tap any item to change its name, amount or date",
+                                    color = Color.White, fontWeight = FontWeight.SemiBold
+                                )
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                                    Button(
+                                        onClick = { addAlerts() },
+                                        enabled = !busy && n > 0,
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFF0062E0))
+                                    ) { Text("Add $n") }
+                                    TextButton(onClick = {
+                                        val skip = shownAlerts.filter { alertSel[it.key] != true }.map { it.key } +
+                                            shownEvents.filter { eventSel[it.key] != true }.map { it.key }
+                                        addIgnored(context, skip)
+                                        ignored = ignoredKeys(context)
+                                    }) { Text("Hide unticked", color = Color.White) }
+                                }
+                            }
+                        }
+                    }
+                    items(shownAlerts, key = { "a-" + it.key }) { a ->
+                        FoundAlertRow(
+                            a = a,
+                            edit = alertEdit[a.key] ?: defaultEdit(a),
+                            checked = alertSel[a.key] == true,
+                            onCheck = { alertSel[a.key] = it },
+                            onEdit = { alertEdit[a.key] = it }
+                        )
+                    }
+                    items(shownEvents, key = { "e-" + it.key }) { ev ->
+                        FoundEventRow(ev, eventSel[ev.key] == true) { eventSel[ev.key] = it }
+                    }
+                } else if (scanningAll || alerts.isNotEmpty() || events.isNotEmpty()) {
+                    item {
+                        Text(
+                            when (section) {
+                                "Calendar" -> "No new calendar events. Tap Calendar to read this phone's calendars, including Google calendars synced from Gmail."
+                                "Cards & accounts" -> "No new cards or accounts found."
+                                else -> "No new bills, renewals, policies or actions found."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                        )
+                    }
+                }
+            }
+            if (section == "Transactions" && fresh.isNotEmpty()) {
                 item {
                     val n = fresh.count { selected[it.key] == true }
                     val total = fresh.filter { selected[it.key] == true && !it.isCredit }.sumOf { it.amount }
@@ -343,7 +545,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     }
                 }
             }
-            items(fresh, key = { it.key }) { t ->
+            if (section == "Transactions") items(fresh, key = { it.key }) { t ->
                 val isOpen = expanded == t.key
                 GlassCard(
                     modifier = Modifier.fillMaxWidth(),

@@ -6,6 +6,8 @@
 
     <!-- Read bank and card alerts to suggest expenses (only when you tap Scan SMS or turn on alerts). -->
     <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
 
     <!-- Step counter -->
     <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
@@ -26,6 +28,7 @@
 
     <!-- Apps the assistant can open for you (you confirm inside them) -->
     <queries>
+        <package android:name="com.google.android.apps.healthdata" />
         <package android:name="com.ubercab" />
         <package android:name="com.olacabs.customer" />
         <package android:name="com.rapido.passenger" />
@@ -70,6 +73,34 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Explains to Health Connect why steps are read (required to ask for the permission). -->
+        <activity
+            android:name=".HealthPermissionsActivity"
+            android:exported="true"
+            android:theme="@style/Theme.FamilyHub">
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+        </activity>
+        <activity-alias
+            android:name="ViewPermissionUsageActivity"
+            android:exported="true"
+            android:permission="android.permission.START_VIEW_PERMISSION_USAGE"
+            android:targetActivity=".HealthPermissionsActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW_PERMISSION_USAGE" />
+                <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
+            </intent-filter>
+        </activity-alias>
+
+        <receiver android:name=".health.WaterReceiver" android:exported="false" />
+
+        <!-- Official websites opened inside the app; the person signs in and confirms there. -->
+        <activity
+            android:name=".AgentBrowserActivity"
+            android:exported="false"
+            android:theme="@style/Theme.FamilyHub" />
 
         <!-- Sample-data screens used only by the automatic emulator test after each build. -->
         <activity

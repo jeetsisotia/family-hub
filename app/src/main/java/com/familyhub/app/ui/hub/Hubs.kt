@@ -72,7 +72,8 @@ object Hubs {
             HubItem("subscriptions", "Subscriptions", Icons.Rounded.Subscriptions),
             HubItem("loans", "Loans & EMIs", Icons.Rounded.AccountBalance),
             HubItem("goals", "Savings goals", Icons.Rounded.Savings),
-            HubItem("settle", "Settle up", Icons.Rounded.SwapHoriz)
+            HubItem("settle", "Settle up", Icons.Rounded.SwapHoriz),
+            HubItem("accounts", "Bank accounts", Icons.Rounded.AccountBalance)
         )
     )
 
@@ -113,6 +114,7 @@ object Hubs {
             HubItem("vehicles", "Vehicle service", Icons.Rounded.DirectionsCar),
             HubItem("maintenance", "Home service", Icons.Rounded.Build),
             HubItem("documents", "Document renewals", Icons.Rounded.FolderShared),
+            HubItem("policies", "Insurance policies", Icons.Rounded.Shield),
             HubItem("subscriptions", "Subscriptions", Icons.Rounded.Subscriptions),
             HubItem("cards", "Card bills", Icons.Rounded.CreditCard),
             HubItem("birthdays", "Birthdays", Icons.Rounded.Cake)
@@ -136,7 +138,7 @@ data class HomeCategory(
 )
 
 private val HEALTH_TYPES = setOf("medicine", "vital", "workout", "habit", "health", "period", "emergency")
-private val REMINDER_TYPES = setOf("reminder", "maintenance", "vehicle", "document", "subscription", "card", "birthday")
+private val REMINDER_TYPES = setOf("reminder", "maintenance", "vehicle", "document", "subscription", "card", "birthday", "policy")
 private val LIFE_TYPES = setOf("birthday", "school", "memory", "notice", "note")
 
 private fun monthStart(): Long = java.util.Calendar.getInstance().apply {
@@ -162,7 +164,7 @@ val HomeCategories: List<HomeCategory> = listOf(
         val today = startOfDay(System.currentTimeMillis())
         d["events"].orEmpty().count { f(it) && !it.bool("isDeleted") && (it.lng("startTimeMillis") ?: 0L) >= today }
     },
-    HomeCategory("home_hub", "Home & Living", Icons.Rounded.HomeWork, "to do") { d, f ->
+    HomeCategory("home_hub", "Home", Icons.Rounded.HomeWork, "to do") { d, f ->
         d["tasks"].orEmpty().count { f(it) && !it.bool("isCompleted") } +
             d["items"].orEmpty().count { f(it) && it.str("type") == "chore" && !it.bool("done") }
     },
@@ -172,7 +174,7 @@ val HomeCategories: List<HomeCategory> = listOf(
     HomeCategory("documents", "Documents", Icons.Rounded.FolderShared, "saved") { d, f ->
         d["items"].orEmpty().count { f(it) && it.str("type") == "document" }
     },
-    HomeCategory("assistant", "AI Assistant", Icons.Rounded.AutoAwesome, "") { _, _ -> 0 }
+    HomeCategory("assistant", "Ask AI", Icons.Rounded.AutoAwesome, "") { _, _ -> 0 }
 )
 
 /** Home categories in the person's order, without the hidden ones. */

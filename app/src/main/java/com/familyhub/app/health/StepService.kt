@@ -138,18 +138,5 @@ class StepService : Service(), SensorEventListener {
         super.onDestroy()
     }
 
-    private fun buildNotification(steps: Long): Notification {
-        val goal = StepTracker.goal(this)
-        val fmt = NumberFormat.getIntegerInstance()
-        return NotificationCompat.Builder(this, Notifier.CH_STEPS)
-            .setSmallIcon(android.R.drawable.ic_menu_directions)
-            .setContentTitle("${fmt.format(steps)} steps today")
-            .setContentText("Goal ${fmt.format(goal)} • tap to open Health")
-            .setProgress(goal, steps.toInt().coerceAtMost(goal), false)
-            .setOngoing(true)
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setContentIntent(Notifier.openApp(this, "health_hub", NOTIFICATION_ID))
-            .build()
-    }
+    private fun buildNotification(steps: Long): Notification = HealthNotification.build(this, steps)
 }

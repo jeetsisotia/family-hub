@@ -41,6 +41,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         private const val NOTIFICATION_ID = 1001
         private const val SMS_NOTIFICATION_ID = 1002
         private const val BUDGET_NOTIFICATION_ID = 1003
+        private const val ALERTS_NOTIFICATION_ID = 1004
         private const val PREFS = "family_hub_worker"
         private const val KEY_SMS_CHECKED = "smsCheckedAt"
         private val COLLECTIONS = listOf("items", "events", "expenses", "tasks", "trips")
@@ -77,6 +78,12 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
 
             AlarmScheduler.scheduleAll(ctx, data["items"].orEmpty(), familyId, user.uid)
             if (StepTracker.isEnabled(ctx)) StepService.sync(ctx)
+            com.familyhub.app.health.HealthNotification.refresh(ctx)
+            try {
+                if (com.familyhub.app.health.HealthConnectSync.isConnected(ctx)) com.familyhub.app.health.HealthConnectSync.sync(ctx)
+            } catch (e: Exception) {
+                // Health Connect is optional.
+            }
 
             if (!inputData.getBoolean(KEY_REFRESH_ONLY, false)) {
                 val profileData: Rec = profile.data ?: emptyMap()
@@ -88,6 +95,7 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                     .sortedBy { it.dateMillis }
                 if (soon.isNotEmpty()) notifyDue(soon)
                 checkBankSms(data["expenses"].orEmpty())
+                checkNewAlerts(data)
                 val familyBudget = if (familyId.isBlank()) 0.0 else
                     db.collection("families").document(familyId).get().await().getDouble("monthlyBudget") ?: 0.0
                 checkBudgets(data["expenses"].orEmpty(), profileData, familyBudget)
@@ -158,6 +166,51 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
             .setAutoCancel(true)
             .build()
         (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(BUDGET_NOTIFICATION_ID, n)
+    }
+
+    /**
+     * New bills, card dues, renewals, policy dates and pending actions in SMS and (if connected) Gmail
+     * since the last check. Shows one notification that opens the review screen; nothing is added on its own.
+     */
+    private suspend fun checkNewAlerts(data: Map<String, List<Rec>>) {
+        val ctx = applicationContext
+        if (!Notifier.canPost(ctx)) return
+        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val since = prefs.getLong("alertsCheckedAt", now - 3 * 86_400_000L)
+        val known = data.values.flatten().mapNotNull { it["sourceKey"] as? String }.toSet()
+        val told = prefs.getStringSet("alertsNotified", emptySet()).orEmpty()
+        val found = ArrayList<com.familyhub.app.money.ParsedAlert>()
+        if (SmsReader.canRead(ctx)) {
+            found += SmsReader.scan(ctx, since).alerts.filter { it.kind !in setOf("card", "account") }
+        }
+        if (prefs.getBoolean("gmailConnected", false)) {
+            try {
+                val token = com.familyhub.app.money.GmailReader.silentToken(ctx)
+                if (token != null) found += com.familyhub.app.money.GmailReader.fetchAlerts(token, 3, 40)
+            } catch (e: Exception) {
+                // Gmail is optional; SMS results still count.
+            }
+        }
+        prefs.edit().putLong("alertsCheckedAt", now).apply()
+        val fresh = found.filter { it.key !in known && it.key !in told }
+            .filter { (it.dueMillis ?: it.expiryMillis ?: now) >= now - 86_400_000L }
+        if (fresh.isEmpty()) return
+        prefs.edit().putStringSet("alertsNotified", (told + fresh.map { it.key }).toList().takeLast(500).toSet()).apply()
+        Notifier.ensureChannels(ctx)
+        val lines = fresh.take(6).joinToString("\n") { a ->
+            a.title + (a.amount?.let { " • ₹%,.0f".format(it) } ?: "") +
+                ((a.dueMillis ?: a.expiryMillis)?.let { " • " + com.familyhub.app.ui.common.formatDate(it) } ?: "")
+        }
+        val n = NotificationCompat.Builder(ctx, Notifier.CH_GENERAL)
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle("${fresh.size} bill(s), renewal(s) or action(s) need you")
+            .setContentText(fresh.first().title)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(lines + "\nTap to review and add reminders."))
+            .setContentIntent(Notifier.openApp(ctx, "import", ALERTS_NOTIFICATION_ID))
+            .setAutoCancel(true)
+            .build()
+        (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(ALERTS_NOTIFICATION_ID, n)
     }
 
     /** Counts bank alerts received since the last check that are not in Finance yet. */

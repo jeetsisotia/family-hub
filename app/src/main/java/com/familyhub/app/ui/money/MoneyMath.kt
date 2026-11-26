@@ -51,14 +51,20 @@ data class CardCycle(
 }
 
 /** Money spent (expenses, bills, EMIs) between two times. Income and savings are not counted. */
+/** Marked "Not an expense" (self transfers, card bill payments, refunds merged into a purchase). */
+fun isExcluded(r: Rec): Boolean = r.bool("notExpense")
+
+/** Real spending: expenses, plus bills and EMIs once paid. */
 fun isSpend(r: Rec): Boolean {
     val t = r.str("type").uppercase()
-    return !r.bool("isDeleted") && (t == "EXPENSE" || t == "BILL" || t == "EMI" || t.isBlank())
+    if (r.bool("isDeleted") || isExcluded(r)) return false
+    return t == "EXPENSE" || t.isBlank() || ((t == "BILL" || t == "EMI") && (r["isPaid"] as? Boolean ?: true))
 }
 
-fun isIncome(r: Rec): Boolean = !r.bool("isDeleted") && r.str("type").uppercase() == "INCOME"
+fun isIncome(r: Rec): Boolean = !r.bool("isDeleted") && !isExcluded(r) && r.str("type").uppercase() == "INCOME"
 
-fun amountOf(r: Rec): Double = r.num("amountInr") ?: 0.0
+/** What an entry counts for: its amount less any refunds merged into it. */
+fun amountOf(r: Rec): Double = ((r.num("amountInr") ?: 0.0) - (r.num("refundAmount") ?: 0.0)).coerceAtLeast(0.0)
 
 fun inRange(r: Rec, from: Long, to: Long): Boolean {
     val t = r.lng("dateMillis") ?: return false

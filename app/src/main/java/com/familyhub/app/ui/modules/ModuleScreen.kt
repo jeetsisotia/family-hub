@@ -631,6 +631,7 @@ private fun SummaryCard(stats: List<Pair<String, String>>, footer: String? = nul
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FinanceHeader(
     records: List<Rec>,
@@ -704,7 +705,7 @@ private fun FinanceHeader(
                 color = Color.White,
                 trackColor = Color.White.copy(alpha = 0.3f)
             )
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Text("Income ${money(income)}", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodySmall)
                 Text("Saved ${money(saved)}", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.bodySmall)
                 Text(

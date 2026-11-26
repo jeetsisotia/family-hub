@@ -164,7 +164,12 @@ object DemoData {
         "Payment of Rs 3,804.00 received towards your HDFC Bank Credit Card XX4321. Thank you.",
         "Sent Rs.120.00 from Kotak Bank AC X9876 to zepto@ybl on 25-11-26. UPI Ref 532198765432. Not you, call 18602662666",
         "Rs.1,840.00 paid towards BESCOM electricity bill via BBPS from A/c **1234 on 22/11/2026.",
-        "Get 10% cashback up to Rs 500 on your next recharge! Offer valid till 30 Nov."
+        "Get 10% cashback up to Rs 500 on your next recharge! Offer valid till 30 Nov.",
+        "Your HDFC Bank Credit Card XX4321 statement is generated. Total due Rs 12,450.00, minimum due Rs 620.00. Payment due date 08-Dec-2026.",
+        "Dear Customer, your Airtel postpaid bill of Rs 599.00 for 98XXXXXX10 is due on 05/12/2026. Pay now to avoid late fee.",
+        "Your Netflix subscription of Rs 649 will be renewed on 29 Nov 2026 using your card XX4321.",
+        "Premium of Rs 25,000 for your Star Health policy is due on 15-12-2026. Renew on time to stay covered.",
+        "Complete your KYC for SBI account by 10-12-2026 to avoid restrictions on your account."
     )
 
     const val UID = "demo-user"

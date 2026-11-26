@@ -79,9 +79,50 @@ fun HealthScreen(env: AppEnv) {
     var share by remember { mutableStateOf(StepTracker.shareWithFamily(context)) }
     val steps by StepTracker.todayFlow.collectAsState()
     var water by remember { mutableStateOf(StepTracker.water(context)) }
+    var waterGoal by remember { mutableStateOf(StepTracker.waterGoal(context)) }
+    var inBar by remember { mutableStateOf(StepTracker.showInBar(context)) }
+    var editSteps by remember { mutableStateOf(false) }
+    var editWater by remember { mutableStateOf(false) }
+    // Google Fit, watches and other apps share steps through Health Connect.
+    var hcStatus by remember { mutableStateOf(com.familyhub.app.health.HealthConnectSync.status(context)) }
+    var hcLinked by remember { mutableStateOf(false) }
+    var hcToday by remember { mutableStateOf<Long?>(null) }
+    var hcBusy by remember { mutableStateOf(false) }
+    fun hcSync() {
+        hcBusy = true
+        scope.launch {
+            hcToday = try { com.familyhub.app.health.HealthConnectSync.sync(context) } catch (e: Exception) { null }
+            hcLinked = com.familyhub.app.health.HealthConnectSync.hasPermission(context)
+            hcBusy = false
+            com.familyhub.app.health.HealthNotification.refresh(context)
+        }
+    }
+    val hcPermission = rememberLauncherForActivityResult(
+        androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        if (granted.containsAll(com.familyhub.app.health.HealthConnectSync.PERMISSIONS)) hcSync()
+        else Toast.makeText(context, "Allow Steps in Health Connect to sync with Google Fit.", Toast.LENGTH_LONG).show()
+    }
     LaunchedEffect(Unit) {
         StepTracker.today(context)
         StepTracker.setFamilies(context, env.familyIds)
+        hcLinked = com.familyhub.app.health.HealthConnectSync.hasPermission(context)
+        if (hcLinked) hcSync()
+        com.familyhub.app.health.HealthNotification.refresh(context)
+    }
+    if (editSteps) {
+        GoalDialog(
+            title = "Daily step goal", unit = "steps", value = goal, quick = GOALS, range = 1000..50000,
+            onDismiss = { editSteps = false },
+            onSave = { g -> StepTracker.setGoal(context, g); goal = g; editSteps = false; com.familyhub.app.health.HealthNotification.refresh(context) }
+        )
+    }
+    if (editWater) {
+        GoalDialog(
+            title = "Daily water goal", unit = "glasses", value = waterGoal, quick = listOf(6, 8, 10, 12), range = 1..20,
+            onDismiss = { editWater = false },
+            onSave = { g -> StepTracker.setWaterGoal(context, g); waterGoal = g; editWater = false; com.familyhub.app.health.HealthNotification.refresh(context) }
+        )
     }
     val week = remember(steps) { StepTracker.lastDays(context, 7) }
 
@@ -162,10 +203,13 @@ fun HealthScreen(env: AppEnv) {
                             Text("This phone has no step sensor, so steps cannot be counted here.", style = MaterialTheme.typography.bodyMedium)
                         } else {
                             ProgressRing(fraction = steps.toFloat() / goal.coerceAtLeast(1)) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.clip(CircleShape).clickable { editSteps = true }.padding(8.dp)
+                                ) {
                                     Icon(Icons.Rounded.DirectionsWalk, contentDescription = null, tint = Color(0xFF34C759))
                                     Text(fmt.format(steps), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                    Text("of ${fmt.format(goal)}", style = MaterialTheme.typography.labelSmall)
+                                    Text("of ${fmt.format(goal)} ✎", style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                             Spacer(modifier = Modifier.height(10.dp))
@@ -188,6 +232,46 @@ fun HealthScreen(env: AppEnv) {
                     }
                 }
             }
+            item {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Sync, contentDescription = null, tint = Color(0xFF34C759))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Google Fit and watches", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                when {
+                                    hcStatus != androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE ->
+                                        "Install Health Connect to bring in steps from Google Fit, your watch or other apps."
+                                    hcLinked -> "Synced through Health Connect" + (hcToday?.let { " • ${fmt.format(it)} steps today" } ?: "")
+                                    else -> "Connect Health Connect to read steps from Google Fit and other apps. Read-only."
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                            )
+                        }
+                        when {
+                            hcBusy -> CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            hcStatus != androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE -> TextButton(onClick = {
+                                try {
+                                    context.startActivity(com.familyhub.app.health.HealthConnectSync.installIntent())
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Play Store is not available on this phone.", Toast.LENGTH_SHORT).show()
+                                }
+                                hcStatus = com.familyhub.app.health.HealthConnectSync.status(context)
+                            }) { Text("Install") }
+                            hcLinked -> TextButton(onClick = { hcSync() }) { Text("Sync") }
+                            else -> TextButton(onClick = {
+                                try {
+                                    hcPermission.launch(com.familyhub.app.health.HealthConnectSync.PERMISSIONS)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "Health Connect could not open.", Toast.LENGTH_SHORT).show()
+                                }
+                            }) { Text("Connect") }
+                        }
+                    }
+                }
+            }
             if (supported) {
                 item {
                     GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -200,12 +284,22 @@ fun HealthScreen(env: AppEnv) {
                                 color = Color(0xFF34C759),
                                 goal = goal.toDouble()
                             )
-                            Text("Daily goal", style = MaterialTheme.typography.labelLarge)
-                            ChoiceChips(GOALS.map { fmt.format(it) }, fmt.format(goal), { s ->
-                                val g = s.filter { it.isDigit() }.toIntOrNull() ?: return@ChoiceChips
-                                StepTracker.setGoal(context, g)
-                                goal = g
-                            })
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Daily goal: ${fmt.format(goal)} steps", style = MaterialTheme.typography.labelLarge, modifier = Modifier.weight(1f))
+                                TextButton(onClick = { editSteps = true }) { Text("Change") }
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Show in notification bar", fontWeight = FontWeight.Medium)
+                                    Text("Steps and water, with a +1 glass button.", style = MaterialTheme.typography.labelSmall)
+                                }
+                                Switch(checked = inBar, onCheckedChange = {
+                                    inBar = it
+                                    StepTracker.setShowInBar(context, it)
+                                    if (it) com.familyhub.app.health.HealthNotification.refresh(context)
+                                    else com.familyhub.app.health.HealthNotification.hide(context)
+                                })
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("Share steps with family", fontWeight = FontWeight.Medium)
@@ -289,17 +383,26 @@ fun HealthScreen(env: AppEnv) {
                         Icon(Icons.Rounded.WaterDrop, contentDescription = null, tint = Color(0xFF0A84FF))
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Water: $water of 8 glasses", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Water: $water of $waterGoal glasses ✎", fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { editWater = true }
+                            )
                             LinearProgressIndicator(
-                                progress = { (water / 8f).coerceIn(0f, 1f) },
+                                progress = { (water / waterGoal.toFloat()).coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                                 color = Color(0xFF0A84FF)
                             )
                         }
-                        IconButton(onClick = { water = StepTracker.addWater(context, -1); saveWater(env, water) }) {
+                        IconButton(onClick = {
+                            water = StepTracker.addWater(context, -1); saveWater(env, water)
+                            com.familyhub.app.health.HealthNotification.refresh(context)
+                        }) {
                             Icon(Icons.Rounded.Remove, contentDescription = "One glass less")
                         }
-                        FilledIconButton(onClick = { water = StepTracker.addWater(context, 1); saveWater(env, water) }) {
+                        FilledIconButton(onClick = {
+                            water = StepTracker.addWater(context, 1); saveWater(env, water)
+                            com.familyhub.app.health.HealthNotification.refresh(context)
+                        }) {
                             Icon(Icons.Rounded.Add, contentDescription = "One more glass")
                         }
                     }
@@ -591,4 +694,41 @@ private fun Metric(value: String, label: String) {
         Text(value, fontWeight = FontWeight.Bold)
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
     }
+}
+
+
+/** Edit a daily goal: type any number or pick a common one. */
+@Composable
+private fun GoalDialog(
+    title: String,
+    unit: String,
+    value: Int,
+    quick: List<Int>,
+    range: IntRange,
+    onDismiss: () -> Unit,
+    onSave: (Int) -> Unit
+) {
+    var text by remember { mutableStateOf(value.toString()) }
+    val n = text.toIntOrNull()
+    val ok = n != null && n in range
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { s -> text = s.filter { it.isDigit() }.take(6) },
+                    label = { Text(unit.replaceFirstChar { it.uppercaseChar() }) },
+                    singleLine = true,
+                    isError = !ok,
+                    supportingText = { Text("Between ${range.first} and ${range.last}") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                )
+                ChoiceChips(quick.map { it.toString() }, text, { s -> text = s })
+            }
+        },
+        confirmButton = { TextButton(onClick = { n?.let(onSave) }, enabled = ok) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }

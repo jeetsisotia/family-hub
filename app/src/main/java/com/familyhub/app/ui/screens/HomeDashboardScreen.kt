@@ -177,11 +177,16 @@ fun HomeDashboardScreen(
                                         c.title, MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                                         maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Start
                                     )
-                                    Text(
-                                        if (c.unit.isBlank()) "Ask anything" else "$n ${c.unit}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                        maxLines = 1
+                                    com.familyhub.app.ui.hub.FitLabel(
+                                        when {
+                                            c.unit.isBlank() -> "Ask anything"
+                                            c.unit == "entries" -> com.familyhub.app.ui.common.plural(n, "entry", "entries")
+                                            else -> "$n ${c.unit}"
+                                        },
+                                        MaterialTheme.typography.labelSmall,
+                                        maxLines = 1,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Start,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                     )
                                 }
                             }

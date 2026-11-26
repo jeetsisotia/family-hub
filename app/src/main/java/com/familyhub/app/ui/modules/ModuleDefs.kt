@@ -671,6 +671,40 @@ val CardsModule = ModuleDef(
     emptyText = "Add your credit cards with statement and due dates to follow each billing cycle."
 )
 
+val PoliciesModule = ModuleDef(
+    route = "policies", title = "Insurance policies", icon = Icons.Rounded.Shield,
+    collection = "items", typeValue = "policy",
+    subtitleKeys = listOf("category", "insurer"),
+    fields = listOf(
+        FieldDef("title", "Policy name", required = true),
+        FieldDef("insurer", "Insurer"),
+        FieldDef("category", "Type", FieldType.CHOICE, listOf("Health", "Life", "Motor", "Home", "Travel", "Other")),
+        FieldDef("amountInr", "Premium (₹)", FieldType.NUMBER),
+        FieldDef("premiumDueMillis", "Next premium due", FieldType.DATE),
+        FieldDef("expiryMillis", "Policy expires on", FieldType.DATE),
+        FieldDef("notes", "Who is covered, cover amount, notes", FieldType.MULTILINE)
+    ),
+    amountKey = "amountInr", alertDays = 30,
+    dateKeys = listOf(DateKey("premiumDueMillis", "Premium due"), DateKey("expiryMillis", "Expires")),
+    kind = "policy",
+    emptyText = "Add your insurance policies, or find them in SMS and Gmail from Import, to be reminded before premiums and renewals."
+)
+
+val AccountsModule = ModuleDef(
+    route = "accounts", title = "Bank accounts", icon = Icons.Rounded.AccountBalance,
+    collection = "items", typeValue = "account",
+    subtitleKeys = listOf("bank", "last4"),
+    fields = listOf(
+        FieldDef("title", "Account name (for example HDFC savings)", required = true),
+        FieldDef("bank", "Bank"),
+        FieldDef("last4", "Last 4 digits"),
+        FieldDef("category", "Type", FieldType.CHOICE, listOf("Savings", "Salary", "Current", "Joint", "Other")),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    alerts = false, privateByDefault = true, kind = "account",
+    emptyText = "Your bank accounts appear here. Import finds them in bank SMS by the last four digits."
+)
+
 val AllModules: List<ModuleDef> = listOf(
     CalendarModule, FinanceModule, HouseholdModule, ShoppingModule, TravelModule,
     VaultModule, DocumentsModule, HealthModule, VehiclesModule, PropertyModule,
@@ -678,7 +712,8 @@ val AllModules: List<ModuleDef> = listOf(
     SettleModule, MemoriesModule,
     MaintenanceModule, NotesModule, MealsModule, ChoresModule, BirthdaysModule,
     PetsModule, SchoolModule, GoalsModule,
-    MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule, WorkoutsModule
+    MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule, WorkoutsModule,
+    PoliciesModule, AccountsModule
 )
 
 /** Modules reached from inside other screens rather than from the More grid. */

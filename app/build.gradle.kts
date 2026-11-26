@@ -105,6 +105,8 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.work:work-runtime-ktx:2.9.1")
+    // Steps from Google Fit, watches and other apps via Health Connect (Google Fit's own APIs are being retired).
+    implementation("androidx.health.connect:connect-client:1.1.0-alpha07")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("com.google.android.gms:play-services-auth:21.2.0")

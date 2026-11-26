@@ -224,6 +224,20 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
         refresh++
     }
 
+    // The official site inside Family Hub, so the sign-in stays here; the person taps Book or Pay themselves.
+    fun openInApp(a: AiAction) {
+        val t = SmartLinks.target(a, env.members, env.userDoc)
+        val url = listOfNotNull(t?.intent?.data, t?.fallback).map { it.toString() }.firstOrNull { it.startsWith("https://") }
+        if (url == null) {
+            a.state = "failed"
+            a.error = "This one opens in its own app on the phone."
+        } else {
+            com.familyhub.app.AgentBrowserActivity.open(context, url, SmartLinks.label(a.service))
+            a.state = "added"
+        }
+        refresh++
+    }
+
     // Speak instead of typing (uses the phone's own speech recognition, in any language it supports).
     val voice = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -323,7 +337,8 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                                 refresh++
                             }
                         },
-                        onAddAll = { m.actions.filter { it.state == "new" && it.kind != "open" }.forEach { add(it) } }
+                        onAddAll = { m.actions.filter { it.state == "new" && it.kind != "open" }.forEach { add(it) } },
+                        onOpenInApp = { a -> openInApp(a) }
                     )
                 }
             }
@@ -360,8 +375,14 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onAddAll: () -> Unit) {
+private fun MessageBubble(
+    m: ChatMsg,
+    onAction: (AiAction, Boolean) -> Unit,
+    onAddAll: () -> Unit,
+    onOpenInApp: (AiAction) -> Unit = {}
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = if (m.fromUser) Alignment.End else Alignment.Start
@@ -390,7 +411,7 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
                             if (a.state == "failed" && a.error.isNotBlank()) {
                                 Text(a.error, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF3B30))
                             }
-                            Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            FlowRow(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.Center) {
                                 when (a.state) {
                                     "added" -> Text(
                                         actionDone(a.kind),
@@ -402,6 +423,9 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
                                             onClick = { onAction(a, true) }
                                         )
                                         Spacer(modifier = Modifier.width(4.dp))
+                                        if (a.kind == "open" && a.service !in setOf("call", "sms", "upi", "ola", "rapido", "zepto")) {
+                                            TextButton(onClick = { onOpenInApp(a) }) { Text("In Family Hub") }
+                                        }
                                         TextButton(onClick = { onAction(a, false) }) {
                                             Text("Dismiss", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                         }
@@ -415,7 +439,8 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
         }
         if (m.actions.any { it.kind == "open" && it.state != "dismissed" }) {
             Text(
-                "Open takes you to the official app or site with the details filled in. You book, pay, apply or send there.",
+                "Open takes you to the official app or site with the details filled in; In Family Hub opens the official site here, " +
+                    "where you sign in once. You book, pay, apply or send yourself.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, start = cardStart + 4.dp).widthIn(max = 320.dp)

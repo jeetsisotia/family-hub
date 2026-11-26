@@ -27,6 +27,9 @@ object StepTracker {
     private const val KEY_HISTORY = "history"
     private const val KEY_WATER = "water"
     private const val KEY_FAMILIES = "familyIds"
+    private const val KEY_WATER_GOAL = "waterGoal"
+    private const val KEY_EXTERNAL = "external"
+    private const val KEY_IN_BAR = "showInBar"
 
     private val _today = MutableStateFlow(0L)
     val todayFlow: StateFlow<Long> = _today
@@ -47,6 +50,28 @@ object StepTracker {
     fun setEnabled(ctx: Context, on: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_ENABLED, on).apply()
         if (on) StepService.start(ctx) else StepService.stop(ctx)
+    }
+
+    fun waterGoal(ctx: Context): Int = prefs(ctx).getInt(KEY_WATER_GOAL, 8)
+    fun setWaterGoal(ctx: Context, glasses: Int) = prefs(ctx).edit().putInt(KEY_WATER_GOAL, glasses.coerceIn(1, 20)).apply()
+
+    /** Keep steps and water in the notification bar, even when step counting is paused. */
+    fun showInBar(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_IN_BAR, false)
+    fun setShowInBar(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean(KEY_IN_BAR, on).apply()
+
+    private fun external(ctx: Context): JSONObject =
+        try { JSONObject(prefs(ctx).getString(KEY_EXTERNAL, "{}") ?: "{}") } catch (e: Exception) { JSONObject() }
+
+    /**
+     * Daily totals from Health Connect (Google Fit and other apps write there). Kept apart from the phone's own count,
+     * and each day shows whichever is higher, so the same steps are never added twice.
+     */
+    fun setExternal(ctx: Context, totals: Map<String, Long>) {
+        val ext = external(ctx)
+        totals.forEach { (day, steps) -> ext.put(day, steps) }
+        trim(ext)
+        prefs(ctx).edit().putString(KEY_EXTERNAL, ext.toString()).apply()
+        today(ctx)
     }
 
     fun goal(ctx: Context): Int = prefs(ctx).getInt(KEY_GOAL, 8000)
@@ -102,7 +127,8 @@ object StepTracker {
 
     fun today(ctx: Context): Long {
         val p = prefs(ctx)
-        val v = if (p.getString(KEY_DAY, "") == dayKey()) p.getLong(KEY_TODAY, 0L) else 0L
+        val own = if (p.getString(KEY_DAY, "") == dayKey()) p.getLong(KEY_TODAY, 0L) else 0L
+        val v = maxOf(own, external(ctx).optLong(dayKey(), 0L))
         _today.value = v
         return v
     }
@@ -110,11 +136,12 @@ object StepTracker {
     /** Steps for each of the last [days] days, oldest first, as (day start millis, steps). */
     fun lastDays(ctx: Context, days: Int, now: Long = System.currentTimeMillis()): List<Pair<Long, Long>> {
         val hist = history(ctx)
+        val ext = external(ctx)
         val todayKey = dayKey(now)
         return (days - 1 downTo 0).map { back ->
             val t = now - back * DAY_MS
             val key = dayKey(t)
-            val v = if (key == todayKey) today(ctx) else hist.optLong(key, 0L)
+            val v = if (key == todayKey) today(ctx) else maxOf(hist.optLong(key, 0L), ext.optLong(key, 0L))
             com.familyhub.app.ui.modules.startOfDay(t) to v
         }
     }
