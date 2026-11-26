@@ -109,10 +109,10 @@ fun HealthToday(env: AppEnv, steps: Long, stepGoal: Int, refreshKey: Any?) {
                     "BMI", bmi?.let { "%.1f".format(it) } ?: "—",
                     when {
                         bmi == null -> if (heightCm == null) "add height" else "no weight"
-                        bmi < 18.5 -> "range <18.5"
-                        bmi < 25 -> "range 18.5–24.9"
-                        bmi < 30 -> "range 25–29.9"
-                        else -> "range 30+"
+                        bmi < 18.5 -> "under 18.5"
+                        bmi < 25 -> "18.5–24.9"
+                        bmi < 30 -> "25–29.9"
+                        else -> "30 or more"
                     },
                     Modifier.weight(1f)
                 )

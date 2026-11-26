@@ -238,16 +238,16 @@ fun FamilyScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = {
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = {
                             clipboard.setText(AnnotatedString(family.inviteCode))
                             Toast.makeText(context, "Invite code copied", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Rounded.ContentCopy, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Copy", color = MaterialTheme.colorScheme.onPrimary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Copy", color = MaterialTheme.colorScheme.onPrimary, maxLines = 1, softWrap = false)
                         }
-                        TextButton(onClick = {
+                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = {
                             val send = Intent(Intent.ACTION_SEND).apply {
                                 type = "text/plain"
                                 putExtra(
@@ -258,13 +258,13 @@ fun FamilyScreen(
                             context.startActivity(Intent.createChooser(send, "Invite to Family Hub"))
                         }) {
                             Icon(Icons.Rounded.Share, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Share", color = MaterialTheme.colorScheme.onPrimary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Share", color = MaterialTheme.colorScheme.onPrimary, maxLines = 1, softWrap = false)
                         }
-                        TextButton(onClick = { showQr = true }) {
+                        TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { showQr = true }) {
                             Icon(Icons.Rounded.QrCode2, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("QR", color = MaterialTheme.colorScheme.onPrimary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("QR", color = MaterialTheme.colorScheme.onPrimary, maxLines = 1, softWrap = false)
                         }
                     }
                 }

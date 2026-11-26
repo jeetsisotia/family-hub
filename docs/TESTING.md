@@ -68,7 +68,8 @@ Every change was built from scratch on GitHub Actions (`Build APK`). Each build:
 | Finance v2: money engine, dashboard, accounts, cards, loans, due calendar | #42 ✅ | ✅ |
 | Statement import, SMS card payments, roles, safe delete, data tools, new tabs | #43 ✅ | ✅ |
 | Health redesign, assistant money answers, reduced motion | #44 ✅ | ✅ |
-| QR invite, Home at a glance, theme choice, reset one kind, docs | #45 | see below |
+| QR invite, Home at a glance, theme choice, reset one kind, docs | #45 ✅ | ✅ |
+| Invite card buttons and BMI labels (from the #45 screenshots) | #46 | see the Actions page |
 
 ## 3. Emulator test (after every build)
 
@@ -96,6 +97,7 @@ The screens checked:
 The screenshots were checked by eye after each run. Problems found that way and fixed:
 - **Calendar mismatch.** The Finance overview and the due calendar disagreed when another member had spent on a card. Fixed: balances now count every entry on an account or card, whichever view is shown.
 - **Member names wrapping.** Names on the Family tab broke over two lines because of the admin buttons. Fixed by moving those actions into a ⋮ menu.
+- **Labels too long.** The QR button label and the BMI range were too long for their spaces. Both were shortened.
 
 ## 4. Firestore rules (Rules Playground)
 
