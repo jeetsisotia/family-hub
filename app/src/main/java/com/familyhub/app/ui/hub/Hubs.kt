@@ -163,7 +163,7 @@ fun HubTiles(items: List<HubItem>, onOpen: (String) -> Unit, counts: (String) ->
 private fun HubTile(item: HubItem, index: Int, count: Int?, modifier: Modifier, onClick: () -> Unit) {
     GlassCard(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(20.dp)) {
         Column(
-            modifier = Modifier.fillMaxWidth().height(104.dp).padding(vertical = 10.dp, horizontal = 6.dp),
+            modifier = Modifier.fillMaxWidth().height(120.dp).padding(vertical = 10.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -228,12 +228,14 @@ fun HubScreen(hub: Hub, env: AppEnv) {
                         ) { Icon(item.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp)) }
                         Spacer(modifier = Modifier.height(8.dp))
                         FitLabel(item.title, MaterialTheme.typography.labelLarge)
-                        Text(
-                            if (count != null) "$count saved" else "Open",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                            fontWeight = FontWeight.Medium
-                        )
+                        if (count != null) {
+                            Text(
+                                "$count saved",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
             }
