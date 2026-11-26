@@ -3,7 +3,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, query, where, writeBatch, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, query, where, writeBatch, orderBy, limit, serverTimestamp, Timestamp } from 'firebase/firestore';
 
 let env;
 const F = 'fam1';
@@ -387,4 +387,89 @@ test('call: a call record can never be deleted by anyone', async () => {
   await seedCall('c1', 'ended');
   await assertFails(deleteDoc(doc(as('admin'), callPath('c1'))));
   await assertFails(deleteDoc(doc(as('owner'), callPath('c1'))));
+});
+
+
+// ---------- live location (Family safety) ----------
+// "member" shares with "admin" for another hour; "admin" shared with "member" but it has expired.
+const locPath = (uid) => `families/${F}/locations/${uid}`;
+const inMs = (ms) => Timestamp.fromMillis(Date.now() + ms);
+const H = 60 * 60 * 1000;
+async function seedLocations() {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, locPath('member')), { uid: 'member', name: 'M', lat: 12.97, lng: 77.59, accuracy: 12, battery: 64,
+      updatedAt: Timestamp.now(), fixAt: Timestamp.now(), expiresAt: inMs(H), endAt: 0, viewerUids: ['admin'] });
+    await setDoc(doc(db, locPath('admin')), { uid: 'admin', name: 'A', lat: 12.9, lng: 77.5, accuracy: 30, battery: 20,
+      updatedAt: Timestamp.now(), fixAt: Timestamp.now(), expiresAt: inMs(-60 * 1000), endAt: 0, viewerUids: ['member'] });
+  });
+}
+const myLoc = (uid, extra = {}) => ({ uid, name: 'Me', lat: 12.97, lng: 77.59, accuracy: 15, battery: 50,
+  updatedAt: serverTimestamp(), fixAt: Timestamp.now(), expiresAt: inMs(H), endAt: Date.now() + H, viewerUids: ['owner'], ...extra });
+
+test('location: a chosen family member can see a live share', async () => {
+  await seedLocations();
+  await assertSucceeds(getDoc(doc(as('admin'), locPath('member'))));
+});
+test('location: the Super Admin cannot see a share they were not chosen for (no admin override)', async () => {
+  await seedLocations();
+  await assertFails(getDoc(doc(as('owner'), locPath('member'))));
+});
+test('location: the person sharing can see their own; strangers and pending members cannot', async () => {
+  await seedLocations();
+  await assertSucceeds(getDoc(doc(as('member'), locPath('member'))));
+  await assertFails(getDoc(doc(as('stranger'), locPath('member'))));
+  await assertFails(getDoc(doc(as('pending'), locPath('member'))));
+});
+test('location: an expired share cannot be read, even by someone who was chosen', async () => {
+  await seedLocations();
+  await assertFails(getDoc(doc(as('member'), locPath('admin'))));
+});
+test('location: nobody can list who is sharing', async () => {
+  await seedLocations();
+  await assertFails(getDocs(collection(as('admin'), `families/${F}/locations`)));
+  await assertFails(getDocs(query(collection(as('admin'), `families/${F}/locations`), where('viewerUids', 'array-contains', 'admin'))));
+});
+test('location: a family member may check someone who is not sharing (nothing there)', async () => {
+  await assertSucceeds(getDoc(doc(as('member'), locPath('owner'))));
+  await assertFails(getDoc(doc(as('stranger'), locPath('owner'))));
+});
+test('location: a member can share their own location', async () => {
+  await assertSucceeds(setDoc(doc(as('member'), locPath('member')), myLoc('member')));
+  await assertSucceeds(setDoc(doc(as('member'), locPath('member')), myLoc('member', { lat: 13.0, endAt: 0, expiresAt: inMs(30 * 60 * 1000) })));
+});
+test('location: nobody can write someone else\'s location, admins included; pending members cannot share', async () => {
+  await assertFails(setDoc(doc(as('owner'), locPath('member')), myLoc('member')));
+  await assertFails(setDoc(doc(as('admin'), locPath('member')), myLoc('member')));
+  await assertFails(setDoc(doc(as('member'), locPath('admin')), myLoc('admin')));
+  await assertFails(setDoc(doc(as('pending'), locPath('pending')), myLoc('pending')));
+  await assertFails(setDoc(doc(as('stranger'), locPath('stranger')), myLoc('stranger')));
+});
+test('location: a share must end within 9 hours and not already be over', async () => {
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { expiresAt: inMs(10 * H) })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { expiresAt: inMs(-1000) })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { expiresAt: Date.now() + H })));
+});
+test('location: bad places, viewers and extra fields are refused', async () => {
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { lat: 91 })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { lng: -181 })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { viewerUids: [] })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { viewerUids: ['member', 'owner'] })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { viewerUids: Array.from({ length: 21 }, (_, i) => `u${i}`) })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { history: [1, 2] })));
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { uid: 'admin' })));
+});
+test('location: the update time must be the server\'s, not the phone\'s', async () => {
+  await assertFails(setDoc(doc(as('member'), locPath('member')), myLoc('member', { updatedAt: Timestamp.now() })));
+});
+test('location: only the person sharing can stop it (delete)', async () => {
+  await seedLocations();
+  await assertFails(deleteDoc(doc(as('owner'), locPath('member'))));
+  await assertFails(deleteDoc(doc(as('admin'), locPath('member'))));
+  await assertSucceeds(deleteDoc(doc(as('member'), locPath('member'))));
+});
+test('safety settings: private to their owner, admins included', async () => {
+  await assertSucceeds(setDoc(doc(as('member'), 'users/member/safety/settings'), { contacts: [], lowBatteryOn: false }));
+  await assertFails(getDoc(doc(as('owner'), 'users/member/safety/settings')));
+  await assertFails(getDoc(doc(as('admin'), 'users/member/safety/settings')));
 });

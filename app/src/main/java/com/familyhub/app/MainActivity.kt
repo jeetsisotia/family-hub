@@ -301,6 +301,13 @@ class MainActivity : FragmentActivity() {
                         transactions.filter { it.dateMillis >= monthStart || !it.isPaid }
                     }
 
+                    // Safety: low-battery checks, live sharing that Android paused, and a running arrival timer.
+                    LaunchedEffect(uid, profile.name, activeFamilyId, myStatus) {
+                        if (myStatus == "ACTIVE" && activeFamilyId.isNotBlank()) {
+                            com.familyhub.app.safety.SafetyStartup.onAppOpen(context, uid, profile.name, activeFamilyId)
+                        }
+                    }
+
                     val currentMember = members.firstOrNull { it.uid == uid }
                         ?: FamilyMember(uid = uid, name = profile.name, role = FamilyRole.ADULT)
                     // The family's creator is its Super Admin; they can make others Family Admins.

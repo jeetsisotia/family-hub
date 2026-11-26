@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press the Family Hub icon to open SOS. It only opens the screen; the countdown there can be cancelled. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="sos"
+        android:shortcutLongLabel="@string/shortcut_sos_long"
+        android:shortcutShortLabel="@string/shortcut_sos_short">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="com.familyhub.app.MainActivity"
+            android:targetPackage="com.familyhub.app">
+            <extra
+                android:name="open_route"
+                android:value="sos" />
+        </intent>
+    </shortcut>
+</shortcuts>

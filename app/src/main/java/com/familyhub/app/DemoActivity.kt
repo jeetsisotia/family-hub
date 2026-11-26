@@ -54,10 +54,10 @@ class DemoActivity : FragmentActivity() {
         // The emulator test opens a fixed list of routes; these names show the newest screens instead.
         val asked = when (val name = intent.getStringExtra("route") ?: "health_hub") {
             "assistant_new" -> "assistant_tidy"
-            // Screens of this release: chats, dark mode and Reduce transparency.
-            "sos" -> "chat_list"
-            "families" -> "chat:family"
-            "workouts" -> "dark:chat:family"
+            // Screens of this release: Family safety and SOS (Phase 6), plus chats, dark mode and Reduce transparency.
+            "sos" -> "safety"
+            "families" -> "sos"
+            "workouts" -> "dark:safety"
             "arrange" -> "dark:home"
             "medicines" -> "dark:chat_list"
             "profile" -> "settings"

@@ -48,6 +48,7 @@ val MoreDestinations: List<SecondaryDestination> =
     listOf(
         SecondaryDestination("assistant", "AI Assistant", Icons.Rounded.AutoAwesome),
         SecondaryDestination("sos", "SOS", Icons.Rounded.Warning),
+        SecondaryDestination("safety", "Family safety", Icons.Rounded.Shield),
         // Health and Finance have their own tabs; Calendar now lives here.
         SecondaryDestination("calendar", "Calendar", Icons.Rounded.CalendarMonth),
         SecondaryDestination(Hubs.home.route, Hubs.home.title, Hubs.home.icon),

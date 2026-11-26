@@ -39,6 +39,8 @@ object Notifier {
     const val CH_GENERAL = "family_reminders"
     const val CH_STEPS = "step_counter"
     const val CH_CALLS = "calls"
+    const val CH_SAFETY = "safety_alerts"
+    const val CH_LOCATION = "location_sharing"
 
     fun ensureChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -54,6 +56,12 @@ object Notifier {
         )
         nm.createNotificationChannel(
             NotificationChannel(CH_CALLS, "Calls", NotificationManager.IMPORTANCE_LOW)
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_SAFETY, "Safety alerts", NotificationManager.IMPORTANCE_HIGH)
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_LOCATION, "Location sharing", NotificationManager.IMPORTANCE_LOW)
         )
     }
 
@@ -363,6 +371,8 @@ class BootReceiver : BroadcastReceiver() {
             Log.w("BootReceiver", "Could not queue refresh", e)
         }
         if (StepTracker.isEnabled(ctx)) StepService.start(ctx)
+        // A safe-arrival timer that was running keeps its alarm after a restart.
+        try { com.familyhub.app.safety.ArrivalTimer.rearm(ctx) } catch (e: Exception) { Log.w("BootReceiver", "Arrival timer not restored", e) }
     }
 }
 

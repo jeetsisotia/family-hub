@@ -36,10 +36,14 @@
         android:name="android.permission.SCHEDULE_EXACT_ALARM"
         android:maxSdkVersion="32" />
 
-    <!-- SOS: call the emergency contact and share location (asked only when you use SOS) -->
-    <uses-permission android:name="android.permission.CALL_PHONE" />
+    <!-- Family safety (each asked only when that feature is turned on): SOS, low-battery and safe-arrival SMS
+         from this phone's own SIM, and live location while sharing (a visible notification stays on).
+         No background-location permission: sharing runs only as a foreground service started from the app.
+         Calls to 112 and contacts open the dialer, so no permission to place calls is needed. -->
+    <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
 
     <!-- Apps the assistant can open for you (you confirm inside them) -->
     <queries>
@@ -89,6 +93,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Long-press the app icon: "SOS" opens the SOS screen. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <!-- Explains to Health Connect why steps are read (required to ask for the permission). -->
@@ -141,6 +149,31 @@
             android:name=".calling.CallService"
             android:exported="false"
             android:foregroundServiceType="microphone|camera" />
+
+        <service
+            android:name=".safety.LocationShareService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
+        <!-- Quick Settings tile "Family SOS": opens the SOS screen (nothing is sent without its countdown). -->
+        <service
+            android:name=".safety.SosTileService"
+            android:exported="true"
+            android:icon="@android:drawable/ic_dialog_alert"
+            android:label="Family SOS"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".safety.SmsStatusReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".safety.SafetyAlarmReceiver"
+            android:exported="false" />
 
         <service
             android:name=".health.StepService"

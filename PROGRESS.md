@@ -75,7 +75,8 @@ Each problem below was first reproduced by a test that failed, then fixed. Saved
 | Statement import | 22 | Passed |
 | Chat mentions | 14 | Passed |
 | Assistant questions | 22 | Passed |
-| Firestore rules (emulator, on GitHub) | 49 | Passed (run #4) |
+| Firestore rules (emulator, on GitHub) | 49 | Passed (run #4); 66 of 66 with calls (run #6) |
+| Safety logic | 64 | Passed (27 Nov) |
 
 ### Feature inventory
 
@@ -212,7 +213,117 @@ What is in it:
 
 **Privacy and rules:** only the two people on a call can read its record or its connection details, not admins and not other members (17 new rules tests). A call can only be started to an active member of the same family. Connection details are deleted when the call ends; the short record (who, when, how long) stays for the history.
 
-**Status:** code written; checked for syntax only here, because this computer cannot download the WebRTC library. The GitHub build compiles it. Two-phone tests are **Needs my phone**: same Wi-Fi, different Wi-Fi, mobile data, Bluetooth headset, picture-in-picture.
+**Status:**
+- **APK build #52: Passed**, including the emulator screen check. It was the first real compile of the calls code, and it needed no fixes.
+- **Rules tests run #6: Passed**, 66 of 66.
+- **Call rules published** (27 Nov, 1:00 AM IST). On 27 Nov at 1:25 AM the live text was checked against the tested file: they match exactly (same SHA-256). The rollback copy is `firebase/firestore.rules.backup-2026-11-27-before-calls`, also kept in the console's rules history ("12:23 AM").
+- Two-phone tests are **Needs my phone**: same Wi-Fi, different Wi-Fi, mobile data, Bluetooth headset, picture-in-picture.
+
+---
+
+## Phase 6: family safety, live location and emergency alerts (bundle p27)
+
+### Free-cost check
+
+| Part | How it works | Cost |
+|---|---|---|
+| SMS alerts | The phone's own SIM (Android `SmsManager`). No SMS gateway or service. | Free from Family Hub. **Carrier SMS charges may apply**, and the app says so. |
+| Live location | Android's own `LocationManager` (no Google Play location library, no maps SDK). One small Firestore document per person. | Spark plan. 8 hours standing still is about 96 writes; 1 hour moving is at most 61 writes (tested). The free limit is 20,000 writes a day. |
+| Maps | Opens the installed maps app with a standard `geo:` link, or a plain `maps.google.com/?q=` link in SMS. No map tiles or API key. | Free |
+| Background checks | Android WorkManager (already in the app). | Free |
+
+### What is in it
+
+- **Family safety screen** (More → Family safety; also from SOS). Everything is **off by default**, and each person turns it on on their own phone. Nobody, admins included, can turn on someone else's sharing.
+- **Emergency contacts:**
+  - Up to 10, in your chosen order.
+  - For each one, choose which alerts they get: SOS, low battery, safe arrival.
+  - They do not need the app.
+  - The first time, the two emergency contacts from My Profile are offered. The profile is not changed.
+- **Low-battery SMS:**
+  - Default 15%, adjustable from 5% to 50%. It sends only when the phone is not charging.
+  - Sends **once per low-battery episode**. The episode ends when the phone charges or goes 5 points above the level. There is also a **6-hour cooldown**, and all automatic SMS are capped at **10 an hour**.
+  - The message includes your name, battery level, time, and your last known location with its time and accuracy, as a map link.
+  - **It works with the app closed:** a WorkManager check runs about every 15 minutes and reads the battery directly. The low-battery broadcast is not used, because Android does not wake closed apps for it. Android can delay the check in Doze or battery saver; the app says so.
+  - "Test (no SMS is sent)" writes the exact message to the log without sending it.
+- **Alert log** (on this phone): every attempt with its result:
+  - Sent
+  - Delivered, if the network reports it
+  - Failed (no signal, airplane mode, network refused)
+  - Not sent (no SIM, SIM locked, permission off, hourly limit)
+  - Test only
+- **Live location:**
+  - Share with the family members you choose for 15 minutes, 1 hour, 8 hours or until you stop.
+  - A notification stays visible while sharing, with **Stop sharing**.
+  - Updates at most once a minute (and only after moving 25 m), plus a sign of life every 5 minutes.
+  - Viewers see the last update time, accuracy, battery level, a "Not updating" (stale) label after 12 minutes, and an Open in maps button.
+  - **No trail is kept:** one document per person, overwritten each time and deleted when sharing stops. Expired shares cannot be read. "Until I stop" shares expire 30 minutes after the last update, so a dead phone's share ends by itself.
+  - Uses no background-location permission. Sharing runs as a foreground service started from the app. If Android stops it (restart, app swiped away), it resumes the next time the app opens, or is removed if its time is over.
+- **People without the app** get one location link by SMS, never live tracking or repeated location SMS.
+- **SOS:**
+  1. Big button, then a **5-second countdown**. Tap the button or Cancel to stop it.
+  2. SMS to your SOS contacts. If SMS cannot be sent automatically, your SMS app opens with the message ready to send.
+  3. A message in the family chat.
+  4. If location features are on, live sharing with the family for 1 hour.
+  5. Buttons to call your contacts, and **Call 112, which only opens the dialer**.
+  - Emergency services are never called or messaged automatically.
+  - The old SOS called your contact directly with the call permission. That is removed, and the permission to place calls is gone from the app.
+- **Check-ins:** "I'm safe" posts in the family chat (with a location link only if location is on). "Ask to check in" posts an @mention of the person you choose.
+- **Safe-arrival timer:**
+  - Choose 15 minutes, 30 minutes, 1 hour or 2 hours, and optionally where you are going.
+  - At the time, a notification asks "Did you arrive safely?" with an "I'm safe" button.
+  - With no answer in 5 minutes, your chosen contacts get an SMS and the family chat is told.
+  - It survives a phone restart.
+- **Emergency card (opt-in):** blood group, allergies and notes. **Never sent to the AI assistant.** It is added to SOS SMS only if you turn that on (off by default).
+- **Quick SOS:** a "Family SOS" Quick Settings tile, and a long-press "SOS" shortcut on the app icon. Both only open the SOS screen.
+- **Privacy:**
+  - Contacts, the card and settings are kept on the phone (so alerts work offline), with a private copy in `users/{uid}/safety/settings` that only you can read, so they come back on a new phone.
+  - Alerts and location stay off on a new phone until you turn them on there.
+  - The alert log and locations are not copied anywhere.
+- **Permissions** (SMS, location, notifications) are asked only when that feature is turned on. The screen explains:
+  - how to allow "restricted settings" for an app installed from an APK
+  - battery optimisation
+  - what happens without a SIM, without signal, with location off or with a permission denied
+
+### Left out, and why
+
+- **Arrive and leave place alerts:** reliable geofencing needs background location all the time or the Google Play location library. Left out to keep location off unless you share. (The brief marks this optional.)
+- **Fall or crash detection:** cannot be shown to be reliable. Skipped, as the brief says.
+- **Instant alerts to family phones that are closed:** these need a server push (paid). The family chat message arrives with the usual chat notification (about every 15 minutes).
+
+### Firestore rules (`locations` block)
+
+- **Who can read:** only the person sharing, and the people they chose while the share has not expired. Admins and the Super Admin get no extra access, and nobody can list who is sharing.
+- **Who can write:** only the person, for themselves.
+- **Checks on each write:**
+  - valid coordinates
+  - 1 to 20 viewers, not themselves
+  - an end time no more than 9 hours ahead
+  - the server's own time
+  - no extra fields
+- **13 new emulator tests**, 79 in all.
+- Rollback copy of the live rules: `firebase/firestore.rules.backup-2026-11-27-before-safety`.
+
+### Tests
+
+| What | Result |
+|---|---|
+| `tools/safety-test` (64 checks): battery trigger and simulated discharges, cooldown, SMS limit, SMS wording, medical card off by default, upload limits, stale and expired, arrival timer | **Passed** (run in this workspace, 27 Nov) |
+| Firestore rules (79, emulator on GitHub) | Runs after upload |
+| APK build and emulator screens (Family safety light and dark, SOS) | Runs after upload |
+| Real SMS, delivery reports, low battery with the app closed, live location on two phones, Quick Settings tile, shortcut, safe-arrival after a restart | **Needs my phone** (checklist below) |
+
+### Phone checklist for safety (Needs my phone)
+
+Use a family member's number who knows it is a test.
+
+1. In Family safety, add yourself or a willing family member as a contact. Turn on Low-battery SMS and allow SMS.
+2. Tap "Test (no SMS is sent)" and check the log shows the message as "Test only".
+3. Set the level to 50% while the battery is below 50% and the phone is unplugged. Close the app. Within about 15–30 minutes, one SMS should arrive, and the log should say Sent or Delivered. Plug in and unplug: no second SMS within 6 hours. Set the level back to 15%.
+4. Turn on Location features and share with one family member for 15 minutes. On their phone, Family safety → Shared with you shows you, and Map opens. Tap Stop sharing: you disappear from their list.
+5. Start a 15-minute safe-arrival timer, restart the phone, and wait: the "Did you arrive safely?" notification appears; tap "I'm safe".
+6. SOS: press, then Cancel during the countdown; nothing is sent. Then let it run once, with only a willing contact chosen for SOS.
+7. Add the "Family SOS" tile in Quick Settings, and try the long-press SOS shortcut on the app icon.
 
 ---
 
@@ -279,15 +390,15 @@ What is in it:
 
 ## Next step
 
-1. Bundle p26 (calls): check the build and the rules tests (66 expected), then publish the call rules.
-2. Phase 6 safety and location, Phase 7 reliability and reminders, Phase 8 extra features, then the final report.
+1. Bundle p27 (Phase 6 safety): check the APK build, the emulator screens and the rules tests (79 expected). Then publish the rules with the location block, keeping a rollback copy.
+2. Phase 7 reliability and reminders, Phase 8 extra features, then the final report.
 3. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
 
 ### Restore points (git tags)
 
 - `restore-before-phase-1`: the app before this work started (commit 3cb30fb).
 - `restore-phase-1`: Phase 1 finished, the last version whose build fully passed before chat (commit 0b4ecc3).
-- `restore-phase-2-design` (c5c7dde), `restore-phase-3-chat-polls` (f17f14e), `restore-phase-4-finance` (the version before calls).
+- `restore-phase-2-design` (c5c7dde), `restore-phase-3-chat-polls` (f17f14e), `restore-phase-4-finance` (the version before calls), `restore-phase-5-calls` (b70c9d0, the version before safety).
 
 From bundle p23, the bundle workflow can tag the version before each bundle (`.fhbundle/tag.txt`). To restore, download that tag's code from GitHub, or ask for a bundle that brings it back. Nothing is force-pushed.
 
@@ -305,4 +416,5 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - **Chats (Needs my phone):** send a message between two phones, then check unread counts, Retry when offline, and the notification within about 15 minutes.
 - **Reduce transparency and dark mode (Needs my phone):** switch them in Settings → Appearance and check that the text is easy to read.
 - **Merchant categories (Needs my phone):** change a transaction's category, pick "Apply to all", then import an SMS from the same shop.
+- **Safety (Needs my phone):** follow the Phase 6 phone checklist. Use only a willing family member's number for SMS tests.
 - **Calls (Needs my phone):** with the app open on both phones, call voice and video on the same Wi-Fi, on two different Wi-Fi networks, and with one phone on mobile data. Try mute, speaker, Bluetooth, camera switch, and leaving the app during a video call.
