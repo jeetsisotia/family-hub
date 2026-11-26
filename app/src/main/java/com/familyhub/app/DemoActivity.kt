@@ -58,7 +58,7 @@ class DemoActivity : FragmentActivity() {
             "sos" -> "safety"
             "families" -> "sos"
             "workouts" -> "dark:safety"
-            "arrange" -> "dark:home"
+            "arrange" -> "reminders"
             "medicines" -> "dark:chat_list"
             "profile" -> "settings"
             "settings" -> "solid:home"
@@ -121,7 +121,8 @@ class DemoActivity : FragmentActivity() {
                                 aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) },
                                 records = env.data,
                                 duesCard = { com.familyhub.app.ui.money.HomeDues(env) },
-                                glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(env, fv) }
+                                glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(env, fv) },
+                                todayCard = { com.familyhub.app.ui.screens.TodayCard(env) }
                             )
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
                             route == "chat_list" -> com.familyhub.app.ui.chat.ChatListScreen(env) { }
@@ -232,6 +233,10 @@ object DemoData {
                 "food" to "Before food", "memberName" to "Asha", "stock" to 20.0),
             rec("type" to "reminder", "title" to "Pay school fees", "dateMillis" to now + 2 * d, "time" to "10:00",
                 "repeat" to "Monthly", "done" to false, private = true),
+            rec("type" to "reminder", "title" to "Call the plumber", "dateMillis" to now, "time" to "18:30",
+                "repeat" to "None", "earlyAlert" to "15 minutes before", "done" to false, private = true),
+            rec("type" to "reminder", "title" to "Water the plants", "dateMillis" to now - 10 * d, "time" to "",
+                "repeat" to "Every few days", "everyDays" to 2.0, "done" to false, private = true),
             rec("type" to "vital", "kind" to "Weight (kg)", "value" to "64.5", "dateMillis" to now - 20 * d, private = true),
             rec("type" to "vital", "kind" to "Weight (kg)", "value" to "63.8", "dateMillis" to now - 10 * d, private = true),
             rec("type" to "vital", "kind" to "Weight (kg)", "value" to "63.1", "dateMillis" to now - 1 * d, private = true),

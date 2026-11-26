@@ -86,6 +86,14 @@ private fun buildRecord(
             }
             FieldType.BOOL -> {
             }
+            FieldType.TIME -> {
+                // Saved as "HH:mm"; empty means all day.
+                val raw = (out[f.key] as? String).orEmpty().trim()
+                val t = com.familyhub.app.work.ReminderRules.normalizeTime(raw)
+                if (raw.isNotEmpty() && t.isEmpty()) return Pair(null, "${f.label}: pick a time or leave it empty")
+                if (f.required && t.isEmpty()) return Pair(null, "${f.label} is required")
+                out[f.key] = t
+            }
             else -> {
                 val s = (out[f.key] as? String).orEmpty().trim()
                 if (f.required && s.isEmpty()) return Pair(null, "${f.label} is required")
@@ -475,7 +483,10 @@ private fun RecordCard(
 ) {
     val doneKey = def.doneKey
     val done = doneKey != null && rec.bool(doneKey)
-    val sub = def.subtitleKeys.map { rec.str(it) }.filter { it.isNotBlank() }.joinToString(" • ")
+    // "timeText" is worked out from the saved time ("All day" when there is none), also for older records.
+    val sub = def.subtitleKeys.map { k ->
+        if (k == "timeText") com.familyhub.app.work.ReminderRules.timeText(rec.str("time")) else rec.str(k)
+    }.filter { it.isNotBlank() }.joinToString(" • ")
     val amount = amountText(def, rec)
     val phone = def.phoneKey?.let { rec.str(it) }.orEmpty()
 
@@ -554,7 +565,7 @@ private fun DateLines(def: ModuleDef, rec: Rec, done: Boolean) {
     val rep = def.repeatKey?.let { rec.str(it) }.orEmpty()
     for (dk in def.dateKeys) {
         val raw = rec.lng(dk.key) ?: continue
-        val d = nextOccurrence(raw, rep)
+        val d = nextOccurrenceOf(rec, raw, rep)
         val days = daysUntil(d)
         val note = when {
             done -> ""
@@ -571,7 +582,9 @@ private fun DateLines(def: ModuleDef, rec: Rec, done: Boolean) {
             else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
         }
         Text(
-            text = "${dk.label}: ${fmt.format(Date(d))}" + if (note.isNotEmpty()) " • $note" else "",
+            text = "${dk.label}: ${fmt.format(Date(d))}" +
+                (if (def.fields.any { it.type == FieldType.TIME }) ", " + com.familyhub.app.work.ReminderRules.timeText(rec.str("time")) else "") +
+                if (note.isNotEmpty()) " • $note" else "",
             style = MaterialTheme.typography.labelMedium,
             color = color
         )
@@ -930,6 +943,11 @@ private fun RecordForm(
                             required = f.required,
                             onChange = { draft[f.key] = it }
                         )
+                        FieldType.TIME -> TimeField(
+                            label = label,
+                            value = (draft[f.key] as? String).orEmpty(),
+                            onChange = { draft[f.key] = it }
+                        )
                         FieldType.CHOICE -> {
                             val cur = (draft[f.key] as? String).orEmpty()
                             val dyn = f.dynamic?.replace(Regex("\\{(\\w+)\\}")) { mr -> (draft[mr.groupValues[1]] as? String).orEmpty() }
@@ -985,6 +1003,52 @@ private fun RecordForm(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+/** A time picked on a clock, saved as "HH:mm". Clearing it makes the item all day. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeField(label: String, value: String, onChange: (String) -> Unit) {
+    var show by remember { mutableStateOf(false) }
+    val parsed = com.familyhub.app.work.ReminderRules.parseTime(value)
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = { show = true }, modifier = Modifier.weight(1f)) {
+            Text(
+                text = label.substringBefore(" (") + ": " + com.familyhub.app.work.ReminderRules.timeText(value),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (parsed != null) {
+            IconButton(onClick = { onChange("") }) {
+                Icon(Icons.Rounded.Close, contentDescription = "All day (no time)")
+            }
+        }
+    }
+    if (show) {
+        val state = rememberTimePickerState(
+            initialHour = parsed?.first ?: 9,
+            initialMinute = parsed?.second ?: 0,
+            is24Hour = android.text.format.DateFormat.is24HourFormat(androidx.compose.ui.platform.LocalContext.current)
+        )
+        AlertDialog(
+            onDismissRequest = { show = false },
+            title = { Text(label.substringBefore(" (")) },
+            text = { TimePicker(state = state) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange(String.format(Locale.US, "%02d:%02d", state.hour, state.minute))
+                    show = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { onChange(""); show = false }) { Text("All day") }
+                    TextButton(onClick = { show = false }) { Text("Cancel") }
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

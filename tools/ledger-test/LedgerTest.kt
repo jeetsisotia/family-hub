@@ -250,5 +250,22 @@ fun main() {
         System.currentTimeMillis() - t0 < 2000
     })
 
+    // Repeating renewals on the 31st must not drift to the 28th after February (Phase 7 fix).
+    run {
+        val sub = mapOf("id" to "s31", "type" to "subscription", "title" to "Cloud plan", "amountInr" to 99.0, "cycle" to "Monthly", "renewalMillis" to at(2026, 1, 31))
+        val dues = Ledger.dues(mapOf("items" to listOf(sub), "expenses" to emptyList()), at(2026, 3, 1), at(2026, 5, 31), at(2026, 3, 1))
+        val days = dues.filter { it.key.startsWith("sub:") }.map { Calendar.getInstance().apply { timeInMillis = it.dueMillis }.get(Calendar.DAY_OF_MONTH) }
+        check("renewal on the 31st: 31 Mar, 30 Apr, 31 May (no drift to the 28th)", days == listOf(31, 30, 31), days)
+        val day = { t: Long -> Calendar.getInstance().apply { timeInMillis = t }.get(Calendar.DAY_OF_MONTH) }
+        var p = at(2026, 1, 31)
+        val seen = ArrayList<Int>()
+        repeat(4) { p = Ledger.addMonthsKeepingDay(p, 1, 31); seen.add(day(p)) }
+        check("monthly premium on the 31st paid 4 times: 28 Feb, 31 Mar, 30 Apr, 31 May", seen == listOf(28, 31, 30, 31), seen)
+        check("yearly premium on 29 Feb 2028 moves to 28 Feb 2029", day(Ledger.addMonthsKeepingDay(at(2028, 2, 29), 12, 29)) == 28)
+        check("renewal on the 31st: next one after February is 31 March", Calendar.getInstance().apply {
+            timeInMillis = Ledger.nextOccurrence(at(2026, 1, 31), 1, at(2026, 3, 2))
+        }.get(Calendar.DAY_OF_MONTH) == 31)
+    }
+
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

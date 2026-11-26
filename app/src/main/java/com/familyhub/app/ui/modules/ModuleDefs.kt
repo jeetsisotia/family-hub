@@ -48,31 +48,21 @@ fun localNoon(utcMillis: Long): Long {
     return c.timeInMillis
 }
 
-/** For repeating items (birthdays, renewals, salaries) returns the next date on or after today. */
-fun nextOccurrence(start: Long, repeat: String, now: Long = System.currentTimeMillis()): Long {
-    val rep = repeat.uppercase()
-    val today0 = startOfDay(now)
-    if (rep.isBlank() || rep == "NONE" || start >= today0) return start
-    val cal = Calendar.getInstance()
-    cal.timeInMillis = start
-    var guard = 0
-    while (cal.timeInMillis < today0 && guard < 5000) {
-        when (rep) {
-            "YEARLY" -> cal.add(Calendar.YEAR, 1)
-            "QUARTERLY" -> cal.add(Calendar.MONTH, 3)
-            "MONTHLY" -> cal.add(Calendar.MONTH, 1)
-            "WEEKLY" -> cal.add(Calendar.DAY_OF_YEAR, 7)
-            "DAILY" -> cal.add(Calendar.DAY_OF_YEAR, 1)
-            else -> return start
-        }
-        guard++
-    }
-    return cal.timeInMillis
-}
+/**
+ * For repeating items (birthdays, renewals, salaries) returns the next date on or after today. Counted from the
+ * original date each time, so the 31st and 29 February no longer drift (see ReminderRules, tools/reminder-test).
+ */
+fun nextOccurrence(start: Long, repeat: String, now: Long = System.currentTimeMillis()): Long =
+    com.familyhub.app.work.ReminderRules.nextOccurrence(start, repeat, now)
+
+/** Same, for a record whose "Every few days" repeat keeps its number of days in "everyDays". */
+fun nextOccurrenceOf(r: Rec, start: Long, repeat: String, now: Long = System.currentTimeMillis()): Long =
+    com.familyhub.app.work.ReminderRules.nextOccurrence(start, repeat, now, (r.num("everyDays") ?: 0.0).toInt())
 
 // ---------- module definitions ----------
 
-enum class FieldType { TEXT, MULTILINE, NUMBER, DATE, CHOICE, MEMBER, BOOL, PHOTO }
+/** TIME is "HH:mm" text picked on a clock; empty means all day. */
+enum class FieldType { TEXT, MULTILINE, NUMBER, DATE, CHOICE, MEMBER, BOOL, PHOTO, TIME }
 
 data class FieldDef(
     val key: String,
@@ -131,12 +121,14 @@ val financeCategories = listOf(
 val CalendarModule = ModuleDef(
     route = "calendar", title = "Calendar", icon = Icons.Rounded.CalendarMonth,
     collection = "events",
-    titleKey = "title", subtitleKeys = listOf("category", "notes"),
+    titleKey = "title", subtitleKeys = listOf("timeText", "category", "notes"),
     fields = listOf(
         FieldDef("title", "Title", required = true),
         FieldDef("category", "Category", FieldType.CHOICE,
             listOf("Family", "Birthday", "Anniversary", "Doctor", "School", "Office", "Function", "Festival", "Other")),
         FieldDef("startTimeMillis", "Date", FieldType.DATE, required = true),
+        FieldDef("time", "Time (leave empty for all day)", FieldType.TIME),
+        FieldDef("alert", "Alert", FieldType.CHOICE, com.familyhub.app.work.ReminderRules.EVENT_ALERTS.map { it.first }),
         FieldDef("recurrence", "Repeats", FieldType.CHOICE, listOf("NONE", "YEARLY", "MONTHLY", "WEEKLY")),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
@@ -634,12 +626,16 @@ val MedicinesModule = ModuleDef(
 val RemindersModule = ModuleDef(
     route = "reminders", title = "Reminders", icon = Icons.Rounded.Alarm,
     collection = "items", typeValue = "reminder",
-    subtitleKeys = listOf("time", "repeat", "notes"),
+    subtitleKeys = listOf("timeText", "repeat", "memberName", "notes"),
     fields = listOf(
         FieldDef("title", "Remind me to", required = true),
         FieldDef("dateMillis", "Date", FieldType.DATE, required = true),
-        FieldDef("time", "Time, 24-hour (for example 18:30)"),
-        FieldDef("repeat", "Repeats", FieldType.CHOICE, listOf("None", "Daily", "Weekly", "Monthly", "Yearly")),
+        FieldDef("time", "Time (leave empty for all day)", FieldType.TIME),
+        FieldDef("repeat", "Repeats", FieldType.CHOICE, com.familyhub.app.work.ReminderRules.REPEATS),
+        FieldDef("everyDays", "Repeat every how many days", FieldType.NUMBER,
+            showIf = { it["repeat"] == com.familyhub.app.work.ReminderRules.EVERY_FEW_DAYS }),
+        FieldDef("earlyAlert", "Early alert", FieldType.CHOICE, com.familyhub.app.work.ReminderRules.EARLY_ALERTS.map { it.first }),
+        FieldDef("memberName", "For (on a shared reminder, only their phone rings)", FieldType.MEMBER),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
     dateKeys = listOf(DateKey("dateMillis", "Remind")), repeatKey = "repeat",
@@ -848,7 +844,7 @@ fun sortKey(def: ModuleDef, r: Rec): Long {
     val dk = def.dateKeys.firstOrNull()
     val rep = def.repeatKey?.let { r.str(it) }.orEmpty()
     val d = if (dk != null) r.lng(dk.key) else null
-    return if (d != null) nextOccurrence(d, rep) else (r.lng("createdAtMillis") ?: r.lng("updatedAt") ?: 0L)
+    return if (d != null) nextOccurrenceOf(r, d, rep) else (r.lng("createdAtMillis") ?: r.lng("updatedAt") ?: 0L)
 }
 
 fun sortRecords(def: ModuleDef, recs: List<Rec>): List<Rec> {
@@ -894,7 +890,7 @@ fun buildAlerts(data: Map<String, List<Rec>>): List<AlertItem> {
             for (dk in def.dateKeys) {
                 if (def.kind == "policy" && dk.key == "premiumDueMillis") continue
                 val raw = r.lng(dk.key) ?: continue
-                val d = nextOccurrence(raw, rep)
+                val d = nextOccurrenceOf(r, raw, rep)
                 val days = daysUntil(d)
                 if (days > def.alertDays) continue
                 if (days < 0 && (!def.alertOverdue || days < -30)) continue

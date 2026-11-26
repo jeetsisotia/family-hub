@@ -94,6 +94,7 @@ object AlarmScheduler {
     const val EXTRA_SLOT = "slot"
     const val EXTRA_CODE = "code"
     const val EXTRA_HAS_STOCK = "hasStock"
+    const val EXTRA_REPEATING = "repeating"
 
     data class Planned(
         val code: Int,
@@ -103,7 +104,9 @@ object AlarmScheduler {
         val kind: String,
         val path: String,
         val slot: String,
-        val hasStock: Boolean
+        val hasStock: Boolean,
+        /** A repeating reminder: "Done" skips this occurrence only. */
+        val repeating: Boolean = false
     )
 
     private fun docPath(r: Rec, familyId: String, uid: String): String {
@@ -111,7 +114,10 @@ object AlarmScheduler {
         return if (r[PRIVATE_FLAG] == true) "users/$uid/items/$id" else "families/$familyId/items/$id"
     }
 
-    fun plan(items: List<Rec>, familyId: String, uid: String, now: Long = System.currentTimeMillis()): List<Planned> {
+    fun plan(
+        items: List<Rec>, familyId: String, uid: String, now: Long = System.currentTimeMillis(),
+        events: List<Rec> = emptyList(), myName: String = ""
+    ): List<Planned> {
         val horizon = now + 36 * 3_600_000L
         val out = ArrayList<Planned>()
         val today = startOfDay(now)
@@ -169,39 +175,74 @@ object AlarmScheduler {
             }
         }
 
-        for (r in items.filter { it.str("type") == "reminder" && !it.bool("done") }) {
+        for (r in items.filter { it.str("type") == "reminder" && !it.bool("done") && it["isDeleted"] != true }) {
             val date = r.lng("dateMillis") ?: continue
-            val (h, min) = parseTimes(r.str("time")).firstOrNull() ?: (9 to 0)
-            val repeat = r.str("repeat").uppercase()
+            // A shared reminder for someone else rings only on their phone. Private ones and those for nobody
+            // in particular ring here.
+            val forName = r.str("memberName").trim()
+            if (r[PRIVATE_FLAG] != true && forName.isNotEmpty() && myName.isNotBlank() && !forName.equals(myName.trim(), true)) continue
             val path = docPath(r, familyId, uid)
-            var at = atTime(nextOccurrence(date, repeat, now), h, min)
-            if (at <= now && repeat != "" && repeat != "NONE") {
-                at = atTime(nextOccurrence(date, repeat, now + DAY_MS), h, min)
-            }
-            if (at <= now || at > horizon) continue
-            val slot = dayKey(at) + "_" + "%02d%02d".format(h, min)
-            out.add(
-                Planned(
-                    code = (path + slot).hashCode(),
-                    at = at,
-                    title = r.str("title"),
-                    text = r.str("notes").ifBlank { "Reminder from Family Hub" },
-                    kind = "reminder",
-                    path = path,
-                    slot = slot,
-                    hasStock = false
-                )
+            val time = r.str("time")
+            val early = ReminderRules.earlyMinutes(r.str("earlyAlert"))
+            val occ = ReminderRules.occurrences(
+                date, time, r.str("repeat"), (r.num("everyDays") ?: 0.0).toInt(), early, r.str("lastDoneSlot"), now, horizon
             )
+            for (o in occ) {
+                val whenText = ReminderRules.timeText(time).let { if (it == "All day") "Today" else it }
+                out.add(
+                    Planned(
+                        code = (path + o.slot + if (o.early) "early" else "").hashCode(),
+                        at = o.at,
+                        title = if (o.early) ReminderRules.earlyText(early) + ": " + r.str("title") else r.str("title"),
+                        text = r.str("notes").ifBlank { if (o.early) "Due at $whenText." else "Reminder from Family Hub" },
+                        kind = if (o.early) "reminder_early" else "reminder",
+                        path = path,
+                        slot = o.slot,
+                        hasStock = false,
+                        repeating = !r.str("repeat").let { it.isBlank() || it.equals("None", true) }
+                    )
+                )
+            }
+        }
+
+        // Calendar events with a time and an alert (events saved before had neither, so they stay silent).
+        for (e in events.filter { it["isDeleted"] != true }) {
+            val minutes = ReminderRules.eventAlertMinutes(e.str("alert")) ?: continue
+            val time = e.str("time")
+            if (ReminderRules.parseTime(time) == null && minutes < 24 * 60) continue
+            val date = e.lng("startTimeMillis") ?: continue
+            val path = "families/$familyId/events/" + e.str("id")
+            val occ = ReminderRules.occurrences(date, time, e.str("recurrence"), 0, minutes, "", now, horizon)
+                .filter { it.early || minutes == 0 }
+            for (o in occ) {
+                val whenText = ReminderRules.timeText(time)
+                out.add(
+                    Planned(
+                        code = (path + o.slot + "event").hashCode(),
+                        at = o.at,
+                        title = if (minutes == 0) e.str("title") else ReminderRules.earlyText(minutes) + ": " + e.str("title"),
+                        text = listOf(if (whenText == "All day") "All day" else "At $whenText", e.str("category"), e.str("notes"))
+                            .filter { it.isNotBlank() }.joinToString(" • "),
+                        kind = "event",
+                        path = path,
+                        slot = o.slot,
+                        hasStock = false
+                    )
+                )
+            }
         }
         return out.sortedBy { it.at }.take(80)
     }
 
-    fun scheduleAll(ctx: Context, items: List<Rec>, familyId: String, uid: String) {
+    fun scheduleAll(
+        ctx: Context, items: List<Rec>, familyId: String, uid: String,
+        events: List<Rec> = emptyList(), myName: String = ""
+    ) {
         if (uid.isBlank()) return
         try {
             val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
             val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val planned = plan(items, familyId, uid)
+            val planned = plan(items, familyId, uid, System.currentTimeMillis(), events, myName)
             val newCodes = planned.map { it.code }.toSet()
             // Cancel alarms that are no longer needed (medicine deleted, reminder done, time changed).
             val old = prefs.getStringSet(KEY_CODES, emptySet()).orEmpty().mapNotNull { it.toIntOrNull() }
@@ -235,6 +276,7 @@ object AlarmScheduler {
                 putExtra(EXTRA_SLOT, p.slot)
                 putExtra(EXTRA_CODE, code)
                 putExtra(EXTRA_HAS_STOCK, p.hasStock)
+                putExtra(EXTRA_REPEATING, p.repeating)
             }
         }
         return PendingIntent.getBroadcast(ctx, code, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -285,11 +327,18 @@ class AlarmReceiver : BroadcastReceiver() {
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(if (isMedicine) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EVENT)
-            .setContentIntent(Notifier.openApp(ctx, if (isMedicine) "health_hub" else "reminders", code))
+            .setContentIntent(Notifier.openApp(ctx, when {
+                isMedicine -> "health_hub"
+                kind == "event" -> "calendar"
+                else -> "reminders"
+            }, code))
             .setAutoCancel(true)
 
         if (isMedicine) {
             builder.addAction(0, "Taken", actionIntent(ctx, intent, AlarmActionReceiver.ACTION_TAKEN, code + 1))
+        }
+        if (kind == "reminder") {
+            builder.addAction(0, "Done", actionIntent(ctx, intent, AlarmActionReceiver.ACTION_DONE, code + 3))
         }
         builder.addAction(0, "Snooze 10 min", actionIntent(ctx, intent, AlarmActionReceiver.ACTION_SNOOZE, code + 2))
 
@@ -314,6 +363,7 @@ class AlarmActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_TAKEN = "com.familyhub.app.TAKEN"
         const val ACTION_SNOOZE = "com.familyhub.app.SNOOZE"
+        const val ACTION_DONE = "com.familyhub.app.DONE"
     }
 
     override fun onReceive(ctx: Context, intent: Intent) {
@@ -334,6 +384,22 @@ class AlarmActionReceiver : BroadcastReceiver() {
                 FirebaseFirestore.getInstance().document(path).update(updates)
                     .addOnCompleteListener { pending.finish() }
             }
+            ACTION_DONE -> {
+                // A one-time reminder is marked done; a repeating one skips only this occurrence.
+                val path = intent.getStringExtra(AlarmScheduler.EXTRA_PATH).orEmpty()
+                val slot = intent.getStringExtra(AlarmScheduler.EXTRA_SLOT).orEmpty()
+                if (path.isBlank()) return
+                val updates: Map<String, Any> =
+                    if (intent.getBooleanExtra(AlarmScheduler.EXTRA_REPEATING, false)) mapOf("lastDoneSlot" to slot)
+                    else mapOf("done" to true, "doneAtMillis" to System.currentTimeMillis())
+                val pending = goAsync()
+                try {
+                    FirebaseFirestore.getInstance().document(path).update(updates)
+                        .addOnCompleteListener { pending.finish() }
+                } catch (e: Exception) {
+                    pending.finish()
+                }
+            }
             ACTION_SNOOZE -> {
                 val am = ctx.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                 val p = AlarmScheduler.Planned(
@@ -344,7 +410,8 @@ class AlarmActionReceiver : BroadcastReceiver() {
                     kind = intent.getStringExtra(AlarmScheduler.EXTRA_KIND).orEmpty(),
                     path = intent.getStringExtra(AlarmScheduler.EXTRA_PATH).orEmpty(),
                     slot = intent.getStringExtra(AlarmScheduler.EXTRA_SLOT).orEmpty(),
-                    hasStock = intent.getBooleanExtra(AlarmScheduler.EXTRA_HAS_STOCK, false)
+                    hasStock = intent.getBooleanExtra(AlarmScheduler.EXTRA_HAS_STOCK, false),
+                    repeating = intent.getBooleanExtra(AlarmScheduler.EXTRA_REPEATING, false)
                 )
                 try {
                     AlarmScheduler.schedule(ctx, am, p)
@@ -360,7 +427,9 @@ class AlarmActionReceiver : BroadcastReceiver() {
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         val action = intent.action ?: return
-        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        // Also after the clock or time zone changes, so alarms follow the new local times.
+        if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED &&
+            action != Intent.ACTION_TIMEZONE_CHANGED && action != Intent.ACTION_TIME_CHANGED) return
         try {
             WorkManager.getInstance(ctx).enqueue(
                 OneTimeWorkRequestBuilder<ReminderWorker>()

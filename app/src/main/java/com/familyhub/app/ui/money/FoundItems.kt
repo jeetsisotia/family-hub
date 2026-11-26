@@ -143,6 +143,10 @@ suspend fun saveFoundEvent(env: AppEnv, ev: PhoneEvent, title: String, familyVis
             "title" to title, "category" to "Other", "startTimeMillis" to ev.begin,
             "endTimeMillis" to (if (ev.end > ev.begin) ev.end else ev.begin + 3_600_000L),
             "recurrence" to "NONE", "isDeleted" to false, "reminderMinutesBefore" to 30L,
+            // The event's time from the phone calendar ("All day" events keep none).
+            "time" to (if (ev.allDay) "" else java.util.Calendar.getInstance().apply { timeInMillis = ev.begin }.let {
+                String.format(java.util.Locale.US, "%02d:%02d", it.get(java.util.Calendar.HOUR_OF_DAY), it.get(java.util.Calendar.MINUTE))
+            }),
             "notes" to listOf(ev.location, "From phone calendar: ${ev.calendar}").filter { it.isNotBlank() }.joinToString("\n"),
             "sourceKey" to ev.key, "createdByUid" to env.uid, "createdAt" to System.currentTimeMillis()
         ),

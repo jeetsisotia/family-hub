@@ -82,6 +82,7 @@ Each problem below was first reproduced by a test that failed, then fixed. Saved
 | Assistant questions | 22 | Passed |
 | Firestore rules (emulator, on GitHub) | 49 | Passed (run #4); 66 of 66 with calls (run #6) |
 | Safety logic | 64 | Passed (27 Nov) |
+| Reminder rules (repeats, times, early alerts) | 40 | Passed (27 Nov) |
 
 ### Feature inventory
 
@@ -334,6 +335,77 @@ Use a family member's number who knows it is a test.
 
 ---
 
+## Phase 7: reminders, calendar, Home summary and date fixes (bundle p29)
+
+### Errors found and fixed (each reproduced by a failing test first)
+
+| Problem | Cause | Fix | Test |
+|---|---|---|---|
+| A monthly reminder or event on the 31st moved to the 28th after February **and stayed there**. A 29 February birthday stayed on the 28th even in leap years. | Repeats added one month or year at a time, so each short month cut the day for good. | Every repeat is counted from the original date. The 31st falls on the last day of shorter months and returns to the 31st. | Passed (`tools/reminder-test`, with the old code kept to show the drift) |
+| A subscription renewing on the 31st showed as due on the 28th in March, April and May | Same cause, in the money engine (`Ledger`) | Same fix | Passed (`tools/ledger-test`) |
+| Paying a monthly insurance premium due on the 31st moved the next due date to the 28th for good | Same cause, when a paid premium moves to the next period | The original day is kept (`premiumDueDay`) and used for each new period | Passed (`tools/ledger-test`) |
+
+No saved dates were changed. Only the next dates worked out from them are now right.
+
+### Reminders
+
+- **Time picker:** a clock replaces typing "18:30". "All day" clears the time.
+  - Existing reminders keep their time. Those without one are all-day: they notify at 9:00 as before, and now say "All day".
+  - A typed time that cannot be read is refused, instead of being saved and ignored.
+- **Times are shown everywhere:** in the reminder and calendar lists (next to the date and in the summary line), on Home, and in notifications.
+- **Repeats:** None, Daily, Weekly, Monthly, Yearly, and **Every few days** (with the number of days).
+- **Early alert:** 5 minutes, 15 minutes, 30 minutes, 1 hour or 1 day before, as well as the alert at the time.
+- **Done from the notification:** a one-time reminder is marked done; a repeating one skips only that day. **Snooze 10 min** was already there.
+- **Shared reminders, "For":** on a shared reminder, only that person's phone rings. Reminders with nobody chosen (all older ones) and private ones ring as before.
+- **Closed app and restart:** exact alarms for the next 36 hours, re-planned:
+  - when the app opens
+  - each day
+  - after a restart or app update
+  - **after a time zone or clock change** (new)
+- **No duplicate alerts:** each occurrence has a fixed key. Re-planning every hour for 10 days gave exactly one alarm per day (tested).
+- **Medicines:** several times a day, Taken and Snooze were already there and are unchanged.
+
+### Calendar
+
+- Events can now have a **time** and an **alert**: at the time, 15 or 30 minutes before, 1 hour before, or 1 day before.
+- Older events have no alert, so they stay silent as before.
+- Events copied from the phone's calendar keep their time.
+- Birthdays, anniversaries, school, office, doctor and function categories were already there. EMI, card, utility and insurance dues are in the Due calendar.
+
+### Home: "Today" card
+
+- Today's reminders and events with their times ("All day" when there is none). A repeating reminder marked done today is left out.
+- Missed calls today (only when calls are used).
+- **Safety status** (sharing location, arrival check, low-battery SMS) with an **SOS** button.
+- A warning with a "Fix in Settings" button when notifications are off, or when on-time alarms are not allowed (Android 12).
+- It uses the records and call history already loaded, so it costs **no extra Firestore reads**.
+- Finance, dues, unread chats and health were already on Home.
+
+### Not done in this phase
+
+- **Data reliability** (offline use, sync conflicts, backup and restore, export and import): reviewed only. No changes were made in this bundle.
+- **A shared reminder made on another phone:** it reaches your phone's alarms the next time your app opens, or at the daily background check (Android may delay that). There is no instant push, because that needs a paid server.
+
+### Tests
+
+| What | Result |
+|---|---|
+| `tools/reminder-test` (40 checks) | **Passed** |
+| `tools/ledger-test` (78 checks, 2 new for month ends and 2 for premiums) | **Passed** |
+| `tools/safety-test` (64 checks) | **Passed** (unchanged) |
+| APK build and emulator screens (Home with Today, the reminder list) | Runs after upload |
+| Alarms on a real phone: closed app, restart, time zone change, Done and Snooze buttons, early alerts | **Needs my phone** |
+
+### Phone checklist for reminders (Needs my phone)
+
+1. Add a reminder for 3 minutes from now with "5 minutes before" off, close the app. The notification comes on time. Tap **Done**: it shows as done in Reminders.
+2. Add a daily reminder for 2 minutes from now. When it rings, tap **Snooze 10 min**. It rings again 10 minutes later. Tomorrow it rings again.
+3. Restart the phone before a reminder's time: it still rings.
+4. Add a calendar event today with a time 20 minutes ahead and "15 minutes before": an alert comes 15 minutes early.
+5. Check Home → Today shows them with their times.
+
+---
+
 ## Phase 3: family chat (built, not yet tested on phones)
 
 ### What is in it
@@ -397,8 +469,8 @@ Use a family member's number who knows it is a test.
 
 ## Next step
 
-1. Phase 7: reliability, calendar, reminder dates and times, Home summaries (including safety status and missed calls).
-2. Phase 8: extra free features, then the final report.
+1. Bundle p29 (Phase 7): check the APK build and the emulator screens.
+2. Phase 8: extra free features, then the final report. Data reliability (backup, restore, sync conflicts) is still to be reviewed in depth.
 3. **Suggested workflow fix (not applied: changing CI files from here was refused).** In `.github/workflows/build-apk.yml`, the "Check Gemini API key" step should get `timeout-minutes: 2` and `continue-on-error: true`, and its two `curl` calls `--max-time 20`. Then a slow Gemini reply can never hold up the APK again. Jeet can make this edit on github.com.
 3. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
 
@@ -424,5 +496,6 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - **Chats (Needs my phone):** send a message between two phones, then check unread counts, Retry when offline, and the notification within about 15 minutes.
 - **Reduce transparency and dark mode (Needs my phone):** switch them in Settings → Appearance and check that the text is easy to read.
 - **Merchant categories (Needs my phone):** change a transaction's category, pick "Apply to all", then import an SMS from the same shop.
+- **Reminders (Needs my phone):** follow the Phase 7 phone checklist.
 - **Safety (Needs my phone):** follow the Phase 6 phone checklist. Use only a willing family member's number for SMS tests.
 - **Calls (Needs my phone):** with the app open on both phones, call voice and video on the same Wi-Fi, on two different Wi-Fi networks, and with one phone on mobile data. Try mute, speaker, Bluetooth, camera switch, and leaving the app during a video call.

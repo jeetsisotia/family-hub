@@ -361,6 +361,16 @@ object Ledger {
         return "%04d-%02d".format(c.get(Calendar.YEAR), c.get(Calendar.MONTH) + 1)
     }
 
+    /**
+     * [at] moved by [months], on [anchorDay] of that month (or its last day if shorter). Used when a premium is
+     * paid and moves to the next period, so a due date on the 31st does not stay on the 28th after February.
+     */
+    fun addMonthsKeepingDay(at: Long, months: Int, anchorDay: Int): Long {
+        val c = Calendar.getInstance().apply { timeInMillis = at; set(Calendar.DAY_OF_MONTH, 1); add(Calendar.MONTH, months) }
+        c.set(Calendar.DAY_OF_MONTH, anchorDay.coerceIn(1, c.getActualMaximum(Calendar.DAY_OF_MONTH)))
+        return c.timeInMillis
+    }
+
     private fun addMonths(at: Long, months: Int): Long =
         Calendar.getInstance().apply { timeInMillis = at; add(Calendar.MONTH, months) }.timeInMillis
 
@@ -371,12 +381,20 @@ object Ledger {
         else -> 1
     }
 
-    /** First occurrence of a repeating date on or after [from]. */
-    fun nextOccurrence(start: Long, everyMonths: Int, from: Long): Long {
+    /**
+     * First occurrence of a repeating date on or after [from]. Each repeat is counted from [start] itself, so a
+     * date on the 31st falls on the last day of shorter months and returns to the 31st (it used to drift to the
+     * 28th for good after February).
+     */
+    fun nextOccurrence(start: Long, everyMonths: Int, from: Long): Long = occurrenceAtOrAfter(start, everyMonths, from).second
+
+    /** (k, date): the first repeat number k (0 = [start]) whose date is on or after [from]. */
+    private fun occurrenceAtOrAfter(start: Long, everyMonths: Int, from: Long): Pair<Int, Long> {
+        val step = everyMonths.coerceAtLeast(1)
+        var k = 0
         var d = start
-        var guard = 0
-        while (d < from && guard < 1200) { d = addMonths(d, everyMonths); guard++ }
-        return d
+        while (d < from && k < 1200) { k++; d = addMonths(start, step * k) }
+        return k to d
     }
 
     /**
@@ -451,13 +469,14 @@ object Ledger {
         for (sub in items.filter { it.s("type") == "subscription" && live(it) }) {
             val start = sub.l("renewalMillis") ?: continue
             val every = cycleMonths(sub.s("cycle"))
-            var d = nextOccurrence(start, every, from)
-            while (d <= to) {
+            var (k, d) = occurrenceAtOrAfter(start, every, from)
+            while (d <= to && k < 1200) {
                 val key = "sub:${id(sub)}:${monthKey(d)}"
                 if (key !in materialised) {
                     out.add(Due(key, "subscription", sub.s("title"), sub.n("amountInr") ?: 0.0, null, d, status(false, d), sub.l("snoozedUntilMillis"), "items", id(sub), null, "Subscriptions"))
                 }
-                d = addMonths(d, every)
+                k++
+                d = addMonths(start, every.coerceAtLeast(1) * k)
             }
         }
 

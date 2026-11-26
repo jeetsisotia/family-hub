@@ -264,8 +264,12 @@ class MainActivity : FragmentActivity() {
                     }
 
                     // Exact-time alarms for medicines and reminders follow the records.
-                    LaunchedEffect(itemRecs, activeFamilyId) {
-                        AlarmScheduler.scheduleAll(context, itemRecs.filter { it["isDeleted"] != true }, activeFamilyId, uid)
+                    LaunchedEffect(itemRecs, eventRecs, activeFamilyId, profile.name) {
+                        AlarmScheduler.scheduleAll(
+                            context, itemRecs.filter { it["isDeleted"] != true }, activeFamilyId, uid,
+                            events = eventRecs.filter { it["isDeleted"] != true && it[com.familyhub.app.data.remote.PRIVATE_FLAG] != true },
+                            myName = profile.name
+                        )
                     }
                     LaunchedEffect(uid, profile.familyIds, activeFamilyId) {
                         StepTracker.setFamilies(context, profile.familyIds + activeFamilyId)
@@ -540,6 +544,7 @@ class MainActivity : FragmentActivity() {
                                                 homeOrder = userDoc.stringList("homeOrder"),
                                                 homeHidden = userDoc.stringList("homeHidden").toSet(),
                                                 duesCard = { com.familyhub.app.ui.money.HomeDues(envFor(currentFamily)) },
+                                                todayCard = { com.familyhub.app.ui.screens.TodayCard(envFor(currentFamily)) },
                                                 glanceCard = { fv ->
                                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                                         // New chat messages, from the same count as the Chats tab (no extra reads).

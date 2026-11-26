@@ -114,8 +114,11 @@ object DueActions {
         // Move a yearly premium to next year.
         if (d.kind == "policy" && src != null) {
             val months = when (src.str("premiumCycle").lowercase()) { "monthly" -> 1; "quarterly" -> 3; "half-yearly" -> 6; else -> 12 }
-            val next = Calendar.getInstance().apply { timeInMillis = d.dueMillis; add(Calendar.MONTH, months) }.timeInMillis
-            env.repo.setFieldsScoped(env.familyId, env.uid, "items", src, mapOf("premiumDueMillis" to next))
+            // The original day of the month is remembered, so a premium due on the 31st returns to the 31st.
+            val anchor = (src["premiumDueDay"] as? Number)?.toInt()
+                ?: Calendar.getInstance().apply { timeInMillis = d.dueMillis }.get(Calendar.DAY_OF_MONTH)
+            val next = Ledger.addMonthsKeepingDay(d.dueMillis, months, anchor)
+            env.repo.setFieldsScoped(env.familyId, env.uid, "items", src, mapOf("premiumDueMillis" to next, "premiumDueDay" to anchor))
         }
     }
 

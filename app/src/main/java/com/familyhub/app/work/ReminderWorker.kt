@@ -77,7 +77,11 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                 data[c] = if (c == "expenses") list else list.filter { it["isDeleted"] != true }
             }
 
-            AlarmScheduler.scheduleAll(ctx, data["items"].orEmpty(), familyId, user.uid)
+            AlarmScheduler.scheduleAll(
+                ctx, data["items"].orEmpty(), familyId, user.uid,
+                events = data["events"].orEmpty().filter { it[PRIVATE_FLAG] != true },
+                myName = profile.getString("name").orEmpty()
+            )
             if (StepTracker.isEnabled(ctx)) StepService.sync(ctx)
             com.familyhub.app.health.HealthNotification.refresh(ctx)
             try {
