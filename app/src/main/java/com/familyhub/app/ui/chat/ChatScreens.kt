@@ -9,6 +9,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -322,19 +325,22 @@ private fun SwipeChat(
     SwipeToDismissBox(
         state = state,
         backgroundContent = {
-            val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-            val color = if (toEnd) Color(0xFFFF9F0A) else Color(0xFF8E8E93)
-            Row(
-                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)).background(color).padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = if (toEnd) Arrangement.Start else Arrangement.End
-            ) {
-                Icon(if (toEnd) Icons.Rounded.PushPin else Icons.Rounded.Archive, contentDescription = null, tint = Color.White)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (toEnd) (if (pinned) "Unpin" else "Pin") else (if (archived) "Unarchive" else "Archive"),
-                    color = Color.White, fontWeight = FontWeight.SemiBold
-                )
+            // Nothing behind the row until it is actually swiped (the rows are see-through glass).
+            if (state.dismissDirection != SwipeToDismissBoxValue.Settled) {
+                val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+                val color = if (toEnd) Color(0xFFFF9F0A) else Color(0xFF8E8E93)
+                Row(
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)).background(color).padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = if (toEnd) Arrangement.Start else Arrangement.End
+                ) {
+                    Icon(if (toEnd) Icons.Rounded.PushPin else Icons.Rounded.Archive, contentDescription = null, tint = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (toEnd) (if (pinned) "Unpin" else "Pin") else (if (archived) "Unarchive" else "Archive"),
+                        color = Color.White, fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     ) { content() }
@@ -402,6 +408,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
     var menuFor by remember { mutableStateOf<Message?>(null) }
     var forwardOf by remember { mutableStateOf<Message?>(null) }
     var showEmoji by remember { mutableStateOf(false) }
+    var showPoll by remember { mutableStateOf(false) }
     var reactPickerFor by remember { mutableStateOf<Message?>(null) }
     var searching by remember { mutableStateOf(false) }
     var search by remember { mutableStateOf("") }
@@ -417,6 +424,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
         try { ChatRepository.ensureChat(env.familyId, chatId, chatId.removePrefix("dm_").split('_'), env.uid) } catch (e: Exception) { }
     }
     // Reading the chat marks it read (once per new message, not on every scroll).
+    val handles = remember(env.members) { env.members.filter { it.status == "ACTIVE" }.map { Mentions.handle(it.name) } }
     val newest = messages?.lastOrNull()
     LaunchedEffect(newest?.id) {
         if (newest != null) {
@@ -518,7 +526,15 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
                                     try { ChatRepository.resend(env.familyId, chatId, env.uid, myName, m) } catch (e: Exception) { }
                                 },
                                 onReact = { e -> scope.launch { try { ChatRepository.react(env.familyId, chatId, m.id, env.uid, if (m.reactions[env.uid] == e) null else e) } catch (x: Exception) { } } },
-                                myUid = env.uid
+                                myUid = env.uid,
+                                handles = handles,
+                                onVote = { option ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    scope.launch {
+                                        try { ChatRepository.vote(env.familyId, chatId, m.id, env.uid, if (m.votes[env.uid] == option) null else option) }
+                                        catch (e: Exception) { Toast.makeText(context, "Could not vote: ${e.message}", Toast.LENGTH_LONG).show() }
+                                    }
+                                }
                             )
                         }
                     }
@@ -552,15 +568,40 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
                 }
             }
         }
+        // @mentions in the family chat: suggest members while a name is typed after "@".
+        val typing = if (chatId == ChatRepository.FAMILY_CHAT) Mentions.partial(text) else null
+        if (typing != null) {
+            val names = Mentions.suggestions(typing, env.members.filter { it.status == "ACTIVE" && it.uid != env.uid }.map { it.name })
+            if (names.isNotEmpty()) Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                names.forEach { n -> AssistChip(onClick = { text = Mentions.complete(text, n) }, label = { Text("@" + Mentions.handle(n)) }) }
+            }
+        }
         if (showEmoji) EmojiPanel(onPick = { e -> text += e; ChatPrefs.useEmoji(context, e) })
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
             IconButton(onClick = { showEmoji = !showEmoji }) { Icon(if (showEmoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, "Emoji") }
+            if (text.isEmpty() && editing == null) IconButton(onClick = { showPoll = true }) { Icon(Icons.Rounded.Poll, "Create a poll") }
             OutlinedTextField(
                 value = text, onValueChange = { if (it.length <= ChatRepository.MAX_TEXT) text = it },
                 placeholder = { Text("Message") }, maxLines = 5, shape = RoundedCornerShape(22.dp), modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(6.dp))
             FilledIconButton(onClick = { send() }, enabled = text.isNotBlank()) { Icon(if (editing != null) Icons.Rounded.Check else Icons.Rounded.Send, "Send") }
+        }
+    }
+
+    if (showPoll) PollDialog(onDismiss = { showPoll = false }) { question, options ->
+        showPoll = false
+        try {
+            val sentAt = System.currentTimeMillis()
+            ChatRepository.send(env.familyId, chatId, env.uid, myName, question, pollOptions = options) { id ->
+                failed[id] = Message(id, env.uid, myName, question, sentAt, true, null, false, "", "", "", false, emptyMap(), options)
+            }
+            scope.launch { listState.animateScrollToItem(0) }
+        } catch (e: Exception) {
+            Toast.makeText(context, "Could not send the poll: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -645,10 +686,12 @@ private fun seenText(m: Message, reads: Map<String, Long>, env: AppEnv): String 
 @Composable
 private fun Bubble(
     m: Message, mine: Boolean, showName: Boolean, tail: Boolean, starred: Boolean, failed: Boolean, seen: String,
-    onLong: () -> Unit, onSwipeReply: () -> Unit, onRetry: () -> Unit, onReact: (String) -> Unit, myUid: String
+    onLong: () -> Unit, onSwipeReply: () -> Unit, onRetry: () -> Unit, onReact: (String) -> Unit, myUid: String,
+    handles: List<String> = emptyList(),
+    onVote: (Int) -> Unit = {}
 ) {
     var drag by remember { mutableFloatStateOf(0f) }
-    val emojiOnly = !m.deletedForAll && isEmojiOnly(m.text)
+    val emojiOnly = !m.deletedForAll && m.pollOptions.isEmpty() && isEmojiOnly(m.text)
     val bg = when {
         emojiOnly -> Color.Transparent
         mine -> MaterialTheme.colorScheme.primary
@@ -693,7 +736,8 @@ private fun Bubble(
                 when {
                     m.deletedForAll -> Text("This message was deleted", color = fg.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium)
                     emojiOnly -> Text(m.text, fontSize = 44.sp, lineHeight = 52.sp)
-                    else -> Text(m.text, color = fg, style = MaterialTheme.typography.bodyLarge)
+                    m.pollOptions.size >= 2 -> PollBody(m, fg, myUid, onVote)
+                    else -> Text(mentionText(m.text, handles), color = fg, style = MaterialTheme.typography.bodyLarge)
                 }
                 Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                     if (starred) Icon(Icons.Rounded.Star, "Starred", tint = fg.copy(alpha = 0.7f), modifier = Modifier.size(12.dp))
@@ -742,3 +786,96 @@ private fun EmojiPanel(onPick: (String) -> Unit) {
 @Composable
 private fun SheetItem(close: () -> Unit, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, action: () -> Unit) =
     ListItem(headlineContent = { Text(label) }, leadingContent = { Icon(icon, null) }, modifier = Modifier.clickable { close(); action() })
+
+/** Message text with @mentions of family members in bold. */
+private fun mentionText(text: String, handles: List<String>): androidx.compose.ui.text.AnnotatedString {
+    val ranges = Mentions.ranges(text, handles)
+    if (ranges.isEmpty()) return androidx.compose.ui.text.AnnotatedString(text)
+    return androidx.compose.ui.text.buildAnnotatedString {
+        append(text)
+        ranges.forEach { r -> addStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold), r.first, r.last + 1) }
+    }
+}
+
+/** A poll inside a bubble: the question, then each answer with its votes. Tap an answer to vote; tap again to undo. */
+@Composable
+private fun PollBody(m: Message, fg: Color, myUid: String, onVote: (Int) -> Unit) {
+    val total = m.votes.size
+    val mine = m.votes[myUid]
+    Column(Modifier.widthIn(min = 220.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Poll, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(m.text, color = fg, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+        }
+        m.pollOptions.forEachIndexed { i, option ->
+            val count = m.votes.values.count { it == i }
+            val share = if (total == 0) 0f else count.toFloat() / total
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { onVote(i) }.padding(vertical = 4.dp, horizontal = 2.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (mine == i) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                        contentDescription = if (mine == i) "Your vote" else null,
+                        tint = fg, modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(option, color = fg, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text(count.toString(), color = fg, style = MaterialTheme.typography.labelLarge)
+                }
+                Box(Modifier.padding(start = 26.dp, top = 4.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)).background(fg.copy(alpha = 0.18f))) {
+                    Box(Modifier.fillMaxWidth(share).fillMaxHeight().clip(RoundedCornerShape(2.dp)).background(fg.copy(alpha = 0.8f)))
+                }
+            }
+        }
+        Text(
+            if (total == 1) "1 vote" else "$total votes",
+            color = fg.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall
+        )
+    }
+}
+
+/** Ask a question with 2 to 6 answers. */
+@Composable
+private fun PollDialog(onDismiss: () -> Unit, onSend: (String, List<String>) -> Unit) {
+    var question by remember { mutableStateOf("") }
+    val options = remember { mutableStateListOf("", "") }
+    val ready = question.isNotBlank() && options.count { it.isNotBlank() } >= 2
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New poll") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = question, onValueChange = { question = it.take(300) },
+                    label = { Text("Question") }, maxLines = 3, modifier = Modifier.fillMaxWidth()
+                )
+                options.forEachIndexed { i, o ->
+                    OutlinedTextField(
+                        value = o, onValueChange = { options[i] = it.take(ChatRepository.POLL_OPTION_MAX) },
+                        label = { Text("Answer ${i + 1}") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = if (options.size > 2) {
+                            { IconButton(onClick = { options.removeAt(i) }) { Icon(Icons.Rounded.Close, "Remove answer") } }
+                        } else null
+                    )
+                }
+                if (options.size < ChatRepository.POLL_MAX) TextButton(onClick = { options.add("") }) {
+                    Icon(Icons.Rounded.Add, null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Add answer")
+                }
+                Text(
+                    "Everyone in this chat can vote once and change their vote. Chat members can see who voted for what.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = ready, onClick = { onSend(question.trim(), options.map { it.trim() }.filter { it.isNotEmpty() }) }) {
+                Text("Send", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}

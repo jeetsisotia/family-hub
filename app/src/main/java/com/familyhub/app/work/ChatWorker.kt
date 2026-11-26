@@ -65,7 +65,9 @@ class ChatWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
         if (!prefs.contains(KEY_SEEN)) { prefs.edit().putLong(KEY_SEEN, since).apply(); return Result.success() }
         return try {
             val db = FirebaseFirestore.getInstance()
-            val familyId = db.collection("users").document(uid).get().await().getString("activeFamilyId").orEmpty()
+            val me = db.collection("users").document(uid).get().await()
+            val familyId = me.getString("activeFamilyId").orEmpty()
+            val myName = me.getString("name").orEmpty()
             if (familyId.isBlank()) return Result.success()
             val muted = prefs.getStringSet("muted", emptySet()).orEmpty()
             val chats = db.collection("families").document(familyId).collection("chats")
@@ -75,9 +77,15 @@ class ChatWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
             ensureChannel(ctx)
             for (d in docs) {
                 val at = (d.get("lastAt") as? Timestamp)?.toDate()?.time ?: 0L
-                if (at <= since || d.getString("lastSenderUid") == uid || d.id in muted) continue
+                // An @mention of me notifies even in a muted chat.
+                val mentioned = myName.isNotBlank() && com.familyhub.app.ui.chat.Mentions.mentions(d.getString("lastText").orEmpty(), myName)
+                if (at <= since || d.getString("lastSenderUid") == uid || (d.id in muted && !mentioned)) continue
                 newest = maxOf(newest, at)
-                val title = if (d.id == ChatRepository.FAMILY_CHAT) "Family chat" else "New message"
+                val title = when {
+                    mentioned -> "You were mentioned"
+                    d.id == ChatRepository.FAMILY_CHAT -> "Family chat"
+                    else -> "New message"
+                }
                 val n = NotificationCompat.Builder(ctx, CHANNEL)
                     .setSmallIcon(android.R.drawable.sym_action_chat)
                     .setContentTitle(title)

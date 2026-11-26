@@ -24,6 +24,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -518,7 +520,28 @@ class MainActivity : FragmentActivity() {
                                                 homeOrder = userDoc.stringList("homeOrder"),
                                                 homeHidden = userDoc.stringList("homeHidden").toSet(),
                                                 duesCard = { com.familyhub.app.ui.money.HomeDues(envFor(currentFamily)) },
-                                                glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(envFor(currentFamily), fv) }
+                                                glanceCard = { fv ->
+                                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                        // New chat messages, from the same count as the Chats tab (no extra reads).
+                                                        if (chatBadge > 0) com.familyhub.app.core.theme.GlassCard(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                                                            onClick = { navigate("chats") }
+                                                        ) {
+                                                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                                Icon(Icons.Rounded.ChatBubbleOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                                                                Spacer(Modifier.width(10.dp))
+                                                                Text(
+                                                                    if (chatBadge == 1) "1 chat has new messages" else "$chatBadge chats have new messages",
+                                                                    style = MaterialTheme.typography.titleSmall,
+                                                                    modifier = Modifier.weight(1f)
+                                                                )
+                                                                com.familyhub.app.core.theme.CountBadge(chatBadge)
+                                                            }
+                                                        }
+                                                        com.familyhub.app.ui.money.HomeGlance(envFor(currentFamily), fv)
+                                                    }
+                                                }
                                             )
                                         }
                                     }

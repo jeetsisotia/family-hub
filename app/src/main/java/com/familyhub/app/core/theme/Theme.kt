@@ -170,10 +170,14 @@ fun FamilyHubTheme(darkTheme: Boolean = themeIsDark(), content: @Composable () -
             typography = GlassTypography,
             shapes = GlassShapes
         ) {
-            // The softly moving background sits behind every screen.
-            Box(modifier = Modifier.fillMaxSize()) {
-                AuroraBackground()
-                content()
+            // Text and icons without their own colour follow the theme (white in dark mode). Without this they
+            // default to black, which is unreadable on the dark background.
+            CompositionLocalProvider(androidx.compose.material3.LocalContentColor provides MaterialTheme.colorScheme.onBackground) {
+                // The softly moving background sits behind every screen.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AuroraBackground()
+                    content()
+                }
             }
         }
     }

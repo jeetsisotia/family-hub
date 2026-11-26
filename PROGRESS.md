@@ -142,7 +142,13 @@ How each status is known:
 - **No blur library.** The free blur library (Haze) needs a newer Kotlin than the app uses, and a failed build costs a whole cycle. Glass stays translucent, with the solid fallback above. This is the plain fallback the brief allows.
 - **Fonts and icons are Android's own** (Roboto and Material icons, free licences). No Apple fonts, symbols, emoji or names.
 
-### Screenshots
+### Screenshots and checks
+
+- **Build #49:** passed. It compiled the Phase 2 design, the chat build fix and merchant categories, and the emulator photographed every screen.
+- **Review of the #49 screenshots found 2 problems, both fixed in bundle p24:**
+  1. In dark mode, text without its own colour was black and nearly invisible: page titles, "Welcome", list titles. The theme now sets the default text colour for light and dark.
+  2. The chat list's swipe background ("Archive") showed through the see-through rows. It now appears only while a row is being swiped.
+- **Looked right in the review:** Settings (grouped sections, segmented theme control), Home with Reduce transparency (solid cards), the chat list, and a conversation (bubbles, reactions, reply, pinned message, "Seen by").
 
 The automatic emulator check now photographs:
 - the chat list and a conversation (sample messages, no account)
@@ -191,12 +197,22 @@ The automatic emulator check now photographs:
 - **Search:** works within loaded messages. The screen says so.
 - **Notifications:** best-effort. A background check runs about every 15 minutes while online and notifies about new messages in chats that are not muted. Android can delay it in Doze or battery saver.
 
+### Added later (bundle p24)
+
+- **@mentions:** typing "@" in the family chat suggests members, and the name shows in bold. The mentioned person is notified even if the chat is muted. Mentions are plain text, so they cost nothing extra. 14 checks in `tools/chat-test`: **Passed**.
+- **Polls:**
+  - 2 to 6 answers. Tap an answer to vote; tap it again to undo.
+  - Bars show the counts, and chat members can see who voted for what.
+  - Each vote is one write.
+  - The rules let each person set only their own vote, and only for a real answer. 3 new emulator tests, 49 in total.
+- **Home:** a "chats have new messages" card above the money summary. It uses the same count as the Chats tab, so it costs no extra reads.
+
 ### Not in it, and why
 
 | Item | Reason |
 |---|---|
 | Typing indicators and "delivered" ticks | They would write to the database every few seconds and use up free quota. "Seen" is built instead. |
-| Mentions, polls, stickers | Not built yet |
+| Stickers | Not built. Large emoji-only messages cover this without image files. Image stickers would need storage or bundled artwork. |
 | Photos, files and voice notes | No free, secure storage. Firebase Storage needs the paid plan, and storing files inside Firestore is not allowed. |
 | Instant push for a closed app | Needs a trusted server (Cloud Functions or the paid plan) |
 
@@ -220,7 +236,7 @@ The automatic emulator check now photographs:
 
 ## Next step
 
-1. Upload bundle p23 (chat fixes, Phase 2 design, merchant categories). Check that the build and emulator screenshots pass, then review the screenshots.
+1. Upload bundle p24: dark-mode text fix, swipe fix, @mentions, polls and the Home chat card. Check the build, the screenshots and the 49 rules tests, then publish the poll rules.
 2. Finish the chat extras (mentions, polls) and Phase 4 finance.
 3. Then Phase 5 calling (Beta), Phase 6 safety and location, Phase 7 reliability and reminders, Phase 8 extra features, and the final report.
 4. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.

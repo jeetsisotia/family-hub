@@ -31,6 +31,8 @@ object ChatRepository {
     const val FAMILY_CHAT = "family"
     const val PAGE = 60L
     const val MAX_TEXT = 4000
+    const val POLL_MAX = 6
+    const val POLL_OPTION_MAX = 80
 
     private val db: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
 
@@ -67,7 +69,11 @@ object ChatRepository {
         val replyToName: String,
         val forwarded: Boolean,
         /** Who reacted with what: uid to emoji. */
-        val reactions: Map<String, String>
+        val reactions: Map<String, String>,
+        /** A poll's answers (2 to 6); the text is its question. Empty for ordinary messages. */
+        val pollOptions: List<String> = emptyList(),
+        /** Poll votes: uid to the chosen answer's position. */
+        val votes: Map<String, Int> = emptyMap()
     )
 
     private fun millis(v: Any?): Long = when (v) {
@@ -90,6 +96,9 @@ object ChatRepository {
     private fun toMessage(d: DocumentSnapshot): Message {
         @Suppress("UNCHECKED_CAST")
         val reactions = (d.get("reactions") as? Map<String, Any?>).orEmpty().mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
+        val pollOptions = (d.get("pollOptions") as? List<*>).orEmpty().mapNotNull { it as? String }
+        @Suppress("UNCHECKED_CAST")
+        val votes = (d.get("votes") as? Map<String, Any?>).orEmpty().mapNotNull { (k, v) -> (v as? Number)?.let { k to it.toInt() } }.toMap()
         return Message(
             id = d.id,
             senderUid = d.getString("senderUid").orEmpty(),
@@ -104,7 +113,9 @@ object ChatRepository {
             replyToText = d.getString("replyToText").orEmpty(),
             replyToName = d.getString("replyToName").orEmpty(),
             forwarded = d.getBoolean("forwarded") == true,
-            reactions = reactions
+            reactions = reactions,
+            pollOptions = pollOptions,
+            votes = votes
         )
     }
 
@@ -170,15 +181,19 @@ object ChatRepository {
     fun send(
         familyId: String, chatId: String, uid: String, name: String, text: String,
         replyTo: Message? = null, forwarded: Boolean = false,
+        /** Answers for a poll (2 to 6); [text] is then the question. */
+        pollOptions: List<String> = emptyList(),
         /** Called with the message id if the server refuses it (it is then shown as not sent, with Retry). */
         onFailed: ((String) -> Unit)? = null
     ): String {
         val body = text.trim().take(MAX_TEXT)
         require(body.isNotEmpty())
+        val options = pollOptions.map { it.trim().take(POLL_OPTION_MAX) }.filter { it.isNotEmpty() }.distinct().take(POLL_MAX)
+        require(pollOptions.isEmpty() || options.size >= 2)
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
         if (DemoChats.active(familyId)) {
-            DemoChats.add(chatId, Message(id, uid, name, body, now, false, null, false, replyTo?.id.orEmpty(), replyTo?.text?.take(160).orEmpty(), replyTo?.senderName.orEmpty(), forwarded, emptyMap()))
+            DemoChats.add(chatId, Message(id, uid, name, body, now, false, null, false, replyTo?.id.orEmpty(), replyTo?.text?.take(160).orEmpty(), replyTo?.senderName.orEmpty(), forwarded, emptyMap(), options))
             return id
         }
         val msg = HashMap<String, Any?>()
@@ -193,11 +208,12 @@ object ChatRepository {
             msg["replyToName"] = replyTo.senderName
         }
         if (forwarded) msg["forwarded"] = true
+        if (options.isNotEmpty()) msg["pollOptions"] = options
         val batch = db.batch()
         batch.set(messages(familyId, chatId).document(id), msg)
         batch.set(
             chat(familyId, chatId),
-            mapOf("lastText" to body.take(160), "lastSenderUid" to uid, "lastAt" to FieldValue.serverTimestamp()),
+            mapOf("lastText" to (if (options.isNotEmpty()) "📊 " else "") + body.take(160), "lastSenderUid" to uid, "lastAt" to FieldValue.serverTimestamp()),
             SetOptions.merge()
         )
         batch.set(chat(familyId, chatId).collection("reads").document(uid), mapOf("at" to FieldValue.serverTimestamp()))
@@ -207,7 +223,18 @@ object ChatRepository {
 
     /** Sends again a message the server refused; the old copy is left as it was. */
     fun resend(familyId: String, chatId: String, uid: String, name: String, m: Message) =
-        send(familyId, chatId, uid, name, m.text)
+        send(familyId, chatId, uid, name, m.text, pollOptions = m.pollOptions)
+
+    /** Votes for answer [option] of a poll, or clears my vote when null. Only my own vote can change. */
+    suspend fun vote(familyId: String, chatId: String, id: String, uid: String, option: Int?) {
+        if (DemoChats.active(familyId)) {
+            DemoChats.change(chatId, id) { m -> m.copy(votes = if (option == null) m.votes - uid else m.votes + (uid to option)) }
+            return
+        }
+        messages(familyId, chatId).document(id)
+            .update("votes.$uid", option ?: FieldValue.delete())
+            .await()
+    }
 
     suspend fun edit(familyId: String, chatId: String, id: String, text: String) {
         val body = text.trim().take(MAX_TEXT)
@@ -303,18 +330,20 @@ object DemoChats {
         val g4 = m("g4", a, "🎂🎉", now - 23 * hour)
         val g5 = m("g5", b, "Electricity bill is due on the 28th. I've added it to Finance.", now - 2 * hour, reactions = mapOf(me to "🙏", a.first to "❤️"))
         val g6 = m("g6", self, "Thanks! I'll pay it tonight.", now - 90 * 60_000L, reply = g5)
-        val g7 = m("g7", a, "Don't forget Dadi's medicines on the way back 💊", now - 12 * 60_000L)
+        val g7 = m("g7", a, "@Demo don't forget Dadi's medicines on the way back 💊", now - 12 * 60_000L)
         val dm = ChatRepository.directId(me, a.first)
         val d1 = m("d1", a, "Can you pick up the kids from school today?", now - 5 * hour)
         val d2 = m("d2", self, "Sure, I'll leave office by 3.", now - 4 * hour)
         val d3 = m("d3", a, "😊", now - 3 * hour)
-        messages.value = mapOf(ChatRepository.FAMILY_CHAT to listOf(g1, g2, g3, g4, g5, g6, g7), dm to listOf(d1, d2, d3))
+        val poll = m("g8", b, "Sunday lunch: what should we cook?", now - 6 * 60_000L)
+            .copy(pollOptions = listOf("Biryani", "Chole bhature", "Dosa"), votes = mapOf(a.first to 0, me to 0, b.first to 2))
+        messages.value = mapOf(ChatRepository.FAMILY_CHAT to listOf(g1, g2, g3, g4, g5, g6, g7, poll), dm to listOf(d1, d2, d3))
         reads.value = mapOf(
             ChatRepository.FAMILY_CHAT to mapOf(me to now - 60 * 60_000L, b.first to now - 30 * 60_000L),
             dm to mapOf(me to now - 3 * hour, a.first to now - 3 * hour)
         )
         chats.value = listOf(
-            ChatRepository.Chat(ChatRepository.FAMILY_CHAT, "group", emptyList(), "Family", g7.text, a.first, g7.at, "g5"),
+            ChatRepository.Chat(ChatRepository.FAMILY_CHAT, "group", emptyList(), "Family", "📊 " + poll.text, b.first, poll.at, "g5"),
             ChatRepository.Chat(dm, "direct", listOf(me, a.first).sorted(), "", d3.text, a.first, d3.at, "")
         )
     }

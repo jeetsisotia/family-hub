@@ -3,7 +3,7 @@
 import { test, before, after, beforeEach } from 'node:test';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, where, writeBatch, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs, query, where, writeBatch, orderBy, limit } from 'firebase/firestore';
 
 let env;
 const F = 'fam1';
@@ -206,6 +206,29 @@ test('chat: nobody can remove a message for good', async () => {
 test('chat: anyone in the chat may set only their own reaction', async () => {
   await assertSucceeds(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.owner': '👍' }));
   await assertFails(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.member': '👍' }));
+});
+test('chat: a poll needs 2 to 6 answers', async () => {
+  const base = { senderUid: 'member', senderName: 'M', text: 'Dinner?', at: 2, clientAt: 2 };
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/family/messages/p1`), { ...base, pollOptions: ['Pizza', 'Dosa'] }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/messages/p2`), { ...base, pollOptions: ['Only one'] }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/messages/p3`), { ...base, pollOptions: ['1', '2', '3', '4', '5', '6', '7'] }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/messages/p4`), { ...base, pollOptions: 'Pizza' }));
+});
+test('chat: each person votes only for themselves, and only for a real answer', async () => {
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/family/messages/p1`), { senderUid: 'member', senderName: 'M', text: 'Dinner?', at: 2, clientAt: 2, pollOptions: ['Pizza', 'Dosa'] }));
+  const poll = doc(as('owner'), `families/${F}/chats/family/messages/p1`);
+  await assertSucceeds(updateDoc(poll, { 'votes.owner': 1 }));
+  await assertFails(updateDoc(poll, { 'votes.member': 0 }));
+  await assertFails(updateDoc(poll, { 'votes.owner': 5 }));
+  await assertFails(updateDoc(poll, { 'votes.owner': 'Pizza' }));
+  await assertSucceeds(updateDoc(poll, { 'votes.owner': deleteField() }));
+  await assertFails(updateDoc(poll, { pollOptions: ['Pizza', 'Dosa', 'Burger'] }));
+  await assertFails(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'votes.owner': 0 }));
+});
+test('chat: a person outside a direct chat cannot vote in it', async () => {
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/${DM}/messages/p5`), { senderUid: 'member', senderName: 'M', text: 'Movie?', at: 2, clientAt: 2, pollOptions: ['Yes', 'No'] }));
+  await assertFails(updateDoc(doc(as('owner'), `families/${F}/chats/${DM}/messages/p5`), { 'votes.owner': 0 }));
+  await assertSucceeds(updateDoc(doc(as('admin'), `families/${F}/chats/${DM}/messages/p5`), { 'votes.admin': 0 }));
 });
 test('chat: starting a direct chat with another active member works, and with yourself left out does not', async () => {
   await assertSucceeds(setDoc(doc(as('owner'), `families/${F}/chats/dm_member_owner`), { type: 'direct', memberUids: ['member', 'owner'], createdByUid: 'owner', lastAt: 5 }));
