@@ -23,8 +23,6 @@ android {
             ?: ""
 
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
-
-
     }
 
     signingConfigs {
