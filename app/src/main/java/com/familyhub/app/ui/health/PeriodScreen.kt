@@ -108,7 +108,7 @@ fun PeriodScreen(env: AppEnv) {
                                         inDays > 1 -> "Period in $inDays days"
                                         inDays == 1 -> "Period expected tomorrow"
                                         inDays == 0 -> "Period expected today"
-                                        else -> "Period ${-inDays} day(s) late"
+                                        else -> "Period " + com.familyhub.app.ui.common.plural(-inDays, "day") + " late"
                                     },
                                     style = MaterialTheme.typography.headlineSmall,
                                     color = PeriodRed,

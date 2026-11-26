@@ -343,11 +343,11 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
         m.actions.forEach { a ->
             AnimatedVisibility(visible = a.state != "dismissed") {
                 GlassCard(
-                    modifier = Modifier.padding(top = 6.dp, start = cardStart).widthIn(max = 340.dp),
+                    modifier = Modifier.padding(top = 6.dp, start = cardStart).fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
                     strong = true
                 ) {
-                    Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
                         Box(
                             modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(
                                 if (a.local) Brush.linearGradient(listOf(Color(0xFFFF6B8B), Color(0xFFFF2D55)))
@@ -355,23 +355,28 @@ private fun MessageBubble(m: ChatMsg, onAction: (AiAction, Boolean) -> Unit, onA
                             ),
                             contentAlignment = Alignment.Center
                         ) { Icon(actionIcon(a.kind), contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) }
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(actionLabel(a), style = MaterialTheme.typography.bodySmall)
+                            Text(actionLabel(a), style = MaterialTheme.typography.bodyMedium)
                             if (a.state == "failed" && a.error.isNotBlank()) {
                                 Text(a.error, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF3B30))
                             }
-                        }
-                        Spacer(modifier = Modifier.width(6.dp))
-                        when (a.state) {
-                            "added" -> Text(if (a.kind == "open") "Opened ✓" else "Added ✓", color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold)
-                            else -> {
-                                AiPillButton(
-                                    if (a.state == "failed") "Retry" else if (a.kind == "open") "Open" else "Add",
-                                    onClick = { onAction(a, true) }
-                                )
-                                IconButton(onClick = { onAction(a, false) }, modifier = Modifier.size(32.dp)) {
-                                    Icon(Icons.Rounded.Close, contentDescription = "Dismiss", modifier = Modifier.size(16.dp))
+                            Row(modifier = Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                when (a.state) {
+                                    "added" -> Text(
+                                        if (a.kind == "open") "Opened ✓" else "Added ✓",
+                                        color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold
+                                    )
+                                    else -> {
+                                        AiPillButton(
+                                            if (a.state == "failed") "Retry" else if (a.kind == "open") "Open" else "Add",
+                                            onClick = { onAction(a, true) }
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        TextButton(onClick = { onAction(a, false) }) {
+                                            Text("Dismiss", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                        }
+                                    }
                                 }
                             }
                         }

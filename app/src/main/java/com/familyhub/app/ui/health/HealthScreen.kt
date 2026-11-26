@@ -265,7 +265,7 @@ fun HealthScreen(env: AppEnv) {
                         Icon(Icons.Rounded.FitnessCenter, contentDescription = null, tint = Color(0xFFFF9500))
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("$activeMinutes active minutes • ${workouts.size} workout(s)", fontWeight = FontWeight.SemiBold)
+                            Text("$activeMinutes active minutes • " + com.familyhub.app.ui.common.plural(workouts.size, "workout"), fontWeight = FontWeight.SemiBold)
                             LinearProgressIndicator(
                                 progress = { (activeMinutes / 150f).coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
@@ -389,7 +389,7 @@ fun HealthScreen(env: AppEnv) {
                                             inDays > 1 -> "Next period in $inDays days (${shortDate(prediction.nextStart)})"
                                             inDays == 1 -> "Next period expected tomorrow"
                                             inDays == 0 -> "Period expected today"
-                                            else -> "Period is ${-inDays} day(s) late"
+                                            else -> "Period is " + com.familyhub.app.ui.common.plural(-inDays, "day") + " late"
                                         }
                                     },
                                     style = MaterialTheme.typography.bodySmall

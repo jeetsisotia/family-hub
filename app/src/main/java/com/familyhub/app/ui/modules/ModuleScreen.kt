@@ -244,12 +244,24 @@ fun ModuleScreen(
                 }
                 if (shown.isEmpty()) {
                     item {
-                        Text(
-                            text = def.emptyText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
-                            modifier = Modifier.padding(vertical = 24.dp)
-                        )
+                        GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    def.icon, contentDescription = null, modifier = Modifier.size(30.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = def.emptyText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
+                        }
                     }
                 }
                 items(shown, key = { (it[PRIVATE_FLAG] == true).toString() + it.str("id") }) { rec ->

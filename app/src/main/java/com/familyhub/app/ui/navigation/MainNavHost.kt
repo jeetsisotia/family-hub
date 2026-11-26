@@ -128,8 +128,9 @@ fun MoreHubGrid(
                     }
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp, horizontal = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier.fillMaxWidth().height(128.dp).padding(vertical = 12.dp, horizontal = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
                         Box(
                             modifier = Modifier
@@ -146,12 +147,7 @@ fun MoreHubGrid(
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = item.title,
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 2,
-                            textAlign = TextAlign.Center
-                        )
+                        com.familyhub.app.ui.hub.FitLabel(item.title, MaterialTheme.typography.labelLarge)
                     }
                 }
             }

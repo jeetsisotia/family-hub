@@ -85,3 +85,6 @@ fun atTime(dayMillis: Long, h: Int, m: Int): Long {
     c.set(Calendar.MILLISECOND, 0)
     return c.timeInMillis
 }
+
+/** "1 day", "3 days", "1 card", "2 cards". */
+fun plural(n: Int, one: String, many: String = one + "s"): String = "$n " + if (n == 1) one else many

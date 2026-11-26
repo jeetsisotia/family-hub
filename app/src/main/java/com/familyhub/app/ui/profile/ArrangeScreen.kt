@@ -64,9 +64,11 @@ fun ArrangeScreen(
                             Icon(d.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
                         }
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(
+                        com.familyhub.app.ui.hub.FitLabel(
                             d.title,
+                            MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Start,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (visible) 1f else 0.45f)
                         )
                         IconButton(onClick = {

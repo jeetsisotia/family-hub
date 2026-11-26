@@ -87,7 +87,7 @@ fun CardsScreen(env: AppEnv) {
                                 Text("Bills still to pay", style = MaterialTheme.typography.labelLarge)
                                 Text(inr(totalDue), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                             }
-                            Text("${cards.size} card(s)", style = MaterialTheme.typography.bodySmall)
+                            Text(com.familyhub.app.ui.common.plural(cards.size, "card"), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }

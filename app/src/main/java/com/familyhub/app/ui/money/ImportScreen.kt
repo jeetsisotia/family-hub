@@ -104,7 +104,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
         message = when {
             list.isEmpty() -> "No bank transactions found in the last $days days."
             newCount == 0 -> "Everything found is already in Finance."
-            else -> "$newCount new transaction(s) found. Check them and tap Add."
+            else -> "${com.familyhub.app.ui.common.plural(newCount, "new transaction")} found. Check them and tap Add."
         }
     }
 
@@ -227,7 +227,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                 }
             }
             busy = false
-            Toast.makeText(context, "$ok transaction(s) added to Finance", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "${com.familyhub.app.ui.common.plural(ok, "transaction")} added to Finance", Toast.LENGTH_SHORT).show()
             message = "$ok added. They now show in Finance and Money Insights."
         }
     }

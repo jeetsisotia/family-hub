@@ -14,6 +14,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -105,16 +111,49 @@ fun hubCount(env: AppEnv, route: String): Int? {
     return recordsFor(def, env.data[def.collection].orEmpty()).size.takeIf { it > 0 }
 }
 
-/** A compact four-across grid of glass tiles, for the top of a hub screen. */
+/**
+ * A label that steps its size down instead of splitting a word across lines
+ * ("Maintenance" rather than "Maintenan / ce").
+ */
+@Composable
+fun FitLabel(
+    text: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = 2,
+    textAlign: TextAlign = TextAlign.Center,
+    color: Color = Color.Unspecified
+) {
+    var size by remember(text) { mutableStateOf(style.fontSize) }
+    Text(
+        text,
+        style = style.copy(fontSize = size),
+        color = color,
+        textAlign = textAlign,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+        onTextLayout = { r ->
+            var broken = r.hasVisualOverflow
+            for (i in 0 until r.lineCount - 1) {
+                val end = r.getLineEnd(i, visibleEnd = true)
+                if (end in 1 until text.length && text[end - 1].isLetterOrDigit() && text[end].isLetterOrDigit()) broken = true
+            }
+            if (broken && size.isSp && size.value > 9f) size = (size.value - 1f).sp
+        }
+    )
+}
+
+/** A compact three-across grid of glass tiles, for the top of a hub screen. */
 @Composable
 fun HubTiles(items: List<HubItem>, onOpen: (String) -> Unit, counts: (String) -> Int? = { null }) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        items.chunked(4).forEachIndexed { row, chunk ->
+        items.chunked(3).forEachIndexed { row, chunk ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 chunk.forEachIndexed { col, item ->
-                    HubTile(item, row * 4 + col, counts(item.route), Modifier.weight(1f)) { onOpen(item.route) }
+                    HubTile(item, row * 3 + col, counts(item.route), Modifier.weight(1f)) { onOpen(item.route) }
                 }
-                repeat(4 - chunk.size) { Spacer(modifier = Modifier.weight(1f)) }
+                repeat(3 - chunk.size) { Spacer(modifier = Modifier.weight(1f)) }
             }
         }
     }
@@ -124,8 +163,9 @@ fun HubTiles(items: List<HubItem>, onOpen: (String) -> Unit, counts: (String) ->
 private fun HubTile(item: HubItem, index: Int, count: Int?, modifier: Modifier, onClick: () -> Unit) {
     GlassCard(modifier = modifier, onClick = onClick, shape = RoundedCornerShape(20.dp)) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp, horizontal = 4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.fillMaxWidth().height(104.dp).padding(vertical = 10.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             Box {
                 Box(
@@ -150,13 +190,7 @@ private fun HubTile(item: HubItem, index: Int, count: Int?, modifier: Modifier, 
                 }
             }
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                item.title,
-                style = MaterialTheme.typography.labelMedium,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            FitLabel(item.title, MaterialTheme.typography.labelLarge)
         }
     }
 }
@@ -184,15 +218,16 @@ fun HubScreen(hub: Hub, env: AppEnv) {
                 val count = hubCount(env, item.route)
                 GlassCard(onClick = { env.navigate(item.route) }, shape = RoundedCornerShape(24.dp)) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp, horizontal = 6.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                        modifier = Modifier.fillMaxWidth().height(146.dp).padding(vertical = 12.dp, horizontal = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
                         Box(
                             modifier = Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(tileBrush(index)),
                             contentAlignment = Alignment.Center
                         ) { Icon(item.icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp)) }
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(item.title, style = MaterialTheme.typography.labelLarge, textAlign = TextAlign.Center, maxLines = 2)
+                        FitLabel(item.title, MaterialTheme.typography.labelLarge)
                         Text(
                             if (count != null) "$count saved" else "Open",
                             style = MaterialTheme.typography.labelSmall,

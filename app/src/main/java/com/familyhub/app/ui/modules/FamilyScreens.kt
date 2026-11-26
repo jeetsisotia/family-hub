@@ -44,7 +44,8 @@ private fun AlertRow(alert: AlertItem, onClick: () -> Unit) {
     val fmt = remember { SimpleDateFormat("dd MMM", Locale.getDefault()) }
     val days = daysUntil(alert.dateMillis)
     val whenText = when {
-        days < 0 -> "overdue by ${-days} day(s)"
+        days == -1 -> "overdue by 1 day"
+        days < 0 -> "overdue by ${-days} days"
         days == 0 -> "today"
         days == 1 -> "tomorrow"
         else -> "in $days days"
@@ -148,6 +149,28 @@ fun FamilyScreen(
     val clipboard = LocalClipboardManager.current
     val active = members.filter { it.status == "ACTIVE" }
     val pending = members.filter { it.status != "ACTIVE" }
+    // Removing or declining someone asks first, so a stray tap cannot drop a family member.
+    var confirmRemove by remember { mutableStateOf<FamilyMember?>(null) }
+    confirmRemove?.let { who ->
+        val isPending = who.status != "ACTIVE"
+        AlertDialog(
+            onDismissRequest = { confirmRemove = null },
+            title = { Text(if (isPending) "Decline ${who.name}?" else "Remove ${who.name}?") },
+            text = {
+                Text(
+                    if (isPending) "They won't join ${family.name}. They can ask again with the invite code."
+                    else "${who.name} will lose access to ${family.name}'s shared calendar, money and lists. You can invite them again later."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemove = null
+                    onRemove(who.uid)
+                }) { Text(if (isPending) "Decline" else "Remove", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemove = null }) { Text("Cancel") } }
+        )
+    }
 
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
@@ -229,7 +252,7 @@ fun FamilyScreen(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                             )
                         }
-                        TextButton(onClick = { onRemove(m.uid) }) { Text("Decline") }
+                        TextButton(onClick = { confirmRemove = m }) { Text("Decline") }
                         Button(onClick = { onApprove(m.uid) }) { Text("Approve") }
                     }
                 }
@@ -248,7 +271,8 @@ fun FamilyScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(m.name + if (m.uid == currentUid) " (you)" else "", fontWeight = FontWeight.SemiBold)
                         Text(
-                            (if (m.role == FamilyRole.OWNER) "Owner" else m.relation) + " • " + m.email,
+                            listOf(if (m.role == FamilyRole.OWNER) "Owner" else m.relation, m.email)
+                                .filter { it.isNotBlank() }.joinToString(" • "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                             maxLines = 1
@@ -278,7 +302,7 @@ fun FamilyScreen(
                         }) { Icon(Icons.Rounded.Call, contentDescription = "Call ${m.name}") }
                     }
                     if (isOwner && m.uid != currentUid) {
-                        TextButton(onClick = { onRemove(m.uid) }) { Text("Remove") }
+                        TextButton(onClick = { confirmRemove = m }) { Text("Remove") }
                     }
                 }
             }
