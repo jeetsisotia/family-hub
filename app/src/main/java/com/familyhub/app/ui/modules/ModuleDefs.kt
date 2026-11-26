@@ -644,6 +644,27 @@ val RemindersModule = ModuleDef(
     emptyText = "Set a reminder with a date and time and you'll get a notification right on time."
 )
 
+val FoodModule = ModuleDef(
+    route = "food", title = "Food diary", icon = Icons.Rounded.Restaurant,
+    collection = "items", typeValue = "food",
+    subtitleKeys = listOf("meal", "kcalText", "memberName"),
+    fields = listOf(
+        FieldDef("title", "What you ate (for example 2 rotis and dal)", required = true),
+        FieldDef("meal", "Meal", FieldType.CHOICE, listOf("Breakfast", "Lunch", "Dinner", "Snack")),
+        FieldDef("kcal", "Calories (kcal, optional)", FieldType.NUMBER),
+        FieldDef("dateMillis", "Date", FieldType.DATE, required = true),
+        FieldDef("memberName", "Whose", FieldType.MEMBER),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    dateKeys = listOf(DateKey("dateMillis", "Eaten")), newestFirst = true, alerts = false,
+    privateByDefault = true, kind = "food",
+    postProcess = { m, _, _ ->
+        val k = (m["kcal"] as? Number)?.toInt()
+        m["kcalText"] = if (k != null && k > 0) "$k kcal" else ""
+    },
+    emptyText = "Note what you eat, with calories if you know them. Only you see it unless you share it. Family Hub does not estimate calories or give diet advice."
+)
+
 val VITAL_KINDS = listOf(
     "Weight (kg)", "Blood pressure", "Sugar fasting", "Sugar after food",
     "Heart rate", "SpO2 (%)", "Temperature", "Sleep (hours)", "Other"
@@ -798,12 +819,12 @@ val AllModules: List<ModuleDef> = listOf(
     SettleModule, MemoriesModule,
     MaintenanceModule, NotesModule, MealsModule, ChoresModule, BirthdaysModule,
     PetsModule, SchoolModule, GoalsModule,
-    MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule, WorkoutsModule,
+    MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule, WorkoutsModule, FoodModule,
     PoliciesModule, AccountsModule, DebitCardsModule, CategoriesModule
 )
 
 /** Modules reached from inside other screens rather than from the More grid. */
-val HiddenFromMore: Set<String> = setOf("card_list", "habits", "workouts", "debit_cards", "categories")
+val HiddenFromMore: Set<String> = setOf("card_list", "habits", "workouts", "debit_cards", "categories", "food")
 
 val ModuleByRoute: Map<String, ModuleDef> = AllModules.associateBy { it.route }
 

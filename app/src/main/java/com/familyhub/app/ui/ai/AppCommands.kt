@@ -34,7 +34,7 @@ object AppCommands {
     private val CHANGE = Regex("\\b(add|set|save|update|change|put)\\b")
 
     /** Kept on the phone: these health and ID kinds are never matched, changed or shown here. */
-    private val PRIVATE_TYPES = setOf("medicine", "vital", "habit", "workout", "period", "health", "vault")
+    private val PRIVATE_TYPES = setOf("medicine", "vital", "habit", "workout", "period", "health", "vault", "food")
 
     private val rupees: NumberFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }
     private fun inr(v: Double) = rupees.format(v)

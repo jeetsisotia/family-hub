@@ -45,6 +45,8 @@ object GeminiClient {
     suspend fun generate(system: String, turns: List<Turn>, json: Boolean = false, temperature: Double = 0.4): String =
         withContext(Dispatchers.IO) {
             if (!isConfigured()) throw AiException("The AI assistant is not set up in this version of the app.")
+            // Stay inside the free tier: a few requests a minute and a daily cap per phone.
+            AiLimiter.tryAcquire()?.let { throw AiException(it) }
             val body = JSONObject().apply {
                 put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", system))))
                 val contents = JSONArray()

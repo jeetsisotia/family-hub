@@ -83,6 +83,7 @@ Each problem below was first reproduced by a test that failed, then fixed. Saved
 | Firestore rules (emulator, on GitHub) | 49 | Passed (run #4); 66 of 66 with calls (run #6) |
 | Safety logic | 64 | Passed (27 Nov) |
 | Reminder rules (repeats, times, early alerts) | 40 | Passed (27 Nov) |
+| Health and AI limit | 18 | Passed (27 Nov) |
 
 ### Feature inventory
 
@@ -407,6 +408,54 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ---
 
+## Phase 8: more free features (bundle p31)
+
+### Ranked list (value against effort; all pass the zero-cost check)
+
+| # | Feature | Value | Effort | Decision |
+|---|---|---|---|---|
+| 1 | AI: request limit, and keep "Only me" reminders out of AI | High (cost, privacy) | Small | **Built** |
+| 2 | Food and calorie diary | High | Small | **Built** |
+| 3 | Medicine adherence (last 7 days) | High | Small | **Built** |
+| 4 | Shopping lists, household chores, announcements (Notices), shared goals, memories (text) | High | — | **Already in the app** (checked, unchanged) |
+| 5 | Fitness goal (daily steps) and trends | Medium | — | **Already in the app** |
+| 6 | Local documents with Android's file picker | Medium | Medium | **Not built** (see the document storage decision) |
+| 7 | Nutrition breakdown (protein, carbs and so on) | Low | Medium | **Not built**: would need a food database or invented numbers |
+| 8 | Photo memories | Medium | — | **Not possible free**: needs file storage (paid plan) |
+
+### What is new
+
+- **Food diary** (Health & Fitness → Food diary):
+  - Fields: what you ate, the meal, optional calories, date, whose, and notes.
+  - "Only me" by default.
+  - The top shows today's calories and the 7-day average of the calories you entered, and says how many items today have no calories.
+  - No calorie guessing, and no diet or medical advice.
+- **Medicine adherence** (top of Medicines): the share of doses marked Taken in the last 7 days, and how many were not marked.
+  - Course start and end dates are respected.
+  - A medicine with no start date counts only from today, so past days are never shown as missed.
+  - A dose counts after an hour.
+- **AI assistant:**
+  - **Request limit:** at most 8 questions a minute and 150 a day per phone, with a clear message. Money questions still answer offline.
+  - "Only me" reminders and the food diary are now left out of what is sent to Gemini, like health records, medicines, vitals, periods, ID numbers, private notes and the emergency card.
+
+### AI review (honest status)
+
+- **Setup:** unchanged. Gemini's free tier, called directly with the key from the build. No Firebase AI Logic, and no paid backend.
+- **No paid fallback:** the app tries free "flash" models. A model with no free quota is skipped, never paid for. No billing is linked to the key; **Jeet can confirm in Google AI Studio that the key's project has no billing account.**
+- **Data use:** on the free tier, Google may use prompts to improve its products. The app sends only non-private family and money summaries.
+- **Remaining risk:** the key is inside the APK (lightly scrambled). Someone who has the APK could extract it and use its free quota. This cannot be avoided without a server, which is not free. If that happens, Jeet can change the key in GitHub secrets and rebuild.
+
+### Tests
+
+| What | Result |
+|---|---|
+| `tools/health-test` (18 checks: adherence, food totals, AI limit) | **Passed** |
+| All other plain-Kotlin suites (money 78, reminders 40, safety 64, chat 14, assistant 22, SMS and statement import) | **Passed** (27 Nov) |
+| APK build and emulator screens (Food diary, Medicines with adherence) | Runs after upload |
+| Food diary and adherence on a phone | **Needs my phone** |
+
+---
+
 ## Phase 3: family chat (built, not yet tested on phones)
 
 ### What is in it
@@ -470,7 +519,7 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ## Next step
 
-1. Phase 8: extra free features, then the final report. Data reliability (backup, restore, sync conflicts) is still to be reviewed in depth.
+1. All 8 phases are done. The combined report is `docs/FINAL-REPORT.md`. Still open: an in-depth review of data reliability (backup, restore, sync conflicts) and the phone checks.
 2. **Workflow fix needed (not applied: changing CI files from here was refused).** The "Check Gemini API key" step hung in 3 of the last 4 builds (#53, #54, #55), and each time the run had to be cancelled and re-run. In `.github/workflows/build-apk.yml`, the "Check Gemini API key" step should get `timeout-minutes: 2` and `continue-on-error: true`, and its two `curl` calls `--max-time 20`. Then a slow Gemini reply can never hold up the APK again. Jeet can make this edit on github.com.
 3. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
 

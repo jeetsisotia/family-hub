@@ -29,10 +29,10 @@ import java.util.Locale
 object AiContext {
     /** Record types and alert routes that stay out of the AI. */
     private val PRIVATE_TYPES = setOf(
-        "medicine", "vital", "period", "habit", "health", "emergency", "vault", "document", "note", "memory"
+        "medicine", "vital", "period", "habit", "health", "emergency", "vault", "document", "note", "memory", "food"
     )
     private val PRIVATE_ROUTES = setOf(
-        "health", "medicines", "vitals", "periods", "habits", "emergency", "home_vault", "documents", "notes", "memories"
+        "health", "medicines", "vitals", "periods", "habits", "emergency", "home_vault", "documents", "notes", "memories", "food"
     )
 
     private val day = SimpleDateFormat("EEE d MMM yyyy", Locale.ENGLISH)
@@ -76,7 +76,8 @@ object AiContext {
             }
         }
 
-        val reminders = items.filter { it.str("type") == "reminder" && !it.bool("done") }
+        // "Only me" reminders stay out: their titles can be personal (for example a medicine or a test).
+        val reminders = items.filter { it.str("type") == "reminder" && !it.bool("done") && it[com.familyhub.app.data.remote.PRIVATE_FLAG] != true }
             .mapNotNull { r ->
                 val t = r.lng("dateMillis") ?: return@mapNotNull null
                 val next = nextOccurrence(t, r.str("repeat"), now)

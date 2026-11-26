@@ -62,6 +62,7 @@ class DemoActivity : FragmentActivity() {
             "medicines" -> "dark:chat_list"
             "profile" -> "settings"
             "settings" -> "solid:home"
+            "alerts" -> "food"
             "insights" -> "dark:finance"
             "periods" -> "dark:health_hub"
             else -> name
@@ -233,6 +234,10 @@ object DemoData {
                 "food" to "Before food", "memberName" to "Asha", "stock" to 20.0),
             rec("type" to "reminder", "title" to "Pay school fees", "dateMillis" to now + 2 * d, "time" to "10:00",
                 "repeat" to "Monthly", "done" to false, private = true),
+            rec("type" to "food", "title" to "Poha and tea", "meal" to "Breakfast", "kcal" to 320.0, "kcalText" to "320 kcal",
+                "dateMillis" to now, "memberName" to "Demo User", private = true),
+            rec("type" to "food", "title" to "2 rotis, dal and salad", "meal" to "Lunch", "kcal" to 540.0, "kcalText" to "540 kcal",
+                "dateMillis" to now, "memberName" to "Demo User", private = true),
             rec("type" to "reminder", "title" to "Call the plumber", "dateMillis" to now, "time" to "18:30",
                 "repeat" to "None", "earlyAlert" to "15 minutes before", "done" to false, private = true),
             rec("type" to "reminder", "title" to "Water the plants", "dateMillis" to now - 10 * d, "time" to "",

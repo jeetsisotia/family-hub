@@ -42,7 +42,7 @@ import java.util.Locale
 private val COLLECTIONS = listOf("items", "events", "expenses", "tasks", "trips")
 
 /** Health records that belong to one person ("Only me"), cleared by "Reset my health records". */
-private val HEALTH_TYPES = setOf("medicine", "vital", "period", "habit", "health", "workout")
+private val HEALTH_TYPES = setOf("medicine", "vital", "period", "habit", "health", "workout", "food")
 
 // ---------- backup file format ----------
 

@@ -625,6 +625,35 @@ private fun ModuleHeader(
             }
         }
         "settle" -> SettleHeader(records, memberNames)
+        "food" -> if (records.isNotEmpty()) {
+            val s = com.familyhub.app.health.HealthMath.foodSummary(
+                records.mapNotNull { r -> r.lng("dateMillis")?.let { com.familyhub.app.health.HealthMath.FoodEntry(it, r.num("kcal")) } },
+                System.currentTimeMillis()
+            )
+            SummaryCard(
+                listOf("Today" to "${s.todayKcal} kcal", "7-day average" to (s.weekAverageKcal?.let { "$it kcal a day" } ?: "—")),
+                footer = "Only the calories you entered" +
+                    (if (s.todayWithoutKcal > 0) " (${s.todayWithoutKcal} item" + (if (s.todayWithoutKcal == 1) "" else "s") + " today without calories)" else "") +
+                    ". Not medical or diet advice."
+            )
+        }
+        "medicine" -> if (records.isNotEmpty()) {
+            val now = System.currentTimeMillis()
+            val plans = records.map { r ->
+                com.familyhub.app.health.HealthMath.MedPlan(
+                    times = com.familyhub.app.ui.common.parseTimes(r.str("times")),
+                    // Without a start date only today is counted, so earlier days are never shown as missed.
+                    start = r.lng("startMillis") ?: r.lng("createdAtMillis") ?: now,
+                    end = r.lng("endMillis"),
+                    taken = (r["taken"] as? Map<*, *>).orEmpty().filter { it.value == true }.keys.mapNotNull { it as? String }.toSet()
+                )
+            }
+            val a = com.familyhub.app.health.HealthMath.adherence(plans, now)
+            if (a.scheduled > 0) SummaryCard(
+                listOf("Taken, last 7 days" to "${a.percent}%", "Doses not marked" to "${a.missed}"),
+                footer = "Counts doses marked Taken here or on the notification. A dose counts after an hour."
+            )
+        }
         else -> {
         }
     }

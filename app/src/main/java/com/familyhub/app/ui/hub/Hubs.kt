@@ -54,6 +54,7 @@ object Hubs {
         listOf(
             HubItem("periods", "Periods", Icons.Rounded.WaterDrop),
             HubItem("medicines", "Medicines", Icons.Rounded.Medication),
+            HubItem("food", "Food diary", Icons.Rounded.Restaurant),
             HubItem("vitals", "Vitals", Icons.Rounded.MonitorHeart),
             HubItem("workouts", "Workouts", Icons.Rounded.FitnessCenter),
             HubItem("habits", "Habits", Icons.Rounded.SelfImprovement),
@@ -142,7 +143,7 @@ data class HomeCategory(
     val count: (Map<String, List<Rec>>, (Rec) -> Boolean) -> Int
 )
 
-private val HEALTH_TYPES = setOf("medicine", "vital", "workout", "habit", "health", "period", "emergency")
+private val HEALTH_TYPES = setOf("medicine", "vital", "workout", "habit", "health", "period", "emergency", "food")
 private val REMINDER_TYPES = setOf("reminder", "maintenance", "vehicle", "document", "subscription", "card", "birthday", "policy")
 private val LIFE_TYPES = setOf("birthday", "school", "memory", "notice", "note")
 
