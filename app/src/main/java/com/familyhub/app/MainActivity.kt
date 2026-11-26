@@ -454,7 +454,8 @@ class MainActivity : FragmentActivity() {
                                 },
                                 label = "screen"
                             ) { (shownTab, route) ->
-                            val moduleDef = route?.let { ModuleByRoute[it] }
+                            // "finance_all" is the full Finance list (bills, EMIs, transfers and more) behind the new dashboard.
+                            val moduleDef = route?.let { if (it == "finance_all") FinanceModule else ModuleByRoute[it] }
                             val openPageAi: (String) -> Unit = { title -> askAi(title, "") }
                             val pageAi: ((String) -> Unit)? = if (route?.startsWith("assistant") == true) null else openPageAi
                             androidx.compose.runtime.CompositionLocalProvider(com.familyhub.app.ui.ai.LocalPageAi provides pageAi) {
@@ -606,30 +607,7 @@ class MainActivity : FragmentActivity() {
                                             }
                                         }
                                     )
-                                    PrimaryTab.FINANCE -> ModuleScreen(
-                                        overview = { com.familyhub.app.ui.money.FinanceOverview(envFor(currentFamily)) },
-                                        def = FinanceModule,
-                                        familyId = activeFamilyId,
-                                        uid = uid,
-                                        userName = profile.name,
-                                        memberNames = memberNames,
-                                        monthlyBudget = currentFamily.monthlyBudget,
-                                        isOwner = isOwner,
-                                        repo = recordRepository,
-                                        onBack = null,
-                                        onSaveBudget = saveBudget,
-                                        onOpen = navigate,
-                                        extraOptions = moneyOptions,
-                                        families = familyList,
-                                        onAskAi = { t -> askAi(FinanceModule.title, t) },
-                                        onExport = {
-                                            try {
-                                                FinanceReportExporter.exportToCsvAndShare(context, currentFamily.name, transactions)
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "Could not export: ${e.message}", Toast.LENGTH_LONG).show()
-                                            }
-                                        }
-                                    )
+                                    PrimaryTab.FINANCE -> com.familyhub.app.ui.money.FinanceDashboard(envFor(currentFamily))
                                     PrimaryTab.MORE -> MoreHubGrid(
                                         onNavigate = navigate,
                                         order = userDoc.stringList("moduleOrder"),

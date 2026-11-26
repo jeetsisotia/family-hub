@@ -456,6 +456,68 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ---
 
+## Brief 2, Part A: Finance redesign (bundle p33)
+
+The second brief (Finance redesign and a universal AI assistant) is being done in phases. **Audit first** (27 Nov, from the code, not from earlier reports):
+
+| Brief item | Before this bundle |
+|---|---|
+| Dashboard: month balance, income and expenses, vs last month, top 5, latest 5, month arrows | Partly: one long overview card (bank, cash, cards, loans, dues) above the full list, current month only |
+| One Transactions screen with Expenses and Income tabs | **Not implemented** (one mixed list) |
+| Custom categories | Partly: name, parent, kind and budget. No icon, preview or duplicate check |
+| Cards and accounts | **Already wallet-style**: last 4 digits only, no CVV or full numbers, delete asks first |
+| Budget and insights | **Already there**: Insights, budget dialog, CSV export |
+
+### New in this bundle
+
+- **Finance tab is now a compact dashboard:**
+  - Mine or Family, with month arrows to go back to any month
+  - the month's **balance** (income minus spending)
+  - income and expenses, each with **▲/▼ % against last month**
+  - refunds noted
+  - **budget** progress with the amount left or over
+  - the **top 5 categories** with bars
+  - the **latest 5 entries**, with View all
+  - an **Add transaction** button and the existing Finance tiles (accounts, cards, loans, dues, imports and more)
+  - **Nothing is lost:** "All entries, bills, EMIs and transfers" opens the full list as before.
+- **Transactions screen:**
+  - Expenses | Income tabs
+  - This month, Last month and Custom range (date-range picker); the arrows move by month
+  - Mine or Family, and the total for the type and period
+  - search by name, shop or amount
+  - a category breakdown with share and amount; tap a category to filter by it
+  - history grouped by day, with each day's total
+  - Tapping an entry opens the existing detail sheet: refunds, "use this category for this shop", Ask AI and so on.
+  - Deleting asks first and moves the entry to Recently deleted.
+- **One shared add and edit form** (bottom sheet):
+  - Expense or Income, amount, category chips with icons, an optional description, date, paid from or received in (account or card, by name), and Only me
+  - a receipt, collapsed by default
+  - Bills, EMIs and transfers keep their type when edited here.
+  - It saves the same fields through the same rules as before (`FinanceModule.postProcess`), so balances, card bills and reports are unchanged.
+- **Custom categories with icons** (Finance → Categories, or "New" in the form):
+  - name, an emoji icon with a live **preview**, and Spending, Income or Both
+  - **duplicates are refused** within the same type, built-in or custom, ignoring case and spaces
+  - edit, and **delete after a confirmation** that says how many past transactions use it
+  - saved as family records, so every member sees them
+  - **Past transactions are never changed:** they keep the category name they were saved with.
+  - All built-in categories remain. Income now has its own built-ins (Salary, Business, Interest, Rent received, Gift, Other).
+- All figures come from the existing money engine (`Ledger.totals`, in paise), so the dashboard, Transactions, Insights and Home agree.
+
+### Tests
+
+| What | Result |
+|---|---|
+| `tools/ledger-test` (102 checks, 24 new) | **Passed** (27 Nov). New checks cover: the month balance, spending after refunds, transfers, deleted entries and unpaid bills left out, the top 5 in order, the % against last month, the latest 5, month ranges across years, Expenses and Income lists, search by text and amount, the category filter and breakdown, grouping by day, and duplicate custom categories |
+| APK build and emulator screens: dashboard, Transactions (dark), Categories | Runs after upload |
+| On a phone: adding and editing, the custom range picker, how it looks | **Needs my phone** |
+
+### Not changed in this bundle
+
+- Cards and accounts screens (they already meet the brief).
+- The compact header for every Finance screen: the new screens use the compact title bar. Older finance screens keep theirs. Their spacing could not be judged without looking at screenshots.
+
+---
+
 ## Phase 3: family chat (built, not yet tested on phones)
 
 ### What is in it

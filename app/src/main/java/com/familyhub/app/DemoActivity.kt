@@ -59,12 +59,12 @@ class DemoActivity : FragmentActivity() {
             "families" -> "sos"
             "workouts" -> "dark:safety"
             "arrange" -> "reminders"
-            "medicines" -> "dark:chat_list"
+            "medicines" -> "categories"
             "profile" -> "settings"
             "settings" -> "solid:home"
             "alerts" -> "food"
             "insights" -> "dark:finance"
-            "periods" -> "dark:health_hub"
+            "periods" -> "dark:transactions"
             else -> name
         }
         // "dark:" shows the screen in the dark theme, "solid:" with Reduce transparency (not saved).
@@ -164,6 +164,7 @@ class DemoActivity : FragmentActivity() {
                             route == "alerts" -> com.familyhub.app.ui.modules.AlertsScreen(
                                 alerts = com.familyhub.app.ui.modules.buildAlerts(env.data), onBack = {}, onOpen = {}
                             )
+                            route == "finance" -> com.familyhub.app.ui.money.FinanceDashboard(env)
                             isExtraRoute(route) -> ExtraRoute(route, env)
                             def != null -> ModuleScreen(
                                 def = def,
@@ -270,7 +271,9 @@ object DemoData {
                 "account" to "HDFC Savings", "memberUid" to UID, "memberName" to "Demo User"),
             rec("type" to "policy", "title" to "Family health cover", "insurer" to "Star Health", "category" to "Health",
                 "amountInr" to 24500.0, "premiumCycle" to "Yearly", "premiumDueMillis" to now + 12 * d, "memberUid" to UID),
-            rec("type" to "category", "title" to "Swiggy", "parent" to "Dining", "kind" to "Spending")
+            rec("type" to "category", "title" to "Swiggy", "parent" to "Dining", "kind" to "Spending"),
+            rec("type" to "category", "title" to "Pet care", "parent" to "None", "kind" to "Spending", "emoji" to "🐶"),
+            rec("type" to "category", "title" to "Freelance", "parent" to "None", "kind" to "Income", "emoji" to "💼")
         )
         val cats = listOf("Groceries", "Dining", "Fuel", "Shopping", "Utilities", "Health", "Entertainment", "Transport")
         val places = listOf("BigBasket", "Swiggy", "Indian Oil", "Amazon", "Airtel", "Apollo Pharmacy", "PVR", "Uber")

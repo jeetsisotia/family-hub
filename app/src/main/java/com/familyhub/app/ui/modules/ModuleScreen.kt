@@ -1119,7 +1119,7 @@ private fun DateField(label: String, value: Long?, required: Boolean, onChange: 
 
 /** A picture kept with the record (a receipt or payment proof), saved on this phone. */
 @Composable
-private fun PhotoField(label: String, value: String?, onChange: (String?) -> Unit) {
+internal fun PhotoField(label: String, value: String?, onChange: (String?) -> Unit) {
     val context = LocalContext.current
     val pick = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()

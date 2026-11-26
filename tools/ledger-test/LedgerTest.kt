@@ -267,5 +267,62 @@ fun main() {
         }.get(Calendar.DAY_OF_MONTH) == 31)
     }
 
+    // ---------- Finance dashboard and Transactions (FinanceMonth) ----------
+    run {
+        val F = com.familyhub.app.money.FinanceMonth
+
+        val rows = listOf(
+            mapOf("id" to "m1", "type" to "INCOME", "title" to "Salary", "amountInr" to 80000.0, "dateMillis" to at(2026, 11, 1), "category" to "Salary"),
+            mapOf("id" to "m2", "type" to "EXPENSE", "title" to "Big Basket", "amountInr" to 2500.25, "dateMillis" to at(2026, 11, 3), "category" to "Groceries"),
+            mapOf("id" to "m3", "type" to "EXPENSE", "title" to "Swiggy", "amountInr" to 450.0, "dateMillis" to at(2026, 11, 3), "category" to "Dining"),
+            mapOf("id" to "m4", "type" to "EXPENSE", "title" to "Petrol", "amountInr" to 3000.0, "dateMillis" to at(2026, 11, 10), "category" to "Fuel"),
+            mapOf("id" to "m5", "type" to "EXPENSE", "title" to "Rent", "amountInr" to 20000.0, "dateMillis" to at(2026, 11, 5), "category" to "Rent"),
+            mapOf("id" to "m6", "type" to "EXPENSE", "title" to "Movie", "amountInr" to 600.0, "dateMillis" to at(2026, 11, 12), "category" to "Entertainment"),
+            mapOf("id" to "m7", "type" to "EXPENSE", "title" to "Medicines", "amountInr" to 900.0, "dateMillis" to at(2026, 11, 14), "category" to "Health"),
+            mapOf("id" to "m8", "type" to "TRANSFER", "title" to "ATM", "amountInr" to 5000.0, "dateMillis" to at(2026, 11, 15)),
+            mapOf("id" to "m9", "type" to "EXPENSE", "title" to "Deleted", "amountInr" to 999.0, "dateMillis" to at(2026, 11, 16), "isDeleted" to true),
+            mapOf("id" to "m10", "type" to "INCOME", "title" to "Refund", "amountInr" to 100.0, "dateMillis" to at(2026, 11, 17), "isRefund" to true, "category" to "Dining"),
+            mapOf("id" to "m11", "type" to "BILL", "title" to "Electricity", "amountInr" to 1840.0, "dateMillis" to at(2026, 11, 30), "isPaid" to false),
+            // Last month
+            mapOf("id" to "o1", "type" to "INCOME", "title" to "Salary", "amountInr" to 80000.0, "dateMillis" to at(2026, 10, 1), "category" to "Salary"),
+            mapOf("id" to "o2", "type" to "EXPENSE", "title" to "Rent", "amountInr" to 20000.0, "dateMillis" to at(2026, 10, 5), "category" to "Rent"),
+            mapOf("id" to "o3", "type" to "EXPENSE", "title" to "Groceries", "amountInr" to 5000.0, "dateMillis" to at(2026, 10, 8), "category" to "Groceries")
+        )
+        val v = F.view(rows, at(2026, 11, 20))
+        // Spent: 2500.25 + 450 + 3000 + 20000 + 600 + 900 = 27450.25, less the 100 refund = 27350.25
+        check("month: income", v.income == 8_000_000L, v.income)
+        check("month: spent after refund (paise exact)", v.spent == 2_735_025L, v.spent)
+        check("month: balance = income - spent", v.balance == 8_000_000L - 2_735_025L)
+        check("month: transfers, deleted and unpaid bills are not spending", v.top.none { it.first == "Other" } && v.top.size == 5, v.top)
+        check("month: top 5 in order", v.top.map { it.first } == listOf("Rent", "Fuel", "Groceries", "Health", "Entertainment"), v.top.map { it.first })
+        check("month: vs last month (25000 -> 27350.25 = +9%)", v.spentChangePct == 9 && v.incomeChangePct == 0, v.spentChangePct)
+        check("month: latest 5 newest first, no deleted entries or unpaid bills", v.latest.map { it["id"] } == listOf("m10", "m8", "m7", "m6", "m4"), v.latest.map { it["id"] })
+        val empty = F.view(rows, at(2026, 9, 20))
+        check("month: an empty month has no comparison against an empty one", empty.spent == 0L && empty.spentChangePct == null && empty.latest.isEmpty())
+        val nov = F.month(at(2026, 11, 20))
+        val exp = F.list(rows, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE, nov.from, nov.to)
+        check("transactions: expenses only", exp.map { it["id"] } == listOf("m7", "m6", "m4", "m5", "m2", "m3"), exp.map { it["id"] })
+        check("transactions: expense total", F.total(exp, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE) == 2_745_025L)
+        check("transactions: income excludes refunds", F.list(rows, com.familyhub.app.money.FinanceMonth.Kind.INCOME, nov.from, nov.to).map { it["id"] } == listOf("m1"))
+        check("transactions: search by name", F.list(rows, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE, nov.from, nov.to, query = "swig").map { it["id"] } == listOf("m3"))
+        check("transactions: search by amount", F.list(rows, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE, nov.from, nov.to, query = "2500").map { it["id"] } == listOf("m2"))
+        check("transactions: category filter", F.list(rows, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE, nov.from, nov.to, category = "rent").map { it["id"] } == listOf("m5"))
+        val b = F.breakdown(exp, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE)
+        check("breakdown: rent first, shares add to about 100", b.first().first == "Rent" && b.sumOf { it.third } in 99..101, b)
+        val days = F.byDay(exp)
+        check("by day: 3 Nov groups two entries", days.first { it.second.size == 2 }.second.map { it["id"] }.toSet() == setOf("m2", "m3"))
+        check("month range: November", F.month(at(2026, 11, 20)).from == Ledger.startOfDay(at(2026, 11, 1)) && F.month(at(2026, 11, 20)).to == Ledger.startOfDay(at(2026, 12, 1)) - 1)
+        check("month range: back from January", F.month(at(2026, 1, 15), -1).from == Ledger.startOfDay(at(2025, 12, 1)))
+        // Categories
+        val existing = listOf("Pet care" to "Spending", "Side work" to "Income")
+        val sp = listOf("Groceries", "Dining"); val inc = listOf("Salary")
+        check("category: built-in duplicate refused", F.isDuplicateCategory(" groceries ", "Spending", existing, sp, inc))
+        check("category: custom duplicate refused (case, spaces)", F.isDuplicateCategory("PET   care", "Spending", existing, sp, inc))
+        check("category: same name for the other type is allowed", !F.isDuplicateCategory("Pet care", "Income", existing, sp, inc))
+        check("category: Both clashes with either", F.isDuplicateCategory("Side work", "Both", existing, sp, inc))
+        check("category: renaming to its own name is fine", !F.isDuplicateCategory("Pet Care", "Spending", existing, sp, inc, ignoreName = "Pet care"))
+        check("category: new name allowed", !F.isDuplicateCategory("Gym", "Spending", existing, sp, inc))
+    }
+
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }
