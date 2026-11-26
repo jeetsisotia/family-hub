@@ -28,6 +28,10 @@ object HealthCommands {
         "(?i)\\b(periods?|menstrua\\w*|menses|chums|cramps?|weight|weigh\\w*|bp|blood pressure|sugar|glucose|pulse|" +
             "heart rate|spo2|oxygen|temperature|fever|slept|sleep|medicines?|tablets?|pills?|dose)\\b"
     )
+    /** Splits on full stops (but not "63.5", "Rs." or "Dr."), semicolons, new lines and "then"/"also". */
+    private val CLAUSE_SPLIT = Regex(
+        "(?<![0-9]|rs|Rs|RS|dr|Dr|mr|Mr|mrs|Mrs|ms|Ms|no|No)\\.|(?<=[0-9])\\.(?![0-9])|[;\\n]+|\\s+(?:and then|also|then)\\s+"
+    )
     private val money = Regex("(?i)(rs\\.?|₹|inr|rupees?)\\s*\\d|\\d+\\s*(rs|rupees?|₹)\\b|\\b(expense|spent|paid|bill|bought)\\b")
     /** Shopping, tasks and reminders go to the AI even if they mention sugar or medicine. */
     private val everyday = Regex("(?i)\\b(shopping|buy|purchase|grocery|list|remind|reminder|task|todo|to-do|event|meeting|note|order)\\b")
@@ -53,7 +57,7 @@ object HealthCommands {
         val actions = ArrayList<AiAction>()
         val unclear = ArrayList<String>()
         val rest = ArrayList<String>()
-        val clauses = text.split(Regex("[.;\\n]+|\\s+(?:and then|also|then)\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
+        val clauses = text.split(CLAUSE_SPLIT).map { it.trim() }.filter { it.isNotEmpty() }
         for (c in clauses) {
             val isMoney = money.containsMatchIn(c) || everyday.containsMatchIn(c)
             val found = if (isMoney) emptyList() else parseClause(c, medicines, periodOngoing, now)
