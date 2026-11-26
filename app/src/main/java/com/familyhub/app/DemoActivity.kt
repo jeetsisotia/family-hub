@@ -63,6 +63,8 @@ class DemoActivity : FragmentActivity() {
             "profile" -> "settings"
             "settings" -> "solid:home"
             "alerts" -> "food"
+            "home_hub" -> "universal"
+            "life_hub" -> "ai_settings"
             "insights" -> "dark:finance"
             "periods" -> "dark:transactions"
             else -> name
@@ -165,6 +167,7 @@ class DemoActivity : FragmentActivity() {
                                 alerts = com.familyhub.app.ui.modules.buildAlerts(env.data), onBack = {}, onOpen = {}
                             )
                             route == "finance" -> com.familyhub.app.ui.money.FinanceDashboard(env)
+                            route == "universal" -> com.familyhub.app.ui.ai.UniversalChatScreen(env)
                             isExtraRoute(route) -> ExtraRoute(route, env)
                             def != null -> ModuleScreen(
                                 def = def,

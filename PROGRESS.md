@@ -518,6 +518,55 @@ The second brief (Finance redesign and a universal AI assistant) is being done i
 
 ---
 
+## Brief 2, Part B: universal AI assistant (bundle p34)
+
+Full setup, security and cost notes are in `docs/AI-SETUP.md`.
+
+- **No AI key in the APK any more.** The shared key was built into every APK (lightly scrambled). The brief forbids a shared secret on the client, so it was removed from the build. The assistant now uses each person's **own Gemini key (BYOK)**:
+  - connect, test, update and disconnect, with Google AI Studio setup steps
+  - encrypted with the Android Keystore, per signed-in person
+  - excluded from Android backup and device transfer, never synced or logged
+  - **What changes for the family:** Gemini answers need each person's own key. Money questions still work offline.
+- **Shared family key: not implemented. NEEDS EXTERNAL SETUP.** It needs a secure server (Cloud Functions on the paid plan, or a similar host). AI settings explains this.
+- **Provider layer:** an `AiProvider` interface (Gemini now, others later).
+  - Model choice: Automatic picks the cheapest free flash model and never switches to a paid one; or any model from the key's own list.
+  - A connection test, clear errors (bad key, limit used up, model not available, no internet, timeouts), and a 60-second read timeout.
+- **Usage and cost controls:**
+  - daily and monthly limits you set (100 and 1,500 by default) and at most 8 requests a minute
+  - requests, tokens and web searches counted for today and this month
+  - only the last 14 turns are sent, to keep requests small
+  - notes on possible charges
+- **Universal chat** (AI from More and Home):
+  - suggested prompts to start
+  - any topic, with follow-ups
+  - Markdown (headings, lists, quotes, bold and italic, links) and code blocks with Copy
+  - copy, regenerate, and Stop (immediate; a late reply is dropped)
+  - attach an image, PDF or text file (7 MB at most)
+  - the provider and model shown
+  - conversations kept on the phone only, with delete one, delete all, and "don't save"
+  - loading, empty, not-connected and error states
+- **Web search:**
+  - Uses Gemini's Google Search grounding. It must be allowed in settings, then turned on per question.
+  - Sources come only from Google's grounding data and are shown as links. Each answer is labelled "From web search" or "From the model's own knowledge".
+  - Where the key cannot use search (Google's free tier for Gemini 3 models), the app says so.
+- **Gmail, Drive and Calendar** (Google button in the chat):
+  - read-only scopes, asked on Google's consent screen only when used, separate from the Family Hub sign-in and from the Gemini key
+  - tokens kept in memory only
+  - no send, edit or delete access
+  - fetched content marked as data (prompt-injection guard)
+  - **NEEDS EXTERNAL SETUP:** turn on the Drive and Calendar APIs, add the scopes on the consent screen, and add test users.
+- **FamilyHub actions:** the existing family assistant (now "FamilyHub actions", which page AI buttons open). Every action needs a tap to confirm, and it says "Added ✓" only after the save succeeds. The universal chat cannot change data, and its FamilyHub data summary leaves out health records, ID numbers, private notes and "Only me" reminders.
+
+### Tests
+
+| What | Result |
+|---|---|
+| `tools/health-test` (21 checks; 3 new for the usage limits) | **Passed** |
+| Compile and emulator screens (universal chat not connected, AI settings) | Runs after upload |
+| A real Gemini key, a real conversation, attachments, web search, Google consent | **Not tested here** (no key or Google account in this environment). **Needs my phone** with your own key |
+
+---
+
 ## Phase 3: family chat (built, not yet tested on phones)
 
 ### What is in it

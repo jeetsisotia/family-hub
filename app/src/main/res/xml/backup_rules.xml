@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android backup (Android 11 and older): never back up AI keys, Google connection tokens or AI chats. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="ai_key_vault.xml" />
+    <exclude domain="sharedpref" path="google_links.xml" />
+    <exclude domain="file" path="ai_chats" />
+</full-backup-content>

@@ -186,6 +186,8 @@ class MainActivity : FragmentActivity() {
                     val uid = fbUser.uid
 
                     LaunchedEffect(uid) {
+                        // This person's own AI key, decrypted on this phone (nobody else's).
+                        com.familyhub.app.core.ai.AiSession.start(context, uid)
                         // Ask for notifications first, before any network call: asking after a slow call could
                         // reach a screen that was already closed, which crashed the app on Android 16.
                         askNotificationPermission()
@@ -369,9 +371,10 @@ class MainActivity : FragmentActivity() {
                     // Every page's AI button opens the one assistant with that page's context.
                     val askAi: (String, String) -> Unit = { page, text ->
                         com.familyhub.app.ui.ai.AiDraft.open(page, text)
-                        navigate("assistant")
+                        navigate("assistant_family")
                     }
                     val signOut: () -> Unit = {
+                        com.familyhub.app.core.ai.AiSession.signOut()
                         scope.launch { authRepository.signOutAndSwitchAccount(context) }
                     }
                     val saveBudget: (Double) -> Unit = { v ->

@@ -21,6 +21,13 @@ object AiLimiter {
         return msg
     }
 
+    /** The person's own daily and monthly limits (AI settings). Null if under both. */
+    fun usageLimit(today: Int, month: Int, dailyLimit: Int, monthlyLimit: Int): String? = when {
+        month >= monthlyLimit -> "You have reached your monthly AI limit ($monthlyLimit requests). Change it in AI settings."
+        today >= dailyLimit -> "You have reached today's AI limit ($dailyLimit requests). Change it in AI settings."
+        else -> null
+    }
+
     /** The decision alone, for tests. */
     fun check(times: List<Long>, now: Long): String? {
         val lastMinute = times.count { now - it in 0 until MINUTE }

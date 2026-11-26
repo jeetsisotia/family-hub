@@ -122,7 +122,7 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
             }
             if (health.rest.isNotBlank()) {
                 if (!GeminiClient.isConfigured()) {
-                    messages.add(ChatMsg(false, "⚠️ The AI part is not switched on in this version of the app.", aiText = null))
+                    messages.add(ChatMsg(false, "⚠️ To get AI answers, add your own free Gemini API key in AI settings (top right of the AI chat). Money questions like \"How much did I spend this month?\" still work without it.", aiText = null))
                 } else {
                     val system = AiContext.systemPrompt(env, AiContext.build(env))
                     val reply = GeminiClient.generate(system, aiTurns(messages), json = true)

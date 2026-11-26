@@ -87,6 +87,12 @@ fun main() {
         check("ai: 10 quick requests, the last 2 refused", blocked == 2, blocked)
     }
 
+    // ---- personal AI usage limits (AI settings) ----
+    val L = com.familyhub.app.core.ai.AiLimiter
+    check("limits: under both", L.usageLimit(5, 50, 100, 1500) == null)
+    check("limits: daily reached", L.usageLimit(100, 120, 100, 1500)?.contains("today") == true)
+    check("limits: monthly reached first", L.usageLimit(10, 1500, 100, 1500)?.contains("monthly") == true)
+
     println(if (failures == 0) "ALL PASSED ($checks checks)" else "$failures of $checks FAILED")
     if (failures > 0) kotlin.system.exitProcess(1)
 }

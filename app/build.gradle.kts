@@ -26,12 +26,8 @@ android {
 
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
 
-        // Gemini key for the AI assistant. Stored reversed and base64-encoded so it is not a plain string in the APK.
-        val geminiKey = (project.findProperty("GEMINI_API_KEY")?.toString()
-            ?: System.getenv("GEMINI_API_KEY")
-            ?: "").trim()
-        val geminiEncoded = Base64.getEncoder().encodeToString(geminiKey.reversed().toByteArray())
-        buildConfigField("String", "GEMINI_KEY_ENC", "\"$geminiEncoded\"")
+        // No AI key is built into the app any more: a shared key inside an APK can be extracted by anyone who has it.
+        // Each person adds their own Gemini key in AI settings (stored encrypted on their phone; see KeyVault).
     }
 
     signingConfigs {

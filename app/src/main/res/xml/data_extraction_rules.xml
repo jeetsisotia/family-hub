@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 and newer: AI keys, Google connection tokens and AI chats stay out of cloud backup and device transfer. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="ai_key_vault.xml" />
+        <exclude domain="sharedpref" path="google_links.xml" />
+        <exclude domain="file" path="ai_chats" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="ai_key_vault.xml" />
+        <exclude domain="sharedpref" path="google_links.xml" />
+        <exclude domain="file" path="ai_chats" />
+    </device-transfer>
+</data-extraction-rules>

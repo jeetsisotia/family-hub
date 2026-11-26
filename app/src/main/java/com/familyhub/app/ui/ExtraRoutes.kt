@@ -58,7 +58,7 @@ val ExtraRouteIds: Set<String> = setOf(
     "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos",
     "home_hub", "life_hub", "reminders_hub", "arrange_home",
     "accounts_home", "loans_home", "due_calendar", "transfer", "statement_import", "data_tools", "calls", "safety",
-    "transactions", "categories"
+    "transactions", "categories", "assistant_family", "ai_settings"
 )
 
 /** Screens for one account, card, loan or chat: "acct:<id>", "ccard:<id>", "loan:<id>", "chat:<id>". */
@@ -124,7 +124,11 @@ fun ExtraRoute(route: String, env: AppEnv) {
             title = "Arrange Home",
             help = "Use the arrows to move the categories on Home up or down. Turn the switch off to hide one."
         )
-        "assistant" -> AssistantScreen(env)
+        // The universal assistant; FamilyHub actions (add expenses, reminders and so on, with confirmation) stay in the
+        // family assistant, which page AI buttons open directly.
+        "assistant" -> com.familyhub.app.ui.ai.UniversalChatScreen(env)
+        "assistant_family" -> AssistantScreen(env)
+        "ai_settings" -> com.familyhub.app.ui.ai.AiSettingsScreen(env)
         "assistant_voice" -> AssistantScreen(env, startVoice = true)
         "sos" -> com.familyhub.app.ui.sos.SosScreen(env)
         "safety" -> com.familyhub.app.ui.sos.SafetyScreen(env)
