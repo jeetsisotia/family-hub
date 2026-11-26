@@ -154,7 +154,7 @@ fun StatementImportScreen(env: AppEnv) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Import statement", onBack = env.onBack)
+        ScreenTopBar(title = "Import statement", onBack = env.onBack, compact = true)
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {

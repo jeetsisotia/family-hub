@@ -155,7 +155,7 @@ fun InsightsScreen(env: AppEnv) {
         )
     }
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Money Insights", onBack = env.onBack) {
+        ScreenTopBar(title = "Money Insights", onBack = env.onBack, compact = true) {
             IconButton(onClick = { showSettings = true }) {
                 Icon(Icons.Rounded.Tune, contentDescription = "Month start and budgets")
             }

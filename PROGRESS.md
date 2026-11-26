@@ -555,6 +555,7 @@ Full setup, security and cost notes are in `docs/AI-SETUP.md`.
   - no send, edit or delete access
   - fetched content marked as data (prompt-injection guard)
   - **NEEDS EXTERNAL SETUP:** turn on the Drive and Calendar APIs, add the scopes on the consent screen, and add test users.
+- **Follow-up (bundle p36):** answers now **stream** as they are written (Gemini's streaming API), and **Stop** closes the connection and keeps the text so far. Every Finance screen now uses the **compact header** (Accounts, Cards, Loans, Due calendar, Transfer, Insights, SMS and Gmail scan, Statement import).
 - **FamilyHub actions:** the existing family assistant (now "FamilyHub actions", which page AI buttons open). Every action needs a tap to confirm, and it says "Added ✓" only after the save succeeds. The universal chat cannot change data, and its FamilyHub data summary leaves out health records, ID numbers, private notes and "Only me" reminders.
 
 ### Tests

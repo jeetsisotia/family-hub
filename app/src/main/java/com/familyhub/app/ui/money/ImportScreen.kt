@@ -348,7 +348,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Scan SMS & Gmail", onBack = env.onBack)
+        ScreenTopBar(title = "Scan SMS & Gmail", onBack = env.onBack, compact = true)
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)

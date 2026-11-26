@@ -252,6 +252,8 @@ fun UniversalChatScreen(env: AppEnv) {
     var busy by remember { mutableStateOf(false) }
     var job by remember { mutableStateOf<Job?>(null) }
     var activeRequest by remember { mutableStateOf("") }
+    // The answer so far, while it streams in.
+    var partial by remember { mutableStateOf("") }
     var web by remember { mutableStateOf(false) }
     var useFamily by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
@@ -367,7 +369,10 @@ fun UniversalChatScreen(env: AppEnv) {
                     GeminiClient.Msg(m.fromUser, parts)
                 }
                 val family = if (useFamily) AiContext.build(env) else null
-                val r = GeminiClient.chat(GeminiClient.ChatRequest(universalSystem(family), req, AiSession.model, searchNow))
+                partial = ""
+                val r = GeminiClient.chatStream(GeminiClient.ChatRequest(universalSystem(family), req, AiSession.model, searchNow)) { t ->
+                    if (activeRequest == requestId) partial = t
+                }
                 // A reply that arrives after Stop is ignored.
                 if (activeRequest != requestId) return@launch
                 persist(conv.copy(messages = msgs + UMsg(false, r.text, sources = r.sources.map { ChatSource(it.title, it.url) },
@@ -379,12 +384,14 @@ fun UniversalChatScreen(env: AppEnv) {
             } catch (e: Exception) {
                 if (activeRequest == requestId) persist(conv.copy(messages = msgs + UMsg(false, "Something went wrong: ${e.message?.take(120)}", error = true)))
             } finally {
-                if (activeRequest == requestId) { busy = false; job = null; activeRequest = "" }
+                if (activeRequest == requestId) { busy = false; job = null; activeRequest = ""; partial = "" }
             }
         }
     }
 
-    LaunchedEffect(messages.size) { if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1) }
+    LaunchedEffect(messages.size, partial.length / 200) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(if (busy) messages.size else messages.size - 1)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenTopBar(title = "AI", onBack = env.onBack, compact = true) {
@@ -470,7 +477,17 @@ fun UniversalChatScreen(env: AppEnv) {
                             }
                         }
                     }
-                    if (busy) item { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)); Text("Thinking…") } }
+                    if (busy) item {
+                        if (partial.isNotBlank()) {
+                            GlassCard(modifier = Modifier.fillMaxWidth()) { Column(modifier = Modifier.padding(12.dp)) { Markdown(partial) } }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Thinking…")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -496,11 +513,17 @@ fun UniversalChatScreen(env: AppEnv) {
                         maxLines = 6, shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f))
                     if (busy) IconButton(onClick = {
                         // Stop at once; the network call ends in the background and its answer is dropped.
+                        // Stop closes the connection; what had arrived is kept.
+                        val sofar = partial
                         activeRequest = ""
                         job?.cancel()
                         job = null
                         busy = false
-                        current?.let { c -> persist(c.copy(messages = c.messages + UMsg(false, "Stopped.", error = true))) }
+                        partial = ""
+                        current?.let { c ->
+                            persist(c.copy(messages = c.messages +
+                                if (sofar.isNotBlank()) UMsg(false, sofar + "\n\n*(stopped)*") else UMsg(false, "Stopped.", error = true)))
+                        }
                     }) { Icon(Icons.Rounded.Stop, contentDescription = "Stop") }
                     else IconButton(onClick = { ask() }, enabled = input.isNotBlank() || attachment != null) {
                         Icon(Icons.Rounded.Send, contentDescription = "Send")

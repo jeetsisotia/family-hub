@@ -3,6 +3,7 @@ package com.familyhub.app.core.ai
 import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
@@ -164,24 +165,7 @@ object GeminiClient : AiProvider {
         val key = AiSession.key
         if (key.isBlank()) throw AiException("Add your own Gemini API key in AI settings to use the assistant.")
         AiSession.limitMessage()?.let { throw AiException(it) }
-        val body = JSONObject().apply {
-            put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", req.system))))
-            val contents = JSONArray()
-            for (m in req.messages) {
-                val parts = JSONArray()
-                for (p in m.parts) {
-                    if (p.base64 != null && p.mime != null) {
-                        parts.put(JSONObject().put("inline_data", JSONObject().put("mime_type", p.mime).put("data", p.base64)))
-                    } else if (!p.text.isNullOrEmpty()) parts.put(JSONObject().put("text", p.text))
-                }
-                if (parts.length() > 0) contents.put(JSONObject().put("role", if (m.fromUser) "user" else "model").put("parts", parts))
-            }
-            put("contents", contents)
-            val cfg = JSONObject().put("temperature", req.temperature)
-            if (req.json && !req.webSearch) cfg.put("responseMimeType", "application/json")
-            put("generationConfig", cfg)
-            if (req.webSearch) put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
-        }.toString()
+        val body = buildBody(req)
 
         val tried = LinkedHashSet<String>()
         var lastError: Exception? = null
@@ -251,22 +235,38 @@ object GeminiClient : AiProvider {
             val text = (if (code in 200..299) conn.inputStream else conn.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
             if (code !in 200..299) {
+                throw errorFor(code, text, model, webSearch)
+            }
+            return parse(text, model, allowEmpty)
+        } catch (e: UnknownHostException) {
+            throw AiException("No internet connection.")
+        } catch (e: SocketTimeoutException) {
+            throw AiException("The AI took too long to answer. Please try again.")
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun errorFor(code: Int, text: String, model: String, webSearch: Boolean): Exception {
                 val msg = try { JSONObject(text).optJSONObject("error")?.optString("message").orEmpty() } catch (e: Exception) { "" }
                 Log.w("GeminiClient", "$model -> HTTP $code")
                 val low = msg.lowercase()
-                when {
+                return when {
                     webSearch && (code == 400 || code == 403 || code == 429) && ("search" in low || "grounding" in low || "tool" in low) ->
-                        throw AiException("Web search is not available with this key (Google offers it only on some plans). Turn web search off and ask again.")
+                        AiException("Web search is not available with this key (Google offers it only on some plans). Turn web search off and ask again.")
                     code == 404 || (code == 400 && ("not found" in low || "not supported" in low)) ->
-                        throw ModelUnavailable("Model $model is not available for this key.")
-                    code == 429 && "limit: 0" in msg -> throw ModelUnavailable("Model $model has no free quota on this key.")
-                    code == 429 -> throw AiException("Google's limit for your key is used up for now. Please try again later.")
-                    code == 400 && "api key" in low -> throw AiException("Google says this API key is not valid. Check it in AI settings.")
-                    code == 401 || code == 403 -> throw AiException("Google refused this API key. Check it in AI settings (Google AI Studio).")
-                    code >= 500 -> throw ModelUnavailable("Google's AI service is busy. Please try again shortly.")
-                    else -> throw AiException("AI error $code: ${msg.take(160)}")
+                        ModelUnavailable("Model $model is not available for this key.")
+                    code == 429 && "limit: 0" in msg -> ModelUnavailable("Model $model has no free quota on this key.")
+                    code == 429 -> AiException("Google's limit for your key is used up for now. Please try again later.")
+                    code == 400 && "api key" in low -> AiException("Google says this API key is not valid. Check it in AI settings.")
+                    code == 401 || code == 403 -> AiException("Google refused this API key. Check it in AI settings (Google AI Studio).")
+                    code >= 500 -> ModelUnavailable("Google's AI service is busy. Please try again shortly.")
+                    else -> AiException("AI error $code: ${msg.take(160)}")
                 }
-            }
+    }
+
+    /** Reads one full response (or the last streamed chunk set) into a reply. */
+    private fun parse(text: String, model: String, allowEmpty: Boolean): Reply {
             val root = JSONObject(text)
             val cands = root.optJSONArray("candidates")
             val tokens = root.optJSONObject("usageMetadata")?.optLong("totalTokenCount", 0L) ?: 0L
@@ -297,11 +297,109 @@ object GeminiClient : AiProvider {
             val out = sb.toString().trim()
             if (out.isEmpty() && !allowEmpty) throw AiException("The AI gave an empty answer. Please ask again.")
             return Reply(out, sources.distinctBy { it.url }, model, tokens, searched)
-        } catch (e: UnknownHostException) {
-            throw AiException("No internet connection.")
-        } catch (e: SocketTimeoutException) {
-            throw AiException("The AI took too long to answer. Please try again.")
+    }
+
+    private fun buildBody(req: ChatRequest): String = JSONObject().apply {
+        put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", req.system))))
+        val contents = JSONArray()
+        for (m in req.messages) {
+            val parts = JSONArray()
+            for (p in m.parts) {
+                if (p.base64 != null && p.mime != null) {
+                    parts.put(JSONObject().put("inline_data", JSONObject().put("mime_type", p.mime).put("data", p.base64)))
+                } else if (!p.text.isNullOrEmpty()) parts.put(JSONObject().put("text", p.text))
+            }
+            if (parts.length() > 0) contents.put(JSONObject().put("role", if (m.fromUser) "user" else "model").put("parts", parts))
+        }
+        put("contents", contents)
+        val cfg = JSONObject().put("temperature", req.temperature)
+        if (req.json && !req.webSearch) cfg.put("responseMimeType", "application/json")
+        put("generationConfig", cfg)
+        if (req.webSearch) put("tools", JSONArray().put(JSONObject().put("google_search", JSONObject())))
+    }.toString()
+
+    /**
+     * Like [chat], but the answer arrives piece by piece: [onText] gets the text so far. Cancelling the calling
+     * coroutine (Stop) closes the connection at once.
+     */
+    suspend fun chatStream(req: ChatRequest, onText: (String) -> Unit): Reply = withContext(Dispatchers.IO) {
+        val key = AiSession.key
+        if (key.isBlank()) throw AiException("Add your own Gemini API key in AI settings to use the assistant.")
+        AiSession.limitMessage()?.let { throw AiException(it) }
+        val body = buildBody(req)
+        val tried = LinkedHashSet<String>()
+        var lastError: Exception? = null
+        // The chosen model, or the free flash models first; other models are looked up only if those fail.
+        val first = if (req.model.isNotBlank()) listOf(req.model) else listOfNotNull(workingModel) + PREFERRED
+        for (round in 0..1) {
+            val order = if (round == 0) first else if (req.model.isBlank()) discoverModels(key) else emptyList()
+            for (m in order) {
+                if (!tried.add(m)) continue
+                try {
+                    val r = stream(key, m, body, req.webSearch, onText)
+                    if (req.model.isBlank()) workingModel = m
+                    AiSession.record(r.tokens, r.searched)
+                    return@withContext r
+                } catch (e: ModelUnavailable) {
+                    lastError = e
+                }
+            }
+        }
+        throw AiException(lastError?.message ?: "No AI model is available for this key right now.")
+    }
+
+    private suspend fun stream(key: String, model: String, body: String, webSearch: Boolean, onText: (String) -> Unit): Reply {
+        val conn = open(key, "$API/models/$model:streamGenerateContent?alt=sse", "POST")
+        val ctx = kotlin.coroutines.coroutineContext
+        val stop = ctx[kotlinx.coroutines.Job]?.invokeOnCompletion { try { conn.disconnect() } catch (_: Exception) { } }
+        try {
+            conn.doOutput = true
+            conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+            val code = conn.responseCode
+            if (code !in 200..299) {
+                throw errorFor(code, conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty(), model, webSearch)
+            }
+            val sb = StringBuilder()
+            val sources = ArrayList<Source>()
+            var tokens = 0L
+            var searched = false
+            var blocked = ""
+            conn.inputStream.bufferedReader().useLines { lines ->
+                for (line in lines) {
+                    ctx.ensureActive()
+                    if (!line.startsWith("data:")) continue
+                    val chunk = try { JSONObject(line.removePrefix("data:").trim()) } catch (e: Exception) { continue }
+                    chunk.optJSONObject("usageMetadata")?.optLong("totalTokenCount", 0L)?.let { if (it > 0) tokens = it }
+                    chunk.optJSONObject("promptFeedback")?.optString("blockReason")?.let { if (it.isNotBlank()) blocked = it }
+                    val cand = chunk.optJSONArray("candidates")?.optJSONObject(0) ?: continue
+                    val parts = cand.optJSONObject("content")?.optJSONArray("parts")
+                    if (parts != null) for (i in 0 until parts.length()) {
+                        val p = parts.getJSONObject(i)
+                        if (!p.optBoolean("thought", false)) sb.append(p.optString("text"))
+                    }
+                    cand.optJSONObject("groundingMetadata")?.let { gm ->
+                        gm.optJSONArray("groundingChunks")?.let { ch ->
+                            for (i in 0 until ch.length()) {
+                                val web = ch.getJSONObject(i).optJSONObject("web") ?: continue
+                                val uri = web.optString("uri")
+                                if (uri.startsWith("http")) sources.add(Source(web.optString("title").ifBlank { uri }, uri))
+                            }
+                        }
+                        if (sources.isNotEmpty() || (gm.optJSONArray("webSearchQueries")?.length() ?: 0) > 0) searched = true
+                    }
+                    if (sb.isNotEmpty()) onText(sb.toString())
+                }
+            }
+            val out = sb.toString().trim()
+            if (out.isEmpty()) throw AiException(if (blocked.isNotBlank()) "The AI could not answer that ($blocked)." else "The AI gave an empty answer. Please ask again.")
+            return Reply(out, sources.distinctBy { it.url }, model, tokens, searched)
+        } catch (e: java.io.IOException) {
+            ctx.ensureActive()
+            if (e is UnknownHostException) throw AiException("No internet connection.")
+            if (e is SocketTimeoutException) throw AiException("The AI took too long to answer. Please try again.")
+            throw AiException("The connection was interrupted. Please try again.")
         } finally {
+            stop?.dispose()
             conn.disconnect()
         }
     }

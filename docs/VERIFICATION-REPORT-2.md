@@ -37,7 +37,7 @@ Here, "tested" means plain-Kotlin unit tests run in Claude's workspace, the GitH
 | Never fabricate missing financial data | PASS | Empty states ("No spending this month", "—") instead of guesses |
 | Monthly budget: spent, remaining, progress | Implemented on the dashboard; PASS (uses the tested totals) | The budget editor and Insights already existed |
 | Category-wise spending, top 5, detailed insights | PASS (existing Insights plus the new breakdown) | — |
-| Compact Finance header, no duplicate titles | Implemented for the new screens (compact bar) | Older finance sub-screens unchanged. Visuals NOT TESTED |
+| Compact Finance header, no duplicate titles | Implemented on every Finance screen (compact bar) | Visuals NOT TESTED |
 | System-bar insets, oversized back button | NOT TESTED | Needs screenshots or a phone |
 | Imports, backup and restore unchanged | PASS (tests: SMS 15, statements 22; no change to that code) | — |
 | Existing data integrity | PASS | No migration; no saved data rewritten |
@@ -61,7 +61,7 @@ Here, "tested" means plain-Kotlin unit tests run in Claude's workspace, the GitH
 | Calendar: view events, help with scheduling | Implemented (read-only); **NEEDS EXTERNAL SETUP** (Calendar API, scope, test users) | — |
 | Google access separate from sign-in, explained, tokens protected, revocation guidance, no send, delete or modify | PASS (by design) | Read-only scopes only; tokens in memory only |
 | FamilyHub actions with confirmation, roles respected, no other family's data, truthful success | PASS (existing, checked in code) | `applyAction` saves only after a tap and throws on failure; budget is admin-only; only the active family |
-| Chat UI: welcome prompts, history, new conversation, copy, regenerate, stop, Markdown, code copy, attachments, provider and model shown, states | Implemented; the not-connected screen opens in the emulator; NEEDS MY PHONE for the rest | — |
+| Chat UI: welcome prompts, history, new conversation, copy, regenerate, stop (closes the stream), streaming answers, Markdown, code copy, attachments, provider and model shown, states | Implemented; the not-connected screen opens in the emulator; NEEDS MY PHONE for the rest | — |
 | AI settings: provider, model, status, key management, test, usage, disconnect, privacy | Implemented; the screen opens in the emulator | — |
 | Usage tracking, daily and monthly limits, quota messages, rate limits | PASS (limit logic, 3 tests plus the earlier per-minute tests); counting NOT TESTED live | — |
 | No automatic switch to paid models; charges explained | PASS (by design) | — |
@@ -98,7 +98,7 @@ Here, "tested" means plain-Kotlin unit tests run in Claude's workspace, the GitH
 3. Web search may be unavailable on free keys for Gemini 3 models (Google's rule).
 4. Screenshots were not inspected; every look-and-feel item needs a phone check.
 5. The "Check Gemini API key" CI step keeps hanging. It is now unused, because the key is no longer built in, and can be deleted from `.github/workflows/build-apk.yml`.
-6. Streaming answers word by word is not implemented. Stop ends the wait at once instead.
+6. Answers stream word by word (Gemini SSE), and Stop closes the connection and keeps the text so far. Not tested live (no key here).
 
 ## 7. APK
 

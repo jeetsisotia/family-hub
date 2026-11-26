@@ -351,7 +351,7 @@ fun DueCalendarScreen(env: AppEnv) {
     val byDay = dues.groupBy { dayOf(it.dueMillis) }
     val shown = selectedDay?.let { byDay[it].orEmpty() } ?: dues
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Due calendar", onBack = env.onBack)
+        ScreenTopBar(title = "Due calendar", onBack = env.onBack, compact = true)
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
@@ -410,7 +410,7 @@ fun AccountsScreen(env: AppEnv) {
     val accounts = items.filter { it.str("type") == "account" && Ledger.live(it) }
     val balances = remember(env.data) { accounts.map { it to Ledger.accountBalance(it, env.data["expenses"].orEmpty(), debit) } }
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Accounts", onBack = env.onBack) {
+        ScreenTopBar(title = "Accounts", onBack = env.onBack, compact = true) {
             TextButton(onClick = { env.navigate("accounts") }) { Text("Add / edit") }
         }
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -486,7 +486,7 @@ fun AccountDetailScreen(env: AppEnv, accountId: String) {
         )
     }
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = account.str("title"), onBack = env.onBack)
+        ScreenTopBar(title = account.str("title"), onBack = env.onBack, compact = true)
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth(), strong = true) {
@@ -572,7 +572,7 @@ fun CreditCardsScreen(env: AppEnv) {
     val cards = env.data["items"].orEmpty().filter { it.str("type") == "card" && Ledger.live(it) }.sortedBy { it.str("title") }
     val status = remember(env.data) { cards.map { Ledger.cardStatus(it, env.data["expenses"].orEmpty(), now) } }
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Credit cards", onBack = env.onBack) { TextButton(onClick = { env.navigate("card_list") }) { Text("Add / edit") } }
+        ScreenTopBar(title = "Credit cards", onBack = env.onBack, compact = true) { TextButton(onClick = { env.navigate("card_list") }) { Text("Add / edit") } }
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Row { Stat("Total outstanding", inr(status.sumOf { it.outstanding }), Modifier.weight(1f), Amber); Stat("Due now", inr(status.sumOf { it.amountDue }), Modifier.weight(1f), Red) }
@@ -605,7 +605,7 @@ fun CardDetailScreen(env: AppEnv, cardId: String) {
         DueSheet(env, d) { pay = false }
     }
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(title = c.title, onBack = env.onBack) { TextButton(onClick = { env.navigate("card_list") }) { Text("Edit") } }
+        ScreenTopBar(title = c.title, onBack = env.onBack, compact = true) { TextButton(onClick = { env.navigate("card_list") }) { Text("Edit") } }
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { CardFace(c, card, 1) {} }
             item {
@@ -644,7 +644,7 @@ fun LoansScreen(env: AppEnv) {
     val loans = env.data["items"].orEmpty().filter { it.str("type") == "loan" && Ledger.live(it) }
     val status = remember(env.data) { loans.map { Ledger.loanStatus(it, env.data["expenses"].orEmpty(), now) } }
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Loans & EMI", onBack = env.onBack) { TextButton(onClick = { env.navigate("loans") }) { Text("Add / edit") } }
+        ScreenTopBar(title = "Loans & EMI", onBack = env.onBack, compact = true) { TextButton(onClick = { env.navigate("loans") }) { Text("Add / edit") } }
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Row { Stat("Principal left", inr(status.sumOf { it.outstandingPrincipal }), Modifier.weight(1f)); Stat("Interest still to pay", inr(status.sumOf { it.interestPayable }), Modifier.weight(1f), Amber); Stat("Monthly EMIs", inr(status.sumOf { it.emi }), Modifier.weight(1f)) } }
             if (loans.isEmpty()) item { Text("Add a loan with its amount, interest rate, months and first EMI date to get the full EMI calendar.", style = MaterialTheme.typography.bodySmall) }
@@ -674,7 +674,7 @@ fun LoanDetailScreen(env: AppEnv, loanId: String) {
         DueSheet(env, d) { payFor = null }
     }
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(title = l.title, onBack = env.onBack) { TextButton(onClick = { env.navigate("loans") }) { Text("Edit") } }
+        ScreenTopBar(title = l.title, onBack = env.onBack, compact = true) { TextButton(onClick = { env.navigate("loans") }) { Text("Edit") } }
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             item {
                 GlassCard(Modifier.fillMaxWidth(), strong = true) {
@@ -721,7 +721,7 @@ fun TransferScreen(env: AppEnv) {
     var note by remember { mutableStateOf("") }
     var at by remember { mutableStateOf(System.currentTimeMillis()) }
     Column(Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Transfer", onBack = env.onBack)
+        ScreenTopBar(title = "Transfer", onBack = env.onBack, compact = true)
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Moving money between your own accounts, or paying a credit card, is not counted as income or spending.", style = MaterialTheme.typography.bodySmall)
             if (accounts.isEmpty()) {
