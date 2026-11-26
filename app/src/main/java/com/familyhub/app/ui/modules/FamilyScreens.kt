@@ -199,6 +199,11 @@ fun FamilyScreen(
         )
     }
 
+    var showQr by remember { mutableStateOf(false) }
+    if (showQr && family.inviteCode.isNotBlank()) {
+        com.familyhub.app.ui.common.InviteQrDialog(family.name, family.inviteCode) { showQr = false }
+    }
+
     LazyColumn(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -229,7 +234,7 @@ fun FamilyScreen(
                         color = MaterialTheme.colorScheme.onPrimary
                     )
                     Text(
-                        "Family members install the app, sign in with Google, choose Join Existing Family and enter this code. You approve them below.",
+                        "Family members install the app, sign in with Google, choose Join Existing Family and enter this code or scan the QR. You approve them below.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
                     )
@@ -255,6 +260,11 @@ fun FamilyScreen(
                             Icon(Icons.Rounded.Share, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("Share", color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        TextButton(onClick = { showQr = true }) {
+                            Icon(Icons.Rounded.QrCode2, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("QR", color = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -328,10 +338,23 @@ fun FamilyScreen(
                             }
                         }) { Icon(Icons.Rounded.Call, contentDescription = "Call ${m.name}") }
                     }
-                    if (m.uid != currentUid && !isSuper(m)) {
-                        if (isOwner) TextButton(onClick = { confirmAdmin = m }) { Text(if (m.isAdmin) "Unmake admin" else "Make admin", maxLines = 1) }
-                        // A Family Admin may remove members, but not other admins.
-                        if (isOwner || (isAdmin && !m.isAdmin)) TextButton(onClick = { confirmRemove = m }) { Text("Remove") }
+                    // A Family Admin may remove members, but not other admins.
+                    val canRemove = isOwner || (isAdmin && !m.isAdmin)
+                    if (m.uid != currentUid && !isSuper(m) && (isOwner || canRemove)) {
+                        var menu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "Options for ${m.name}") }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                if (isOwner) DropdownMenuItem(
+                                    text = { Text(if (m.isAdmin) "Remove as Family Admin" else "Make Family Admin") },
+                                    onClick = { menu = false; confirmAdmin = m }
+                                )
+                                if (canRemove) DropdownMenuItem(
+                                    text = { Text("Remove from family", color = MaterialTheme.colorScheme.error) },
+                                    onClick = { menu = false; confirmRemove = m }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -427,6 +450,27 @@ fun SettingsScreen(
                             SettingsLink(Icons.Rounded.Tune, "Arrange More", "Order and hide the More icons") { onOpen("arrange") }
                             SettingsLink(Icons.Rounded.Backup, "Data & backup", "Back up, restore, recently deleted and reset") { onOpen("data_tools") }
                         }
+                    }
+                }
+            }
+            item {
+                val themeContext = LocalContext.current
+                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Appearance", fontWeight = FontWeight.Bold)
+                        val labels = mapOf(
+                            com.familyhub.app.core.theme.ThemeChoice.SYSTEM to "Phone setting",
+                            com.familyhub.app.core.theme.ThemeChoice.LIGHT to "Light",
+                            com.familyhub.app.core.theme.ThemeChoice.DARK to "Dark"
+                        )
+                        com.familyhub.app.ui.common.ChoiceChips(
+                            labels.values.toList(),
+                            labels[com.familyhub.app.core.theme.ThemeChoice.mode.value] ?: "Phone setting",
+                            { picked ->
+                                val key = labels.entries.firstOrNull { it.value == picked }?.key ?: com.familyhub.app.core.theme.ThemeChoice.SYSTEM
+                                com.familyhub.app.core.theme.ThemeChoice.set(themeContext, key)
+                            }
+                        )
                     }
                 }
             }

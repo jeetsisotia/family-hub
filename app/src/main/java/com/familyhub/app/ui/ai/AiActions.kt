@@ -206,6 +206,7 @@ fun actionLabel(a: AiAction): String {
         "emergency" -> "Emergency contact ${a.count ?: 1}"
         "category" -> if (a.value.isNotBlank()) "New subcategory in ${a.value}" else "New money category"
         "budget" -> "Family monthly budget"
+        "theme" -> "Appearance"
         else -> "Note"
     }
     val main = when (a.kind) {
@@ -276,6 +277,8 @@ fun actionButton(kind: String): String = when (kind) {
     "not_expense" -> "Mark"
     "task_done" -> "Mark done"
     "emergency" -> "Save"
+    "budget" -> "Set"
+    "theme" -> "Apply"
     else -> "Add"
 }
 
@@ -317,6 +320,7 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
                 mapOf("type" to "category", "title" to a.title, "parent" to a.value.ifBlank { "None" }, "kind" to "Spending",
                     "isDeleted" to false, "createdByUid" to env.uid, "createdAt" to now), false)
         }
+        "theme" -> com.familyhub.app.core.theme.ThemeChoice.set(context, a.value)
         "budget" -> {
             if (!env.isAdmin) throw IllegalStateException("Only family admins can change the budget.")
             val v = a.amount ?: throw IllegalStateException("No amount.")

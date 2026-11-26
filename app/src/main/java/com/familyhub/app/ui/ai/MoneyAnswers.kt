@@ -41,13 +41,22 @@ object MoneyAnswers {
     private val Q_DUE = Regex("\\b(what'?s|what is|anything|bills?)\\b.{0,20}\\bdue\\b|\\bdue (this|next) week\\b|\\bupcoming (bills|payments)\\b")
     private val Q_UNCAT = Regex("\\b(categori[sz]e|uncategori[sz]ed|no category|without (a )?category)\\b")
     private val ADD_CAT = Regex("^\\s*(please\\s+)?(add|create|new)\\s+(a\\s+)?(spending |money )?(category|sub-?category)\\s+(?:called\\s+|named\\s+)?\"?([\\p{L}0-9 &'-]{2,30}?)\"?(?:\\s+(?:under|inside|in)\\s+\"?([\\p{L}0-9 &'-]{2,30})\"?)?\\s*$")
+    private val THEME = Regex("\\b(?:switch|change|set|use|turn on|make)\\b.{0,25}?\\b(dark|light|night|day|system)\\s+(?:mode|theme)\\b|\\b(?:theme|appearance)\\b.{0,12}?\\b(dark|light|system)\\b")
     private val SET_BUDGET = Regex("\\b(set|change|make)\\b.{0,20}\\b(monthly |family )?budget\\b.{0,15}?(?:to\\s+)?(?:rs\\.?|₹|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*(k|thousand|lakh|l)?\\b")
 
     fun answer(text: String, env: AppEnv): AppCommands.Result? {
         val s = text.lowercase(Locale.ROOT).trim()
+        THEME.find(s)?.let { m ->
+            val want = (m.groupValues[1].ifBlank { m.groupValues[2] }).let { if (it == "night") "dark" else if (it == "day") "light" else it }
+            val label = when (want) { "dark" -> "Dark"; "light" -> "Light"; else -> "the phone's setting" }
+            return AppCommands.Result(
+                "Tap Apply to switch the app to $label. You can change it back any time in Family → Settings → Appearance.",
+                listOf(AiAction(kind = "theme", title = if (want == "system") "Phone setting" else label, value = want))
+            )
+        }
         ADD_CAT.find(s)?.let { m ->
-            val name = m.groupValues[5].trim().replaceFirstChar { it.uppercase() }
-            val parent = m.groupValues[6].trim().takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() }
+            val name = m.groupValues[6].trim().replaceFirstChar { it.uppercase() }
+            val parent = m.groupValues[7].trim().takeIf { it.isNotBlank() }?.replaceFirstChar { it.uppercase() }
             return AppCommands.Result(
                 "Here is the new category. Tap Add to save it; you can rename or remove it later in Money categories (removed ones go to Recently deleted).",
                 listOf(AiAction(kind = "category", title = name, value = parent.orEmpty()))

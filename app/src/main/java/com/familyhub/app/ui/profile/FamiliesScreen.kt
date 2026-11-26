@@ -164,6 +164,13 @@ fun FamiliesScreen(
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextInput("Invite code", code, { code = it.uppercase() })
+                        TextButton(onClick = {
+                            com.familyhub.app.ui.common.InviteQr.scan(
+                                context,
+                                onCode = { code = it },
+                                onError = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                            )
+                        }) { Text("Scan the family's QR code") }
                         Text(
                             "The owner of that family will need to approve you.",
                             style = MaterialTheme.typography.bodySmall,

@@ -49,43 +49,44 @@ Each phase ships as its own commit and must build green before the next one star
 
 ## Phases
 
-1. **Audit and backup.** Done.
-2. **Finance core.** Includes:
+Every phase below is **done** and built green on GitHub Actions. [docs/FEATURES.md](docs/FEATURES.md) has the detail and [docs/TESTING.md](docs/TESTING.md) has the test results.
+
+1. **Audit and backup.**
+2. **Finance core.**
    - opening balances, cash and wallets, debit cards, and card opening dues and rewards
    - loan type, amount, rate, tenure and first EMI date, with the EMI worked out
    - custom categories and subcategories
    - transfers and card payments; merchant, account, member and receipt-photo fields
    - fields that show or hide depending on the entry type
-3. **Finance screens.** Includes:
+3. **Finance screens.**
    - dashboard with Mine and Family views
    - accounts and account detail with statement matching
-   - credit cards and card detail (pay in full, the minimum or any amount; history; spend by category; rewards)
+   - credit cards and card detail
    - loans and the EMI calendar
-   - the month due calendar with Mark paid, Snooze, Reschedule, Edit, Delete or skip, payment proof and view payment
+   - the month due calendar with all its actions
    - transfers
    - reminders driven by the same dues
-4. **SMS, Gmail and statement import.** Includes:
+4. **SMS, Gmail and statement import.**
    - balances, account and card matching, and card-payment detection
    - confidence levels with confirmation before saving
    - duplicates checked across all sources
    - CSV/Excel import with column mapping (including Axio exports)
-5. **Health redesign.** Includes:
-   - Health Connect activity, steps, distance, calories, sleep, heart rate and weight
-   - BMI, rings, charts and goals
-   - week, month and year views
+5. **Health redesign.**
+   - Health Connect activity, steps, distance, calories, exercise, sleep, heart rate and weight
+   - BMI, Move, Steps and Exercise rings
+   - week, month and year trends
    - manual records
-6. **Home, navigation, roles and data tools.** Includes:
+6. **Home, navigation, roles and data tools.**
    - bottom bar of Home, Finance, Health, Family and More
-   - Home with due actions
+   - Home with money and health at a glance, and due actions
    - Super Admin, Family Admin and Member roles
-   - export, import, backup, restore and resets (admins only, with confirmation)
-   - Firestore rules
-7. **AI.** Includes:
-   - answers worked out on the phone from real data (spend, top category, EMIs pending, next card due, savings, family spend, duplicates)
-   - customization of categories, widgets, fields, reminders and theme, with preview, confirm and undo
-8. **Release.** Includes:
-   - tests and test-screen photos
+   - backup, restore, recently deleted and resets (all, Finance, my health, one kind)
+   - Firestore rules published and tested
+   - QR invite
+7. **AI.**
+   - money answers worked out on the phone
+   - confirmable category, budget and theme changes
+8. **Release.**
+   - tests and emulator screenshots
    - the APK
-   - install and setup notes
-   - a feature report and a testing report
-   - known limits and the integrations that need outside approval
+   - `docs/` (install, features, testing, limitations)

@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -115,9 +116,19 @@ fun DataToolsScreen(env: AppEnv) {
             .put("collections", cols).toString()
     }
 
-    fun recordsToReset(kind: String): Map<String, List<Rec>> = when (kind) {
-        "finance" -> mapOf("expenses" to raw["expenses"].orEmpty())
-        "health" -> mapOf("items" to raw["items"].orEmpty().filter { it[PRIVATE_FLAG] == true && it.str("type") in HEALTH_TYPES })
+    /** Entries of one kind (one section of the app), deleted ones included. */
+    fun ofKind(def: com.familyhub.app.ui.modules.ModuleDef): List<Rec> {
+        val wanted = def.typeValue
+        return raw[def.collection].orEmpty().filter { r ->
+            wanted == null || (r.str("type").ifBlank { if (def.defaultType) wanted else "" }) == wanted
+        }
+    }
+
+    fun recordsToReset(kind: String): Map<String, List<Rec>> = when {
+        kind == "finance" -> mapOf("expenses" to raw["expenses"].orEmpty())
+        kind == "health" -> mapOf("items" to raw["items"].orEmpty().filter { it[PRIVATE_FLAG] == true && it.str("type") in HEALTH_TYPES })
+        kind.startsWith("kind:") -> com.familyhub.app.ui.modules.ModuleByRoute[kind.removePrefix("kind:")]
+            ?.let { mapOf(it.collection to ofKind(it)) }.orEmpty()
         else -> raw.mapValues { (_, l) -> l.filter { it[PRIVATE_FLAG] != true } }
     }
 
@@ -210,10 +221,39 @@ fun DataToolsScreen(env: AppEnv) {
     }
 
     var askReset by remember { mutableStateOf<String?>(null) }
+    // Choose one section to reset, such as Reminders, Credit cards or Shopping.
+    var pickKind by remember { mutableStateOf(false) }
+    if (pickKind) {
+        val kinds = com.familyhub.app.ui.modules.AllModules
+            .map { it to ofKind(it).size }
+            .filter { (d, n) -> n > 0 && d.collection != "expenses" }
+            .sortedBy { it.first.title }
+        AlertDialog(
+            onDismissRequest = { pickKind = false },
+            title = { Text("Reset which kind?") },
+            text = {
+                Column(
+                    modifier = Modifier.heightIn(max = 420.dp).verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    if (kinds.isEmpty()) Text("There is nothing to reset.")
+                    kinds.take(40).forEach { (d, n) ->
+                        TextButton(onClick = { pickKind = false; askReset = "kind:" + d.route }, modifier = Modifier.fillMaxWidth()) {
+                            Text(d.title, modifier = Modifier.weight(1f))
+                            Text(plural(n, "entry", "entries"), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Text("Finance entries have their own reset above.", style = MaterialTheme.typography.labelSmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = { pickKind = false }) { Text("Cancel") } }
+        )
+    }
     askReset?.let { kind ->
-        val what = when (kind) {
-            "finance" -> "all Finance entries (shared ones and your Only me ones)"
-            "health" -> "your own health records (medicines, vitals, periods, habits, workouts, doctor records)"
+        val what = when {
+            kind == "finance" -> "all Finance entries (shared ones and your Only me ones)"
+            kind == "health" -> "your own health records (medicines, vitals, periods, habits, workouts, doctor records)"
+            kind.startsWith("kind:") -> "all ${com.familyhub.app.ui.modules.ModuleByRoute[kind.removePrefix("kind:")]?.title ?: "these"} entries (shared ones and your Only me ones)"
             else -> "everything shared in ${env.family.name} (your Only me records stay)"
         }
         val n = recordsToReset(kind).values.sumOf { it.size }
@@ -305,6 +345,7 @@ fun DataToolsScreen(env: AppEnv) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             OutlinedButton(onClick = { askReset = "finance" }, enabled = !busy) { Text("Reset Finance entries") }
                             OutlinedButton(onClick = { askReset = "health" }, enabled = !busy) { Text("Reset my health records") }
+                            OutlinedButton(onClick = { pickKind = true }, enabled = !busy) { Text("Reset one kind (reminders, cards…)") }
                             OutlinedButton(onClick = { askReset = "all" }, enabled = !busy) { Text("Reset all shared family data", color = MaterialTheme.colorScheme.error) }
                         }
                     }

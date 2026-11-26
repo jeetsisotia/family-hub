@@ -90,9 +90,9 @@ fun HealthToday(env: AppEnv, steps: Long, stepGoal: Int, refreshKey: Any?) {
                 )
                 Spacer(Modifier.width(16.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    RingLegend(MoveRed, "Move", kcal?.let { "${it.toInt()} / ${moveGoal.toInt()} kcal" } ?: "— (from Health Connect)")
+                    RingLegend(MoveRed, "Move", kcal?.let { "${it.toInt()} / ${moveGoal.toInt()} kcal" } ?: "— no data")
                     RingLegend(StepGreen, "Steps", "${fmt.format(steps)} / ${fmt.format(stepGoal)}")
-                    RingLegend(ExerciseBlue, "Exercise", exercise?.let { "$it / $exerciseGoal min" } ?: "— (log a workout)")
+                    RingLegend(ExerciseBlue, "Exercise", exercise?.let { "$it / $exerciseGoal min" } ?: "— none yet")
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -108,11 +108,11 @@ fun HealthToday(env: AppEnv, steps: Long, stepGoal: Int, refreshKey: Any?) {
                 Tile(
                     "BMI", bmi?.let { "%.1f".format(it) } ?: "—",
                     when {
-                        bmi == null -> if (heightCm == null) "add height in profile" else "no weight"
-                        bmi < 18.5 -> "below 18.5"
-                        bmi < 25 -> "18.5 to 24.9"
-                        bmi < 30 -> "25 to 29.9"
-                        else -> "30 or more"
+                        bmi == null -> if (heightCm == null) "add height" else "no weight"
+                        bmi < 18.5 -> "range <18.5"
+                        bmi < 25 -> "range 18.5–24.9"
+                        bmi < 30 -> "range 25–29.9"
+                        else -> "range 30+"
                     },
                     Modifier.weight(1f)
                 )

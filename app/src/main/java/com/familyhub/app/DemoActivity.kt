@@ -108,7 +108,8 @@ class DemoActivity : FragmentActivity() {
                                 onQuickNavigate = {},
                                 aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) },
                                 records = env.data,
-                                duesCard = { com.familyhub.app.ui.money.HomeDues(env) }
+                                duesCard = { com.familyhub.app.ui.money.HomeDues(env) },
+                                glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(env, fv) }
                             )
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
                             route == "assistant_new" -> AssistantScreen(env)
@@ -326,7 +327,7 @@ object DemoData {
             profile = UserProfile(uid = UID, name = "Demo User", email = "demo@example.com", activeFamilyId = FAMILY, familyIds = listOf(FAMILY)),
             userDoc = userDoc,
             familyId = FAMILY,
-            family = FamilyGroup(id = FAMILY, name = "Demo Family", ownerUid = UID, monthlyBudget = 60000.0),
+            family = FamilyGroup(id = FAMILY, name = "Demo Family", ownerUid = UID, monthlyBudget = 60000.0, inviteCode = "DEMO42"),
             members = members,
             memberNames = members.map { it.name },
             isOwner = true,

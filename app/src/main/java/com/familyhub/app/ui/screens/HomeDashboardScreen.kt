@@ -51,7 +51,9 @@ fun HomeDashboardScreen(
     homeOrder: List<String> = emptyList(),
     homeHidden: Set<String> = emptySet(),
     /** Bills, card bills, EMIs and renewals due now, with Mark paid; paid ones drop off. */
-    duesCard: (@Composable () -> Unit)? = null
+    duesCard: (@Composable () -> Unit)? = null,
+    /** Money and health at a glance for the chosen view (true = Family View). */
+    glanceCard: (@Composable (Boolean) -> Unit)? = null
 ) {
     var familyWideView by remember { mutableStateOf(true) }
     var profileMenu by remember { mutableStateOf(false) }
@@ -147,6 +149,9 @@ fun HomeDashboardScreen(
             }
         }
 
+        if (glanceCard != null) {
+            item { Box(modifier = Modifier.riseIn(1)) { glanceCard(familyWideView) } }
+        }
         if (duesCard != null) {
             item { Box(modifier = Modifier.riseIn(1)) { duesCard() } }
         }

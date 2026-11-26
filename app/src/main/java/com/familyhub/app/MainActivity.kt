@@ -478,7 +478,8 @@ class MainActivity : FragmentActivity() {
                                                 records = recordData,
                                                 homeOrder = userDoc.stringList("homeOrder"),
                                                 homeHidden = userDoc.stringList("homeHidden").toSet(),
-                                                duesCard = { com.familyhub.app.ui.money.HomeDues(envFor(currentFamily)) }
+                                                duesCard = { com.familyhub.app.ui.money.HomeDues(envFor(currentFamily)) },
+                                                glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(envFor(currentFamily), fv) }
                                             )
                                         }
                                     }
@@ -673,6 +674,17 @@ private fun SetupScreen(
             label = { Text("Invite Code (e.g. FH-1A2B3C)") },
             modifier = Modifier.fillMaxWidth()
         )
+        val scanContext = androidx.compose.ui.platform.LocalContext.current
+        TextButton(
+            enabled = !setupBusy,
+            onClick = {
+                com.familyhub.app.ui.common.InviteQr.scan(
+                    scanContext,
+                    onCode = { inviteCode = it; setupMessage = null },
+                    onError = { setupMessage = it }
+                )
+            }
+        ) { Text("Scan the family's QR code") }
         OutlinedButton(
             enabled = !setupBusy,
             onClick = {

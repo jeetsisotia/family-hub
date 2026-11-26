@@ -140,6 +140,50 @@ fun HomeDues(env: AppEnv) {
     }
 }
 
+/**
+ * Home's at-a-glance strip: money in accounts, spending this month and card dues for the chosen view, then
+ * today's activity from this phone (steps, sleep, active calories). Health numbers are the person's own and
+ * stay on the phone; a dash means there is no reading.
+ */
+@Composable
+fun HomeGlance(env: AppEnv, familyView: Boolean) {
+    val context = LocalContext.current
+    val data = remember(env.data, familyView) { viewData(env, familyView) }
+    val (from, to) = remember { monthRange() }
+    val now = remember { System.currentTimeMillis() }
+    val s = remember(data) { Ledger.summary(data, from, to, now, env.data["expenses"].orEmpty()) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), onClick = { env.navigate("finance") }) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    if (familyView) "FAMILY MONEY THIS MONTH" else "MY MONEY THIS MONTH",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Stat("In accounts", inrShort(s.bank + s.cash), Modifier.weight(1f))
+                    Stat("Spent", inrShort(s.spent), Modifier.weight(1f))
+                    Stat("Card dues", inrShort(s.cardOutstanding), Modifier.weight(1f), if (s.cardOutstanding > 0) Red else Color.Unspecified)
+                }
+                if (s.income > 0) Text(
+                    "Income ${inr(s.income)} • saved ${s.savingsPct}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+        val steps = remember { com.familyhub.app.health.StepTracker.today(context) }
+        val hc = remember { com.familyhub.app.health.HealthConnectSync.day(context) }
+        GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), onClick = { env.navigate("health_hub") }) {
+            Row(Modifier.padding(14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Stat("Steps today", java.text.NumberFormat.getIntegerInstance().format(steps), Modifier.weight(1f), Color(0xFF34C759))
+                Stat("Sleep", hc.sleepMin?.let { "${it / 60}h ${it % 60}m" } ?: "—", Modifier.weight(1f))
+                Stat("Active", hc.activeKcal?.let { "${it.toInt()} kcal" } ?: "—", Modifier.weight(1f))
+            }
+        }
+    }
+}
+
 private fun dueIcon(kind: String) = when (kind) {
     "card" -> Icons.Rounded.CreditCard
     "emi" -> Icons.Rounded.RequestQuote

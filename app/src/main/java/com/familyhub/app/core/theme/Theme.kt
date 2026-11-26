@@ -104,8 +104,42 @@ private val GlassShapes = Shapes(
     extraLarge = RoundedCornerShape(32.dp)
 )
 
+/** Light, dark or the phone's setting, chosen in Settings → Appearance (or by asking the assistant). Kept on this phone. */
+object ThemeChoice {
+    private const val PREFS = "family_hub_ui"
+    private const val KEY = "theme"
+    const val SYSTEM = "system"
+    const val LIGHT = "light"
+    const val DARK = "dark"
+    val mode = androidx.compose.runtime.mutableStateOf(SYSTEM)
+    private var loaded = false
+
+    fun load(ctx: android.content.Context) {
+        if (loaded) return
+        loaded = true
+        mode.value = ctx.applicationContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).getString(KEY, SYSTEM) ?: SYSTEM
+    }
+
+    fun set(ctx: android.content.Context, value: String) {
+        val v = if (value == LIGHT || value == DARK) value else SYSTEM
+        loaded = true
+        mode.value = v
+        ctx.applicationContext.getSharedPreferences(PREFS, android.content.Context.MODE_PRIVATE).edit().putString(KEY, v).apply()
+    }
+}
+
 @Composable
-fun FamilyHubTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun themeIsDark(): Boolean {
+    ThemeChoice.load(androidx.compose.ui.platform.LocalContext.current)
+    return when (ThemeChoice.mode.value) {
+        ThemeChoice.LIGHT -> false
+        ThemeChoice.DARK -> true
+        else -> isSystemInDarkTheme()
+    }
+}
+
+@Composable
+fun FamilyHubTheme(darkTheme: Boolean = themeIsDark(), content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalGlassDark provides darkTheme) {
         MaterialTheme(
             colorScheme = if (darkTheme) DarkColors else LightColors,
