@@ -3,7 +3,8 @@ package com.familyhub.app.ui.modules
 import com.familyhub.app.data.model.FamilyMember
 import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.ui.health.PeriodMath
-import com.familyhub.app.ui.money.CardCycle
+import com.familyhub.app.money.Ledger
+import com.familyhub.app.ui.money.inr
 
 /**
  * Alerts that are worked out rather than typed in: the next period and credit card bills.
@@ -22,15 +23,6 @@ fun computedAlerts(data: Map<String, List<Rec>>): List<AlertItem> {
         }
     }
 
-    for (card in items.filter { it.str("type") == "card" }) {
-        val c = CardCycle.of(card) ?: continue
-        val days = daysUntil(c.billDue)
-        val due = if (days < -3) c.nextDue else c.billDue
-        val left = daysUntil(due)
-        if (left in -3..7) {
-            out.add(AlertItem(card.str("title") + " bill", "Card bill due", due, "cards", left < 0))
-        }
-    }
     // Medicines running out (5 or fewer doses left).
     for (m in items.filter { it.str("type") == "medicine" }) {
         val stock = m.num("stock") ?: continue
@@ -43,9 +35,25 @@ fun computedAlerts(data: Map<String, List<Rec>>): List<AlertItem> {
     return out
 }
 
+/**
+ * Bills, card bills, EMIs, renewals and premiums, from the same ledger as the due calendar, so a due that is
+ * paid (or snoozed) stops reminding straight away. Card bills remind from 10 days before, renewals from 7.
+ */
+fun moneyAlerts(data: Map<String, List<Rec>>, now: Long = System.currentTimeMillis()): List<AlertItem> =
+    Ledger.dues(data, now - 30 * DAY_MS, now + 30 * DAY_MS, now)
+        .filter { it.status != "PAID" && (it.snoozedUntil ?: 0L) <= now }
+        .filter { d ->
+            val days = daysUntil(d.dueMillis, now)
+            days <= when (d.kind) { "subscription" -> 7; "card" -> 10; else -> 30 }
+        }
+        .map { d ->
+            val what = when (d.kind) { "card" -> "Card bill due"; "emi" -> "EMI due"; "subscription" -> "Renews"; "policy" -> "Premium due"; else -> "Bill due" }
+            AlertItem(d.title, if (d.amount > 0) "$what • ${inr(d.amount)}" else what, d.dueMillis, "due_calendar", daysUntil(d.dueMillis, now) < 0)
+        }
+
 /** Typed-in alerts plus worked-out ones, soonest first. */
 fun allAlerts(data: Map<String, List<Rec>>): List<AlertItem> =
-    (buildAlerts(data) + computedAlerts(data)).sortedBy { it.dateMillis }
+    (buildAlerts(data) + computedAlerts(data) + moneyAlerts(data)).sortedBy { it.dateMillis }
 
 /** Passport and driving licence expiry, birthday and anniversary from your own profile. */
 fun profileAlerts(userDoc: Rec): List<AlertItem> {

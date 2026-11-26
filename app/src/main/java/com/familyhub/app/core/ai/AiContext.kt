@@ -88,7 +88,7 @@ object AiContext {
         }
 
         val safeData = mapOf("items" to items, "events" to events, "expenses" to expenses, "tasks" to tasks, "trips" to trips)
-        val due = buildAlerts(safeData).filter { it.route !in PRIVATE_ROUTES && daysUntil(it.dateMillis, now) in -7..30 }.take(15)
+        val due = (buildAlerts(safeData) + com.familyhub.app.ui.modules.moneyAlerts(safeData, now)).sortedBy { it.dateMillis }.filter { it.route !in PRIVATE_ROUTES && daysUntil(it.dateMillis, now) in -7..30 }.take(15)
         if (due.isNotEmpty()) {
             sb.appendLine("\nDue soon or overdue (bills, EMIs, renewals, expiries):")
             due.forEach { sb.appendLine("- ${it.title}: ${it.label}") }

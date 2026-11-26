@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,7 +25,7 @@ import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.data.remote.RecordRepository
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.ExtraRoute
-import com.familyhub.app.ui.ExtraRouteIds
+import com.familyhub.app.ui.isExtraRoute
 import com.familyhub.app.ui.ai.AssistantScreen
 import com.familyhub.app.ui.common.dayKey
 import com.familyhub.app.ui.modules.DAY_MS
@@ -56,6 +57,11 @@ class DemoActivity : FragmentActivity() {
             "workouts" -> "txn_select"
             "arrange" -> "arrange_home"
             "assistant_new" -> "assistant_tidy"
+            // Money screens of this release.
+            "periods" -> "due_calendar"
+            "insights" -> "accounts_home"
+            "medicines" -> "loan:demo-loan"
+            "profile" -> "ccard:demo-hdfc-card"
             else -> asked
         }
         val ask = intent.getStringExtra("ask")?.replace('_', ' ')?.takeIf { it.isNotBlank() }
@@ -75,6 +81,7 @@ class DemoActivity : FragmentActivity() {
                     )
                     Box(modifier = Modifier.fillMaxSize()) {
                         val def = ModuleByRoute[route]
+                        val financeOverview: @Composable () -> Unit = { com.familyhub.app.ui.money.FinanceOverview(env) }
                         when {
                             route == "assistant" -> AssistantScreen(
                                 env,
@@ -138,7 +145,7 @@ class DemoActivity : FragmentActivity() {
                             route == "alerts" -> com.familyhub.app.ui.modules.AlertsScreen(
                                 alerts = com.familyhub.app.ui.modules.buildAlerts(env.data), onBack = {}, onOpen = {}
                             )
-                            route in ExtraRouteIds -> ExtraRoute(route, env)
+                            isExtraRoute(route) -> ExtraRoute(route, env)
                             def != null -> ModuleScreen(
                                 def = def,
                                 familyId = DemoData.FAMILY,
@@ -151,6 +158,7 @@ class DemoActivity : FragmentActivity() {
                                 onBack = {},
                                 onOpen = {},
                                 onAskAi = {},
+                                overview = if (def.kind == "finance") financeOverview else null,
                                 preview = env.data[def.collection]
                             )
                             else -> Text("Unknown screen: $route", modifier = Modifier.padding(24.dp))
@@ -218,11 +226,23 @@ object DemoData {
             rec("type" to "period", "title" to "Period", "startMillis" to now - 58 * d, "endMillis" to now - 54 * d, private = true),
             rec("type" to "period", "title" to "Period", "startMillis" to now - 29 * d, "endMillis" to now - 25 * d,
                 "flow" to "Medium", "symptoms" to listOf("Cramps"), private = true),
-            rec("type" to "card", "title" to "HDFC Millennia", "bank" to "HDFC", "last4" to "4321",
+            rec("id" to "demo-hdfc-card", "type" to "card", "title" to "HDFC Millennia", "bank" to "HDFC", "last4" to "4321", "rewardPoints" to 2140.0,
                 "statementDay" to 20.0, "dueDay" to 8.0, "limitInr" to 100000.0, private = true),
             rec("type" to "card", "title" to "SBI SimplyCLICK", "bank" to "SBI", "last4" to "9876",
                 "statementDay" to 3.0, "dueDay" to 23.0, "limitInr" to 60000.0, private = true),
-            rec("type" to "subscription", "title" to "Netflix", "amountInr" to 649.0, "renewalDateMillis" to now + 3 * d)
+            rec("type" to "subscription", "title" to "Netflix", "amountInr" to 649.0, "cycle" to "Monthly",
+                "renewalDateMillis" to now + 3 * d, "renewalMillis" to now + 3 * d),
+            rec("id" to "demo-hdfc", "type" to "account", "title" to "HDFC Savings", "category" to "Savings", "bank" to "HDFC", "last4" to "1234",
+                "openingBalance" to 142000.0, "openingDateMillis" to now - 100 * d, private = true),
+            rec("type" to "account", "title" to "Cash", "category" to "Cash", "openingBalance" to 3500.0, "openingDateMillis" to now - 100 * d,
+                "memberUid" to UID, "memberName" to "Demo User"),
+            rec("type" to "debit_card", "title" to "HDFC Debit", "account" to "HDFC Savings", "accountId" to "demo-hdfc", "last4" to "5566", private = true),
+            rec("id" to "demo-loan", "type" to "loan", "title" to "Car loan", "loanType" to "Car", "lender" to "HDFC Bank",
+                "principal" to 600000.0, "interestRate" to 9.5, "tenureMonths" to 60.0, "startMillis" to now - 150 * d,
+                "account" to "HDFC Savings", "memberUid" to UID, "memberName" to "Demo User"),
+            rec("type" to "policy", "title" to "Family health cover", "insurer" to "Star Health", "category" to "Health",
+                "amountInr" to 24500.0, "premiumCycle" to "Yearly", "premiumDueMillis" to now + 12 * d, "memberUid" to UID),
+            rec("type" to "category", "title" to "Swiggy", "parent" to "Dining", "kind" to "Spending")
         )
         val cats = listOf("Groceries", "Dining", "Fuel", "Shopping", "Utilities", "Health", "Entertainment", "Transport")
         val places = listOf("BigBasket", "Swiggy", "Indian Oil", "Amazon", "Airtel", "Apollo Pharmacy", "PVR", "Uber")
@@ -256,7 +276,18 @@ object DemoData {
         expenses.add(rec("type" to "EXPENSE", "title" to "Transfer to self HDFC", "category" to "Other", "amountInr" to 10000.0,
             "dateMillis" to now - 3 * d, "paymentMethod" to "Net banking", "isPaid" to true, "isDeleted" to false, "notExpense" to true))
         expenses.add(rec("type" to "INCOME", "title" to "Salary", "category" to "Salary", "amountInr" to 85000.0,
-            "dateMillis" to now - 20 * d, "memberName" to "Demo User", "memberUid" to UID, "isDeleted" to false))
+            "dateMillis" to now - 20 * d, "memberName" to "Demo User", "memberUid" to UID, "isDeleted" to false, "account" to "HDFC Savings"))
+        // Money moved, not spent: a card bill paid from the bank and cash taken out.
+        expenses.add(rec("type" to "CARD_PAYMENT", "title" to "HDFC Millennia payment", "amountInr" to 5000.0, "dateMillis" to now - 6 * d,
+            "account" to "HDFC Savings", "card" to "HDFC Millennia", "cardId" to "demo-hdfc-card", "memberUid" to UID, "isDeleted" to false))
+        expenses.add(rec("type" to "TRANSFER", "title" to "HDFC Savings → Cash", "amountInr" to 2000.0, "dateMillis" to now - 5 * d,
+            "account" to "HDFC Savings", "toAccount" to "Cash", "memberUid" to UID, "isDeleted" to false))
+        // Four car-loan EMIs paid; the fifth is still open.
+        for (i in 1..4) {
+            expenses.add(rec("type" to "EMI", "title" to "Car loan EMI $i/60", "category" to "Loan & EMI", "amountInr" to 12601.0,
+                "dateMillis" to now - (150 - (i - 1) * 30) * d, "isPaid" to true, "loanId" to "demo-loan", "installmentNo" to i.toDouble(),
+                "account" to "HDFC Savings", "memberUid" to UID, "isDeleted" to false))
+        }
         expenses.add(rec("type" to "BILL", "title" to "Electricity bill", "category" to "Utilities", "amountInr" to 1840.0,
             "dateMillis" to now + 4 * d, "dueDateMillis" to now + 4 * d, "isPaid" to false, "isDeleted" to false))
         val events = listOf(

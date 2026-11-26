@@ -66,14 +66,18 @@ object Hubs {
     val money = Hub(
         "finance", "Money", "Spending, cards, bills and savings", Icons.Rounded.AccountBalanceWallet,
         listOf(
-            HubItem("insights", "Insights", Icons.Rounded.PieChart),
-            HubItem("cards", "Card bills", Icons.Rounded.CreditCard),
+            HubItem("accounts_home", "Accounts", Icons.Rounded.AccountBalance),
+            HubItem("cards", "Credit cards", Icons.Rounded.CreditCard),
+            HubItem("loans_home", "Loans & EMIs", Icons.Rounded.RequestQuote),
+            HubItem("due_calendar", "Due calendar", Icons.Rounded.EventNote),
+            HubItem("transfer", "Transfer", Icons.Rounded.SwapHoriz),
             HubItem("import", "Scan SMS & Gmail", Icons.Rounded.MarkEmailRead),
+            HubItem("insights", "Insights", Icons.Rounded.PieChart),
             HubItem("subscriptions", "Subscriptions", Icons.Rounded.Subscriptions),
-            HubItem("loans", "Loans & EMIs", Icons.Rounded.AccountBalance),
+            HubItem("categories", "Categories", Icons.Rounded.Category),
             HubItem("goals", "Savings goals", Icons.Rounded.Savings),
-            HubItem("settle", "Settle up", Icons.Rounded.SwapHoriz),
-            HubItem("accounts", "Bank accounts", Icons.Rounded.AccountBalance)
+            HubItem("settle", "Settle up", Icons.Rounded.Groups),
+            HubItem("policies", "Insurance", Icons.Rounded.Shield)
         )
     )
 

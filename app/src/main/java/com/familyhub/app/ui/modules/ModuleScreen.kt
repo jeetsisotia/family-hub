@@ -2,6 +2,7 @@ package com.familyhub.app.ui.modules
 
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +68,8 @@ private fun buildRecord(
 ): Pair<MutableMap<String, Any?>?, String?> {
     val out = HashMap<String, Any?>(draft)
     for (f in def.fields) {
+        // Hidden fields are not checked.
+        if (f.showIf?.invoke(draft) == false) continue
         when (f.type) {
             FieldType.NUMBER -> {
                 val t = nums[f.key].orEmpty().trim()
@@ -110,6 +114,8 @@ fun ModuleScreen(
     extraOptions: Map<String, List<String>> = emptyMap(),
     families: List<com.familyhub.app.data.remote.FamilyInfo> = emptyList(),
     onAskAi: ((String) -> Unit)? = null,
+    /** Shown above the module's own summary (the Finance dashboard). */
+    overview: (@Composable () -> Unit)? = null,
     /** Test screens only: show these records instead of the saved ones, and start in a given state. */
     preview: List<Rec>? = null,
     previewState: String? = null
@@ -287,6 +293,7 @@ fun ModuleScreen(
             ) {
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        overview?.invoke()
                         ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget)
                         if (def.kind == "finance" && onOpen != null) {
                             com.familyhub.app.ui.hub.HubTiles(com.familyhub.app.ui.hub.Hubs.money.items, onOpen)
@@ -877,6 +884,7 @@ private fun RecordForm(
                     }
                 }
                 def.fields.forEach { f ->
+                    if (f.showIf?.invoke(draft) == false) return@forEach
                     val label = if (f.required) "${f.label} *" else f.label
                     when (f.type) {
                         FieldType.TEXT -> OutlinedTextField(
@@ -910,7 +918,7 @@ private fun RecordForm(
                         )
                         FieldType.CHOICE -> {
                             val cur = (draft[f.key] as? String).orEmpty()
-                            val dyn = f.dynamic
+                            val dyn = f.dynamic?.replace(Regex("\\{(\\w+)\\}")) { mr -> (draft[mr.groupValues[1]] as? String).orEmpty() }
                             val opts = if (dyn != null) {
                                 (f.options + extraOptions[dyn].orEmpty() + cur).filter { it.isNotBlank() }.distinct()
                             } else f.options
@@ -942,6 +950,11 @@ private fun RecordForm(
                                 onCheckedChange = { draft[f.key] = it }
                             )
                         }
+                        FieldType.PHOTO -> PhotoField(
+                            label = label,
+                            value = (draft[f.key] as? String)?.takeIf { it.isNotBlank() },
+                            onChange = { draft[f.key] = it }
+                        )
                     }
                 }
                 val fe = formError
@@ -993,6 +1006,34 @@ private fun DateField(label: String, value: Long?, required: Boolean, onChange: 
             dismissButton = { TextButton(onClick = { show = false }) { Text("Cancel") } }
         ) {
             DatePicker(state = state)
+        }
+    }
+}
+
+/** A picture kept with the record (a receipt or payment proof), made small enough to store. */
+@Composable
+private fun PhotoField(label: String, value: String?, onChange: (String?) -> Unit) {
+    val context = LocalContext.current
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val enc = com.familyhub.app.ui.common.PhotoCodec.encode(context, uri, 900, 70)
+            if (enc != null) onChange(enc) else Toast.makeText(context, "Could not read that picture", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val img = com.familyhub.app.ui.common.rememberPhoto(value)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        if (img != null) {
+            androidx.compose.foundation.Image(
+                bitmap = img, contentDescription = label,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp).clip(RoundedCornerShape(12.dp))
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { pick.launch("image/*") }) { Text(if (img == null) "Add picture" else "Replace") }
+            if (img != null) TextButton(onClick = { onChange(null) }) { Text("Remove") }
         }
     }
 }

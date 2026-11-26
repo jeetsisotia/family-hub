@@ -72,7 +72,7 @@ fun nextOccurrence(start: Long, repeat: String, now: Long = System.currentTimeMi
 
 // ---------- module definitions ----------
 
-enum class FieldType { TEXT, MULTILINE, NUMBER, DATE, CHOICE, MEMBER, BOOL }
+enum class FieldType { TEXT, MULTILINE, NUMBER, DATE, CHOICE, MEMBER, BOOL, PHOTO }
 
 data class FieldDef(
     val key: String,
@@ -80,8 +80,13 @@ data class FieldDef(
     val type: FieldType = FieldType.TEXT,
     val options: List<String> = emptyList(),
     val required: Boolean = false,
-    /** When set, the choices come from the app at run time (for example "cards"). */
-    val dynamic: String? = null
+    /**
+     * When set, the choices come from the app at run time (for example "cards"). A {key} in it is replaced by
+     * that field's current value, so "sub:{category}" lists the subcategories of the chosen category.
+     */
+    val dynamic: String? = null,
+    /** Shown only when this returns true for the form's current values. */
+    val showIf: ((Map<String, Any?>) -> Boolean)? = null
 )
 
 data class DateKey(val key: String, val label: String)
@@ -146,18 +151,36 @@ val CalendarModule = ModuleDef(
     kind = "calendar"
 )
 
+/** Types that only move money (between accounts, or to pay a card) and never count as spending. */
+val MONEY_MOVES = setOf("TRANSFER", "CARD_PAYMENT", "ADJUSTMENT")
+
+private fun Map<String, Any?>.t(k: String) = (this[k] as? String).orEmpty()
+private val notMove: (Map<String, Any?>) -> Boolean = { m -> m.t("type") !in MONEY_MOVES }
+
 val FinanceModule = ModuleDef(
     route = "finance", title = "Finance", icon = Icons.Rounded.AccountBalanceWallet,
     collection = "expenses",
     titleKey = "title", subtitleKeys = listOf("type", "category", "memberName"),
     fields = listOf(
-        FieldDef("type", "Type", FieldType.CHOICE, listOf("EXPENSE", "INCOME", "BILL", "EMI", "SAVING"), true),
+        FieldDef("type", "Type", FieldType.CHOICE, listOf("EXPENSE", "INCOME", "BILL", "EMI", "SAVING", "TRANSFER", "CARD_PAYMENT"), true),
         FieldDef("title", "Title", required = true),
         FieldDef("amountInr", "Amount (₹)", FieldType.NUMBER, required = true),
-        FieldDef("category", "Category", FieldType.CHOICE, financeCategories),
+        FieldDef("category", "Category", FieldType.CHOICE, financeCategories, dynamic = "categories", showIf = notMove),
+        FieldDef("subcategory", "Subcategory", FieldType.CHOICE, listOf("None"), dynamic = "sub:{category}", showIf = notMove),
+        FieldDef("merchant", "Merchant or payee", showIf = notMove),
         FieldDef("dateMillis", "Date or due date", FieldType.DATE, required = true),
-        FieldDef("paymentMethod", "Paid by", FieldType.CHOICE, PAYMENT_METHODS),
-        FieldDef("card", "Card (for card payments)", FieldType.CHOICE, listOf("None"), dynamic = "cards"),
+        FieldDef("paymentMethod", "Paid by", FieldType.CHOICE, PAYMENT_METHODS, showIf = notMove),
+        FieldDef(
+            "account", "Bank account or cash (money from)", FieldType.CHOICE, listOf("None"), dynamic = "accounts",
+            showIf = { m -> m.t("type") in MONEY_MOVES || m.t("paymentMethod") != "Credit card" }
+        ),
+        FieldDef("toAccount", "To account", FieldType.CHOICE, listOf("None"), dynamic = "accounts", showIf = { m -> m.t("type") == "TRANSFER" }),
+        FieldDef(
+            "card", "Card", FieldType.CHOICE, listOf("None"), dynamic = "cards",
+            showIf = { m -> m.t("type") == "CARD_PAYMENT" || m.t("paymentMethod") == "Credit card" || m.t("paymentMethod") == "Debit card" }
+        ),
+        FieldDef("memberName", "For", FieldType.MEMBER, showIf = notMove),
+        FieldDef("proofPhoto", "Receipt or payment proof", FieldType.PHOTO),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
     amountKey = "amountInr", dateKeys = listOf(DateKey("dateMillis", "Date")),
@@ -169,9 +192,21 @@ val FinanceModule = ModuleDef(
         val isDue = t == "BILL" || t == "EMI"
         if (m["isPaid"] == null) m["isPaid"] = !isDue
         if (isDue) m["dueDateMillis"] = m["dateMillis"]
-        if (m["memberUid"] == null) {
-            m["memberUid"] = uid
+        if (m["createdByUid"] == null) m["createdByUid"] = uid
+        // "For" decides whose spending it is; it starts as the person adding it.
+        val forName = (m["memberName"] as? String).orEmpty()
+        if (forName.isBlank() || forName == name) {
             m["memberName"] = name
+            if (m["memberUid"] == null) m["memberUid"] = uid
+        } else if (m["memberUid"] == uid) {
+            m["memberUid"] = null
+        }
+        // Moves are never spending (the type alone decides that), and are always settled.
+        if (t in MONEY_MOVES) m["isPaid"] = true
+        // Remember which kind of card paid, so card bills and bank balances stay apart.
+        when ((m["paymentMethod"] as? String).orEmpty()) {
+            "Credit card" -> m["cardKind"] = "credit"
+            "Debit card" -> m["cardKind"] = "debit"
         }
     },
     kind = "finance"
@@ -340,16 +375,31 @@ val SubscriptionsModule = ModuleDef(
 val LoansModule = ModuleDef(
     route = "loans", title = "Loans & EMIs", icon = Icons.Rounded.AccountBalance,
     collection = "items", typeValue = "loan",
-    subtitleKeys = listOf("lender", "notes"),
+    subtitleKeys = listOf("loanType", "lender"),
     fields = listOf(
         FieldDef("title", "Loan name", required = true),
+        FieldDef("loanType", "Type", FieldType.CHOICE, listOf("Home", "Car", "Two-wheeler", "Personal", "Education", "Gold", "Credit card EMI", "Business", "Other")),
         FieldDef("lender", "Bank or lender"),
-        FieldDef("amountInr", "Outstanding amount (₹)", FieldType.NUMBER, required = true),
-        FieldDef("emiAmount", "Monthly EMI (₹)", FieldType.NUMBER),
-        FieldDef("nextDueMillis", "Next EMI due", FieldType.DATE),
-        FieldDef("interestRate", "Interest rate (%)", FieldType.NUMBER),
-        FieldDef("notes", "Account number, tenure, notes", FieldType.MULTILINE)
+        FieldDef("principal", "Loan amount (₹)", FieldType.NUMBER),
+        FieldDef("interestRate", "Interest rate (% a year)", FieldType.NUMBER),
+        FieldDef("tenureMonths", "Tenure (months)", FieldType.NUMBER),
+        FieldDef("startMillis", "First EMI date", FieldType.DATE),
+        FieldDef("emiAmount", "Monthly EMI (₹, empty = work it out)", FieldType.NUMBER),
+        FieldDef("paidInstallments", "EMIs already paid before adding here", FieldType.NUMBER),
+        FieldDef("amountInr", "Outstanding today (₹, if known)", FieldType.NUMBER),
+        FieldDef("nextDueMillis", "Next EMI due (if no first EMI date)", FieldType.DATE),
+        FieldDef("account", "EMI paid from", FieldType.CHOICE, listOf("None"), dynamic = "accounts"),
+        FieldDef("notes", "Loan account number, notes", FieldType.MULTILINE)
     ),
+    postProcess = { m, _, _ ->
+        val p = (m["principal"] as? Number)?.toDouble()
+        val r = (m["interestRate"] as? Number)?.toDouble()
+        val n = (m["tenureMonths"] as? Number)?.toInt()
+        if (m["emiAmount"] == null && p != null && r != null && n != null && n > 0) {
+            m["emiAmount"] = com.familyhub.app.money.Ledger.round2(com.familyhub.app.money.Ledger.emi(p, r, n))
+        }
+        if (m["amountInr"] == null && p != null) m["amountInr"] = p
+    },
     amountKey = "amountInr",
     dateKeys = listOf(DateKey("nextDueMillis", "EMI due")),
     kind = "loan"
@@ -665,8 +715,14 @@ val CardsModule = ModuleDef(
         FieldDef("statementDay", "Statement date (day of month, 1 to 31)", FieldType.NUMBER, required = true),
         FieldDef("dueDay", "Payment due date (day of month)", FieldType.NUMBER, required = true),
         FieldDef("limitInr", "Credit limit (₹)", FieldType.NUMBER),
+        FieldDef("openingOutstanding", "Amount owed today (₹, before entries added here)", FieldType.NUMBER),
+        FieldDef("openingDateMillis", "Owed as on", FieldType.DATE),
+        FieldDef("rewardPoints", "Reward points", FieldType.NUMBER),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
+    postProcess = { m, _, _ ->
+        if (m["openingOutstanding"] != null && m["openingDateMillis"] == null) m["openingDateMillis"] = startOfDay(System.currentTimeMillis())
+    },
     alerts = false, privateByDefault = true, kind = "card",
     emptyText = "Add your credit cards with statement and due dates to follow each billing cycle."
 )
@@ -680,6 +736,7 @@ val PoliciesModule = ModuleDef(
         FieldDef("insurer", "Insurer"),
         FieldDef("category", "Type", FieldType.CHOICE, listOf("Health", "Life", "Motor", "Home", "Travel", "Other")),
         FieldDef("amountInr", "Premium (₹)", FieldType.NUMBER),
+        FieldDef("premiumCycle", "Premium paid", FieldType.CHOICE, listOf("Yearly", "Half-yearly", "Quarterly", "Monthly")),
         FieldDef("premiumDueMillis", "Next premium due", FieldType.DATE),
         FieldDef("expiryMillis", "Policy expires on", FieldType.DATE),
         FieldDef("notes", "Who is covered, cover amount, notes", FieldType.MULTILINE)
@@ -695,14 +752,47 @@ val AccountsModule = ModuleDef(
     collection = "items", typeValue = "account",
     subtitleKeys = listOf("bank", "last4"),
     fields = listOf(
-        FieldDef("title", "Account name (for example HDFC savings)", required = true),
-        FieldDef("bank", "Bank"),
-        FieldDef("last4", "Last 4 digits"),
-        FieldDef("category", "Type", FieldType.CHOICE, listOf("Savings", "Salary", "Current", "Joint", "Other")),
+        FieldDef("title", "Account name (for example HDFC savings, Cash)", required = true),
+        FieldDef("category", "Type", FieldType.CHOICE, listOf("Savings", "Salary", "Current", "Joint", "Cash", "Wallet", "Other")),
+        FieldDef("bank", "Bank", showIf = { m -> m.t("category") != "Cash" && m.t("category") != "Wallet" }),
+        FieldDef("last4", "Last 4 digits", showIf = { m -> m.t("category") != "Cash" && m.t("category") != "Wallet" }),
+        FieldDef("openingBalance", "Balance today (₹)", FieldType.NUMBER),
+        FieldDef("openingDateMillis", "Balance as on", FieldType.DATE),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
+    postProcess = { m, _, _ ->
+        if (m["openingBalance"] != null && m["openingDateMillis"] == null) m["openingDateMillis"] = startOfDay(System.currentTimeMillis())
+    },
     alerts = false, privateByDefault = true, kind = "account",
-    emptyText = "Your bank accounts appear here. Import finds them in bank SMS by the last four digits."
+    emptyText = "Add bank accounts, cash and wallets with today's balance. Import also finds accounts in bank SMS by the last four digits."
+)
+
+val DebitCardsModule = ModuleDef(
+    route = "debit_cards", title = "Debit cards", icon = Icons.Rounded.CreditCard,
+    collection = "items", typeValue = "debit_card",
+    subtitleKeys = listOf("account", "last4"),
+    fields = listOf(
+        FieldDef("title", "Card name (for example HDFC debit)", required = true),
+        FieldDef("account", "Linked bank account", FieldType.CHOICE, listOf("None"), required = true, dynamic = "accounts"),
+        FieldDef("last4", "Last 4 digits"),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    alerts = false, privateByDefault = true, kind = "debit_card",
+    emptyText = "Link each debit card to its bank account, so card spends come out of the right balance. Only the last four digits are kept."
+)
+
+val CategoriesModule = ModuleDef(
+    route = "categories", title = "Money categories", icon = Icons.Rounded.Category,
+    collection = "items", typeValue = "category",
+    subtitleKeys = listOf("parent", "kind"),
+    fields = listOf(
+        FieldDef("title", "Name", required = true),
+        FieldDef("parent", "Inside category (None = a main category)", FieldType.CHOICE, listOf("None"), dynamic = "categories"),
+        FieldDef("kind", "Used for", FieldType.CHOICE, listOf("Spending", "Income", "Both")),
+        FieldDef("budgetInr", "Monthly budget (₹, optional)", FieldType.NUMBER)
+    ),
+    alerts = false, kind = "category",
+    emptyText = "The built-in categories are always there. Add your own, or subcategories inside one (for example Dining › Swiggy)."
 )
 
 val AllModules: List<ModuleDef> = listOf(
@@ -713,24 +803,25 @@ val AllModules: List<ModuleDef> = listOf(
     MaintenanceModule, NotesModule, MealsModule, ChoresModule, BirthdaysModule,
     PetsModule, SchoolModule, GoalsModule,
     MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule, WorkoutsModule,
-    PoliciesModule, AccountsModule
+    PoliciesModule, AccountsModule, DebitCardsModule, CategoriesModule
 )
 
 /** Modules reached from inside other screens rather than from the More grid. */
-val HiddenFromMore: Set<String> = setOf("card_list", "habits", "workouts")
+val HiddenFromMore: Set<String> = setOf("card_list", "habits", "workouts", "debit_cards", "categories")
 
 val ModuleByRoute: Map<String, ModuleDef> = AllModules.associateBy { it.route }
 
 /** Shortcut chips shown under the Finance summary (route to label). Filled in as screens are added. */
 object FinanceShortcutRegistry {
     val items: List<Pair<String, String>> = listOf(
+        "due_calendar" to "Due calendar",
         "insights" to "Insights",
-        "cards" to "Card bills",
         "import" to "Import SMS / email"
     )
 
     fun icon(route: String): ImageVector = when (route) {
         "insights" -> Icons.Rounded.PieChart
+        "due_calendar" -> Icons.Rounded.EventNote
         "cards" -> Icons.Rounded.CreditCard
         "import" -> Icons.Rounded.MarkEmailRead
         else -> Icons.Rounded.ChevronRight
@@ -783,17 +874,24 @@ data class AlertItem(
 fun daysUntil(dateMillis: Long, now: Long = System.currentTimeMillis()): Int =
     ((startOfDay(dateMillis) - startOfDay(now)) / DAY_MS).toInt()
 
+private val MONEY_DUE_KINDS = setOf("finance", "loan", "subscription")
+
 /** data is keyed by Firestore collection name (items, events, expenses, tasks, trips). */
 fun buildAlerts(data: Map<String, List<Rec>>): List<AlertItem> {
     val out = mutableListOf<AlertItem>()
+    val now = System.currentTimeMillis()
     for (def in AllModules) {
         if (!def.alerts || def.dateKeys.isEmpty()) continue
+        // Money dues (bills, EMIs, renewals, premiums) come from moneyAlerts, which knows what is paid.
+        if (def.kind in MONEY_DUE_KINDS) continue
         val recs = recordsFor(def, data[def.collection].orEmpty())
         val doneKey = def.doneKey
         for (r in recs) {
             if (doneKey != null && r.bool(doneKey)) continue
+            if ((r.lng("snoozedUntilMillis") ?: 0L) > now) continue
             val rep = def.repeatKey?.let { r.str(it) }.orEmpty()
             for (dk in def.dateKeys) {
+                if (def.kind == "policy" && dk.key == "premiumDueMillis") continue
                 val raw = r.lng(dk.key) ?: continue
                 val d = nextOccurrence(raw, rep)
                 val days = daysUntil(d)

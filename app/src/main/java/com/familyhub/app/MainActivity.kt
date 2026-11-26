@@ -40,7 +40,7 @@ import com.familyhub.app.core.CrashLog
 import com.familyhub.app.core.security.AppLock
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.ExtraRoute
-import com.familyhub.app.ui.ExtraRouteIds
+import com.familyhub.app.ui.isExtraRoute
 import com.familyhub.app.ui.LockScreen
 import com.familyhub.app.ui.stringList
 import com.familyhub.app.core.theme.EntryIntro
@@ -238,9 +238,8 @@ class MainActivity : FragmentActivity() {
                         StepTracker.setFamilies(context, profile.familyIds + activeFamilyId)
                         if (StepTracker.isEnabled(context)) StepService.start(context)
                     }
-                    val cardTitles = remember(itemRecs) {
-                        listOf("None") + itemRecs.filter { it.str("type") == "card" }.map { it.str("title") }.filter { it.isNotBlank() }
-                    }
+                    // Choices for money fields: cards, accounts, categories and each category's subcategories.
+                    val moneyOptions = remember(itemRecs) { com.familyhub.app.ui.money.moneyFieldOptions(itemRecs) }
 
                     val lockerDocs = remember(itemRecs) {
                         itemRecs.filter { it.str("type") == "document" }.map {
@@ -422,11 +421,13 @@ class MainActivity : FragmentActivity() {
                                     onSignOut = signOut,
                                     onOpen = navigate
                                 )
-                            } else if (route != null && route in ExtraRouteIds) {
+                            } else if (isExtraRoute(route) && route != null) {
                                 ExtraRoute(route = route, env = envFor(currentFamily))
                             } else if (moduleDef != null) {
+                                val financeOverview: @Composable () -> Unit = { com.familyhub.app.ui.money.FinanceOverview(envFor(currentFamily)) }
                                 key(moduleDef.route) {
                                     ModuleScreen(
+                                        overview = if (moduleDef.kind == "finance") financeOverview else null,
                                         def = moduleDef,
                                         familyId = activeFamilyId,
                                         uid = uid,
@@ -438,7 +439,7 @@ class MainActivity : FragmentActivity() {
                                         onBack = goBack,
                                         onSaveBudget = saveBudget,
                                         onOpen = navigate,
-                                        extraOptions = mapOf("cards" to cardTitles),
+                                        extraOptions = moneyOptions,
                                         families = familyList,
                                         onAskAi = { t -> askAi(moduleDef.title, t) }
                                     )
@@ -512,6 +513,7 @@ class MainActivity : FragmentActivity() {
                                         }
                                     )
                                     PrimaryTab.FINANCE -> ModuleScreen(
+                                        overview = { com.familyhub.app.ui.money.FinanceOverview(envFor(currentFamily)) },
                                         def = FinanceModule,
                                         familyId = activeFamilyId,
                                         uid = uid,
@@ -523,7 +525,7 @@ class MainActivity : FragmentActivity() {
                                         onBack = null,
                                         onSaveBudget = saveBudget,
                                         onOpen = navigate,
-                                        extraOptions = mapOf("cards" to cardTitles),
+                                        extraOptions = moneyOptions,
                                         families = familyList,
                                         onAskAi = { t -> askAi(FinanceModule.title, t) },
                                         onExport = {

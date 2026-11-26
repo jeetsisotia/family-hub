@@ -12,7 +12,14 @@ import com.familyhub.app.ui.health.HealthScreen
 import com.familyhub.app.ui.hub.HubScreen
 import com.familyhub.app.ui.hub.Hubs
 import com.familyhub.app.ui.health.PeriodScreen
-import com.familyhub.app.ui.money.CardsScreen
+import com.familyhub.app.ui.money.AccountDetailScreen
+import com.familyhub.app.ui.money.AccountsScreen
+import com.familyhub.app.ui.money.CardDetailScreen
+import com.familyhub.app.ui.money.CreditCardsScreen
+import com.familyhub.app.ui.money.DueCalendarScreen
+import com.familyhub.app.ui.money.LoanDetailScreen
+import com.familyhub.app.ui.money.LoansScreen
+import com.familyhub.app.ui.money.TransferScreen
 import com.familyhub.app.ui.money.ImportScreen
 import com.familyhub.app.ui.money.InsightsScreen
 import com.familyhub.app.ui.profile.ArrangeScreen
@@ -47,11 +54,23 @@ fun Rec.stringList(key: String): List<String> = (this[key] as? List<*>)?.mapNotN
 /** Routes handled here instead of by the generic record screen. */
 val ExtraRouteIds: Set<String> = setOf(
     "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos",
-    "home_hub", "life_hub", "reminders_hub", "arrange_home"
+    "home_hub", "life_hub", "reminders_hub", "arrange_home",
+    "accounts_home", "loans_home", "due_calendar", "transfer"
 )
+
+/** Screens for one account, card or loan: "acct:<id>", "ccard:<id>", "loan:<id>". */
+private val DetailPrefixes = listOf("acct:", "ccard:", "loan:")
+
+fun isExtraRoute(route: String?): Boolean =
+    route != null && (route in ExtraRouteIds || DetailPrefixes.any { route.startsWith(it) })
 
 @Composable
 fun ExtraRoute(route: String, env: AppEnv) {
+    when {
+        route.startsWith("acct:") -> { AccountDetailScreen(env, route.removePrefix("acct:")); return }
+        route.startsWith("ccard:") -> { CardDetailScreen(env, route.removePrefix("ccard:")); return }
+        route.startsWith("loan:") -> { LoanDetailScreen(env, route.removePrefix("loan:")); return }
+    }
     when (route) {
         "profile" -> ProfileScreen(
             uid = env.uid,
@@ -107,7 +126,11 @@ fun ExtraRoute(route: String, env: AppEnv) {
         "health_hub" -> HealthScreen(env)
         "periods" -> PeriodScreen(env)
         "insights" -> InsightsScreen(env)
-        "cards" -> CardsScreen(env)
+        "cards" -> CreditCardsScreen(env)
+        "accounts_home" -> AccountsScreen(env)
+        "loans_home" -> LoansScreen(env)
+        "due_calendar" -> DueCalendarScreen(env)
+        "transfer" -> TransferScreen(env)
         "import" -> ImportScreen(env)
         else -> Hubs.screens[route]?.let { HubScreen(it, env) }
     }
