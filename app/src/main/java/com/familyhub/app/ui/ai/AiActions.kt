@@ -424,6 +424,19 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
             if (med.num("stock") != null) repo.setFieldScoped(env.familyId, env.uid, "items", med, "stock", FieldValue.increment(-1))
         }
         "delete_dups" -> {
+            if (a.collection == "expenses") {
+                // Same path as Finance → Duplicates: permission re-checked, to Recently deleted, logged for Undo.
+                if (!com.familyhub.app.ui.money.canEditMoney(env)) throw IllegalStateException("Finance editing is turned off for you.")
+                val keep = env.data["expenses"].orEmpty().firstOrNull { it.str("id") == a.value } ?: throw IllegalStateException("The entry to keep was not found.")
+                com.familyhub.app.ui.money.DuplicatePrefs.add(
+                    context, com.familyhub.app.ui.money.DuplicatePrefs.Removal(
+                        now, "${a.refs.size} duplicate(s) of ${keep.str("title").ifBlank { "an entry" }} (from AI)",
+                        a.refs.map { it.str("id") to (it[com.familyhub.app.data.remote.PRIVATE_FLAG] == true) }, keep.str("id"), false
+                    )
+                )
+                repo.setFieldsMany(env.familyId, env.uid, "expenses", a.refs.map { it to com.familyhub.app.money.Duplicates.removeFields(keep, now) })
+                return
+            }
             for (r in a.refs) {
                 if (a.collection == "expenses" || a.collection == "events") {
                     repo.setFieldScoped(env.familyId, env.uid, a.collection, r, "isDeleted", true)

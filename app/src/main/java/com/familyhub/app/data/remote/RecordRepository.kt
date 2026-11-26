@@ -173,6 +173,25 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
         target(familyId, uid, collection, private).document(id).set(clean(data), SetOptions.merge()).await()
     }
 
+    /**
+     * Updates fields on many records in batches of 400 (for example moving transactions to another category).
+     * Each record keeps its id, so nothing is copied or lost. "Only me" records are written to the person's own
+     * copy. Returns how many records were updated. Firestore keeps the writes on the phone when offline and sends
+     * them later, so this only returns once the server has them; callers should not wait on it to update the screen.
+     */
+    suspend fun setFieldsMany(familyId: String, uid: String, collection: String, changes: List<Pair<Rec, Map<String, Any?>>>): Int {
+        var done = 0
+        for (chunk in changes.filter { it.first["id"] is String && it.second.isNotEmpty() }.chunked(400)) {
+            val batch = com.google.firebase.firestore.FirebaseFirestore.getInstance().batch()
+            for ((r, fields) in chunk) {
+                batch.update(target(familyId, uid, collection, r[PRIVATE_FLAG] == true).document(r["id"] as String), fields)
+            }
+            batch.commit().await()
+            done += chunk.size
+        }
+        return done
+    }
+
     /** Deletes many records for good in batches of 400 (resets; admins only). Returns how many were deleted. */
     suspend fun purgeMany(familyId: String, uid: String, collection: String, recs: List<Rec>): Int {
         var n = 0

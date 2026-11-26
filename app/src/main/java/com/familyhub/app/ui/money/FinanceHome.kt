@@ -4,6 +4,7 @@ package com.familyhub.app.ui.money
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -118,15 +119,27 @@ private fun SectionHeader(title: String, action: String? = null, onAction: (() -
 
 /** One compact transaction line: badge, title, category and date, amount (green for income). */
 @Composable
-private fun TxLine(r: Rec, items: List<Rec>, onClick: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun TxLine(r: Rec, items: List<Rec>, selected: Boolean? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val type = Ledger.type(r)
     val income = type == "INCOME"
     val date = r.lng("dateMillis")?.let { SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(it)) }.orEmpty()
     val cat = FinanceMonth.categoryOf(r)
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .background(if (selected == true) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f) else Color.Transparent)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        if (selected != null) {
+            Icon(
+                if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = if (selected) "Selected" else "Not selected",
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
         CategoryBadge(if (type in setOf("TRANSFER", "CARD_PAYMENT")) "Transfer" else cat, items)
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -333,13 +346,25 @@ fun TransactionsScreen(env: AppEnv) {
     var open by remember { mutableStateOf<Rec?>(null) }
     var editing by remember { mutableStateOf<Rec?>(null) }
     var adding by remember { mutableStateOf(false) }
+    var source by rememberSaveable { mutableStateOf("") }
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    var pickFor by remember { mutableStateOf(false) }
+    var plan by remember { mutableStateOf<Pair<com.familyhub.app.money.Recategorize.Plan, String>?>(null) }
+    var lastChange by remember { mutableStateOf<Long?>(null) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val selecting = selected.isNotEmpty()
+    androidx.activity.compose.BackHandler(enabled = selecting) { selected = emptySet() }
     val now = remember { System.currentTimeMillis() }
     val range = custom ?: FinanceMonth.month(now, offset)
     val data = remember(env.data, familyView) { viewData(env, familyView) }
     val expenses = data["expenses"].orEmpty()
     val items = env.data["items"].orEmpty()
-    val list = remember(expenses, kind, range, query, category) { FinanceMonth.list(expenses, kind, range.from, range.to, query, category) }
     val all = remember(expenses, kind, range) { FinanceMonth.list(expenses, kind, range.from, range.to) }
+    val sources = remember(all) { com.familyhub.app.money.Recategorize.sources(all).take(8) }
+    val list = remember(expenses, kind, range, query, category, source) {
+        FinanceMonth.list(expenses, kind, range.from, range.to, query, category)
+            .filter { source.isBlank() || com.familyhub.app.money.Recategorize.sourceOf(it).equals(source, true) }
+    }
     val breakdown = remember(all, kind) { FinanceMonth.breakdown(all, kind) }
     val days = remember(list) { FinanceMonth.byDay(list) }
     val fmtDay = remember { SimpleDateFormat("EEE, d MMM", Locale.getDefault()) }
@@ -347,7 +372,12 @@ fun TransactionsScreen(env: AppEnv) {
     val label = custom?.let { fmtShort.format(Date(it.from)) + " – " + fmtShort.format(Date(it.to)) } ?: monthTitle(range)
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Transactions", onBack = env.onBack, compact = true) {
+        if (selecting) {
+            ScreenTopBar(title = "${selected.size} selected", onBack = { selected = emptySet() }, compact = true) {
+                TextButton(onClick = { selected = selected + list.map { it.str("id") } }) { Text("All") }
+                TextButton(onClick = { pickFor = true }) { Text("Category", fontWeight = FontWeight.SemiBold) }
+            }
+        } else ScreenTopBar(title = "Transactions", onBack = env.onBack, compact = true) {
             IconButton(onClick = { adding = true }) { Icon(Icons.Rounded.Add, contentDescription = "Add transaction") }
         }
         LazyColumn(
@@ -392,6 +422,28 @@ fun TransactionsScreen(env: AppEnv) {
                     trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Rounded.Close, contentDescription = "Clear") } },
                     shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
                 )
+            }
+            if (sources.size > 1 || source.isNotBlank()) item {
+                androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    item { FilterChip(selected = source.isBlank(), onClick = { source = "" }, label = { Text("All accounts") }) }
+                    items(sources) { a -> FilterChip(selected = source.equals(a, true), onClick = { source = if (source.equals(a, true)) "" else a }, label = { Text(a, maxLines = 1) }) }
+                }
+            }
+            lastChange?.let { at ->
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
+                        Text("Category changed.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            CategoryAudit.list(ctx).firstOrNull { it.at == at }?.let { undoCategoryChange(env, ctx, it) }
+                            lastChange = null
+                        }) { Text("Undo") }
+                    }
+                }
+            }
+            if (!selecting && list.isNotEmpty()) item {
+                Text("Tip: touch and hold an entry to select several and change their category.",
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 4.dp),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f))
             }
             if (showBreakdown && breakdown.isNotEmpty()) {
                 item {
@@ -441,7 +493,18 @@ fun TransactionsScreen(env: AppEnv) {
                 }
                 item(key = "g$day") {
                     GlassCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(vertical = 2.dp)) { rows.forEach { r -> TxLine(r, items) { open = r } } }
+                        Column(modifier = Modifier.padding(vertical = 2.dp)) {
+                            rows.forEach { r ->
+                                val id = r.str("id")
+                                TxLine(
+                                    r, items,
+                                    selected = if (selecting) id in selected else null,
+                                    onLongClick = { selected = if (id in selected) selected - id else selected + id }
+                                ) {
+                                    if (selecting) selected = if (id in selected) selected - id else selected + id else open = r
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -466,6 +529,16 @@ fun TransactionsScreen(env: AppEnv) {
             dismissButton = { TextButton(onClick = { pickRange = false }) { Text("Cancel") } }
         ) {
             DateRangePicker(state = state, modifier = Modifier.weight(1f))
+        }
+    }
+    if (pickFor) CategoryPickerDialog(env, kind, "Move ${selected.size} to…", { pickFor = false }) { cat ->
+        pickFor = false
+        plan = com.familyhub.app.money.Recategorize.forIds(expenses, selected, cat) to cat
+    }
+    plan?.let { (p, cat) ->
+        ConfirmCategoryPlan(p, cat, { plan = null }) {
+            plan = null
+            applyCategoryPlan(env, ctx, p, "${p.count} to $cat") { at -> if (at != null) { lastChange = at; selected = emptySet() } }
         }
     }
     open?.let { r -> TransactionDetails(env, r, expenses, { open = null }) { editing = it } }
@@ -756,16 +829,26 @@ fun CategoryDialog(env: AppEnv, existing: CustomCategory?, defaultKind: String, 
 }
 
 /**
- * Categories: built-in ones (always there) and the family's own, for spending or income. Renaming or deleting a
- * custom category never changes past transactions: they keep the name they were saved with.
+ * Categories: built-in ones (always there) and the family's own, for spending or income. "Apply to existing"
+ * moves chosen past transactions into a category. Renaming offers to rename it on past transactions too, and
+ * deleting moves its transactions to another category (or leaves them). Every bulk change is confirmed with a
+ * count and can be undone from Recent changes.
  */
 @Composable
 fun CategoriesScreen(env: AppEnv) {
     val items = env.data["items"].orEmpty()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var tab by rememberSaveable { mutableStateOf("Spending") }
     var editing by remember { mutableStateOf<CustomCategory?>(null) }
     var adding by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<CustomCategory?>(null) }
+    var applyTo by remember { mutableStateOf<String?>(null) }
+    var renamed by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var moveTo by remember { mutableStateOf("Other") }
+    var pickMove by remember { mutableStateOf(false) }
+    var changesTick by remember { mutableIntStateOf(0) }
+    val expenses = env.data["expenses"].orEmpty()
+    val tabKind = if (tab == "Income") FinanceMonth.Kind.INCOME else FinanceMonth.Kind.EXPENSE
     val own = remember(items, tab) {
         customCategories(items).filter { val k = it.kind.lowercase(); k == "both" || k == tab.lowercase() }
     }
@@ -796,8 +879,9 @@ fun CategoriesScreen(env: AppEnv) {
                                     Text(c.name, fontWeight = FontWeight.Medium)
                                     Text(c.kind + " · used ${used[FinanceMonth.normName(c.name)] ?: 0} times", style = MaterialTheme.typography.bodySmall)
                                 }
+                                IconButton(onClick = { applyTo = c.name }) { Icon(Icons.Rounded.PlaylistAddCheck, contentDescription = "Apply ${c.name} to existing transactions") }
                                 IconButton(onClick = { editing = c }) { Icon(Icons.Rounded.Edit, contentDescription = "Edit ${c.name}") }
-                                IconButton(onClick = { deleting = c }) { Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete ${c.name}") }
+                                IconButton(onClick = { deleting = c; moveTo = "Other" }) { Icon(Icons.Rounded.DeleteOutline, contentDescription = "Delete ${c.name}") }
                             }
                         }
                     }
@@ -808,45 +892,88 @@ fun CategoriesScreen(env: AppEnv) {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(vertical = 4.dp)) {
                         builtIn.forEach { c ->
-                            Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(modifier = Modifier.fillMaxWidth().clickable { applyTo = c }.padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 CategoryBadge(c, items, 32)
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(c, modifier = Modifier.weight(1f))
                                 Text("used ${used[FinanceMonth.normName(c)] ?: 0}", style = MaterialTheme.typography.bodySmall)
+                                IconButton(onClick = { applyTo = c }) { Icon(Icons.Rounded.PlaylistAddCheck, contentDescription = "Apply $c to existing transactions") }
                             }
                         }
                     }
                 }
             }
+            item { SectionHeader("Recent changes") }
+            item {
+                GlassCard(modifier = Modifier.fillMaxWidth()) { key(changesTick) { RecentCategoryChanges(env) } }
+            }
             item {
                 Text(
-                    "Subcategories and category budgets are in the full list (Finance → All entries → Money categories). " +
-                        "Renaming or deleting a category does not change past transactions.",
+                    "Tap ✓ (Apply to existing) on a category to move past transactions into it. In Transactions you can also " +
+                        "touch and hold entries to select several. Subcategories and category budgets are in the full list " +
+                        "(Finance → All entries → Money categories). Recent changes are kept on this phone.",
                     style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 6.dp)
                 )
             }
         }
     }
     if (adding) CategoryDialog(env, null, tab, { adding = false }) { adding = false }
-    editing?.let { c -> CategoryDialog(env, c, c.kind, { editing = null }) { editing = null } }
+    editing?.let { c ->
+        CategoryDialog(env, c, c.kind, { editing = null }) { newName ->
+            editing = null
+            if (newName != c.name && com.familyhub.app.money.Recategorize.usage(expenses, c.name) > 0) renamed = c.name to newName
+        }
+    }
+    renamed?.let { (old, new) ->
+        val p = remember(old, new, expenses) { com.familyhub.app.money.Recategorize.rename(expenses, old, new) }
+        AlertDialog(
+            onDismissRequest = { renamed = null },
+            title = { Text("Rename on past transactions too?") },
+            text = { Text("${p.count} ${if (p.count == 1) "transaction uses" else "transactions use"} \"$old\". Rename them to \"$new\" as well? Only the category changes, and you can undo it from Recent changes.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    renamed = null
+                    applyCategoryPlan(env, ctx, p, "${p.count} from $old to $new") { changesTick++ }
+                }) { Text("Rename ${p.count}", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { renamed = null }) { Text("Keep old name on them") } }
+        )
+    }
     deleting?.let { c ->
-        val n = used[FinanceMonth.normName(c.name)] ?: 0
+        val n = com.familyhub.app.money.Recategorize.usage(expenses, c.name)
         AlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete \"${c.name}\"?") },
             text = {
-                Text(
-                    if (n > 0) "$n past transactions keep \"${c.name}\" as their category; only new entries will no longer offer it."
-                    else "It is not used by any transaction."
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (n > 0) {
+                        Text("$n ${if (n == 1) "transaction uses" else "transactions use"} it. Move them to:")
+                        OutlinedButton(onClick = { pickMove = true }) { Text(moveTo) }
+                        Text("Or keep them as they are with \"Delete only\".", style = MaterialTheme.typography.bodySmall)
+                    } else Text("It is not used by any transaction.")
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     deleting = null
+                    if (n > 0) {
+                        val p = com.familyhub.app.money.Recategorize.moveAll(expenses, c.name, moveTo)
+                        applyCategoryPlan(env, ctx, p, "${p.count} from ${c.name} to $moveTo") { changesTick++ }
+                    }
                     env.scope.launch { try { env.repo.setFieldScoped(env.familyId, env.uid, "items", c.rec, "isDeleted", true) } catch (_: Exception) { } }
-                }) { Text("Delete", color = Red) }
+                }) { Text(if (n > 0) "Move $n and delete" else "Delete", color = Red) }
             },
-            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } }
+            dismissButton = {
+                Row {
+                    if (n > 0) TextButton(onClick = {
+                        deleting = null
+                        env.scope.launch { try { env.repo.setFieldScoped(env.familyId, env.uid, "items", c.rec, "isDeleted", true) } catch (_: Exception) { } }
+                    }) { Text("Delete only") }
+                    TextButton(onClick = { deleting = null }) { Text("Cancel") }
+                }
+            }
         )
+        if (pickMove) CategoryPickerDialog(env, tabKind, "Move to…", { pickMove = false }) { moveTo = it; pickMove = false }
     }
+    applyTo?.let { cat -> ApplyToExistingSheet(env, cat, tabKind) { applyTo = null; changesTick++ } }
 }

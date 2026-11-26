@@ -76,6 +76,7 @@ object Hubs {
             HubItem("insights", "Insights", Icons.Rounded.PieChart),
             HubItem("subscriptions", "Subscriptions", Icons.Rounded.Subscriptions),
             HubItem("categories", "Categories", Icons.Rounded.Category),
+            HubItem("duplicates", "Duplicates", Icons.Rounded.ContentCopy),
             HubItem("goals", "Savings goals", Icons.Rounded.Savings),
             HubItem("settle", "Settle up", Icons.Rounded.Groups),
             HubItem("policies", "Insurance", Icons.Rounded.Shield)

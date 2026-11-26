@@ -324,5 +324,100 @@ fun main() {
         check("category: new name allowed", !F.isDuplicateCategory("Gym", "Spending", existing, sp, inc))
     }
 
+    // ---------- Moving existing transactions to another category (Recategorize) ----------
+    run {
+        val R = com.familyhub.app.money.Recategorize
+        val KE = com.familyhub.app.money.FinanceMonth.Kind.EXPENSE
+        val d = at(2026, 11, 10)
+        val rows = listOf(
+            mapOf("id" to "r1", "type" to "EXPENSE", "title" to "Swiggy", "merchant" to "SWIGGY", "category" to "Other", "amountInr" to 450.0, "dateMillis" to d, "isPaid" to true, "isDeleted" to false, "account" to "HDFC", "notes" to "keep me", "proofPhoto" to "r1.jpg"),
+            mapOf("id" to "r2", "type" to "EXPENSE", "title" to "Zomato", "category" to "", "amountInr" to 300.0, "dateMillis" to d, "isPaid" to true, "isDeleted" to false, "card" to "Amex 1005"),
+            mapOf("id" to "r3", "type" to "EXPENSE", "title" to "BigBasket", "category" to "Groceries", "subcategory" to "Veg", "amountInr" to 1200.0, "dateMillis" to d, "isPaid" to true, "isDeleted" to false, "account" to "HDFC"),
+            mapOf("id" to "r4", "type" to "TRANSFER", "title" to "To savings", "category" to "", "amountInr" to 5000.0, "dateMillis" to d, "isPaid" to true, "isDeleted" to false),
+            mapOf("id" to "r5", "type" to "EXPENSE", "title" to "Old", "category" to "Other", "amountInr" to 10.0, "dateMillis" to d, "isPaid" to true, "isDeleted" to true),
+            mapOf("id" to "r6", "type" to "INCOME", "title" to "Salary", "category" to "Salary", "amountInr" to 90000.0, "dateMillis" to d, "isPaid" to true, "isDeleted" to false),
+            mapOf("id" to "r7", "type" to "EXPENSE", "title" to "Pet shop", "category" to "pet  care", "amountInr" to 800.0, "dateMillis" to d, "isPaid" to true, "isDeleted" to false)
+        )
+        val p = R.forIds(rows, setOf("r1", "r2", "r3", "r4", "r5", "gone"), "Dining", now = 1L)
+        check("recat: changes only live, categorisable entries", p.changes.map { it.rec["id"] } == listOf("r1", "r2", "r3"), p.changes.map { it.rec["id"] })
+        check("recat: transfer, deleted and missing ids are skipped and counted", p.skipped == 3, p.skipped)
+        check("recat: writes only category, subcategory and updatedAt", p.changes.all { it.fields.keys == setOf("category", "subcategory", "updatedAt") })
+        check("recat: subcategory of the old category is cleared", p.changes.first { it.rec["id"] == "r3" }.fields["subcategory"] == "None")
+        check("recat: undo holds the old category and subcategory", p.changes.first { it.rec["id"] == "r3" }.undo.let { it["category"] == "Groceries" && it["subcategory"] == "Veg" })
+        // Apply the plan the way the app does (update fields on the same record) and check nothing else changed.
+        val after = rows.map { r -> p.changes.firstOrNull { it.rec["id"] == r["id"] }?.let { r + it.fields } ?: r }
+        check("recat: same number of records afterwards (no copies, nothing lost)", after.size == rows.size && after.map { it["id"] }.toSet() == rows.map { it["id"] }.toSet())
+        val r1 = after.first { it["id"] == "r1" }
+        check("recat: amount, date, account, notes and receipt kept", r1["amountInr"] == 450.0 && r1["dateMillis"] == d && r1["account"] == "HDFC" && r1["notes"] == "keep me" && r1["proofPhoto"] == "r1.jpg")
+        val nov = com.familyhub.app.money.FinanceMonth.month(d)
+        val before = com.familyhub.app.money.FinanceMonth.breakdown(com.familyhub.app.money.FinanceMonth.list(rows, KE, nov.from, nov.to), KE)
+        val after2 = com.familyhub.app.money.FinanceMonth.breakdown(com.familyhub.app.money.FinanceMonth.list(after, KE, nov.from, nov.to), KE)
+        check("recat: category totals follow the change", after2.first { it.first == "Dining" }.second == 195_000L, after2)
+        check("recat: total spending unchanged by a category change", before.sumOf { it.second } == after2.sumOf { it.second })
+        check("recat: already in that category is skipped", R.forIds(rows, setOf("r3"), "groceries").let { it.count == 0 && it.skipped == 1 })
+        check("recat: blank target changes nothing", R.forIds(rows, setOf("r1"), "  ").count == 0)
+        val ren = R.rename(rows, "Pet care", "Pets")
+        check("rename: finds the old name ignoring case and spaces", ren.changes.map { it.rec["id"] } == listOf("r7"))
+        check("rename: deleted entries are not touched", R.rename(rows, "Other", "Misc").changes.map { it.rec["id"] } == listOf("r1"))
+        check("rename: to the same name changes nothing", R.rename(rows, "Groceries", "Groceries").count == 0)
+        check("delete: entries move to the chosen category", R.moveAll(rows, "Groceries", "Other").changes.single().fields["category"] == "Other")
+        check("usage: counts live entries only", R.usage(rows, "other") == 1 && R.usage(rows, "Salary") == 1)
+        val el = R.eligible(rows, KE, nov.from, nov.to, onlyUncategorised = true)
+        check("eligible: only uncategorised spending (no transfers or deleted)", el.map { it["id"] }.toSet() == setOf("r1", "r2"), el.map { it["id"] })
+        check("eligible: search narrows it", R.eligible(rows, KE, nov.from, nov.to, query = "swig").map { it["id"] } == listOf("r1"))
+        check("eligible: leaves out the target category", R.eligible(rows, KE, nov.from, nov.to, exclude = "Groceries").none { it["id"] == "r3" })
+        check("source: card wins over account, None ignored", R.sourceOf(rows[1]) == "Amex 1005" && R.sourceOf(rows[0]) == "HDFC" && R.sourceOf(rows[3]) == "")
+        check("sources: most used first", R.sources(rows).first() == "HDFC", R.sources(rows))
+    }
+
+    // ---------- Suspected duplicates with reasons (Duplicates) ----------
+    run {
+        val D = com.familyhub.app.money.Duplicates
+        val t0 = at(2026, 11, 12) + 10 * 3_600_000L
+        fun e(id: String, extra: Map<String, Any?>) = mapOf<String, Any?>("id" to id, "type" to "EXPENSE", "amountInr" to 645.0, "dateMillis" to t0, "isPaid" to true, "isDeleted" to false) + extra
+        val sms = e("s1", mapOf("title" to "SWIGGY", "merchant" to "SWIGGY", "sourceKey" to "sms-abc", "last4" to "1005", "category" to "Other"))
+        val mail = e("g1", mapOf("title" to "Swiggy order", "merchant" to "Swiggy", "sourceKey" to "email-xyz", "last4" to "1005", "dateMillis" to t0 + 20 * 60_000L))
+        val typed = e("t1", mapOf("title" to "Swiggy dinner", "merchant" to "Swiggy", "category" to "Dining", "notes" to "Friday", "createdByUid" to "u1"))
+        val otherShop = e("o1", mapOf("title" to "Zomato", "merchant" to "Zomato"))
+        val refA = e("r1", mapOf("title" to "UPI", "refNo" to "412345678901"))
+        val refB = e("r2", mapOf("title" to "UPI payment", "refNo" to "412345678901", "dateMillis" to t0 + 5 * 3_600_000L))
+        val g = D.find(listOf(sms, mail, typed, otherShop))
+        check("dups: SMS, email and typed entry of one payment form one group", g.size == 1 && g[0].records.map { it["id"] }.toSet() == setOf("s1", "g1", "t1"), g.map { it.records.map { r -> r["id"] } })
+        check("dups: a different shop with the same amount and day is not included", g.none { grp -> grp.records.any { it["id"] == "o1" } })
+        check("dups: keeps the entry with the most detail (category and notes)", g[0].keep["id"] == "t1", g[0].keep["id"])
+        check("dups: SMS plus email with the same card ending is high confidence", g[0].confidence == com.familyhub.app.money.Duplicates.Confidence.HIGH)
+        check("dups: reasons name the amount, the card ending, the shop and the sources",
+            g[0].reasons.any { it.startsWith("Same amount") } && g[0].reasons.any { it.contains("1005") } &&
+                g[0].reasons.any { it.startsWith("Same shop") } && g[0].reasons.any { it.startsWith("Saved from") }, g[0].reasons)
+        val r = D.find(listOf(refA, refB))
+        check("dups: the same reference number is high confidence", r.size == 1 && r[0].confidence == com.familyhub.app.money.Duplicates.Confidence.HIGH && r[0].reasons.any { it.contains("reference") })
+        val two = D.find(listOf(
+            e("a", mapOf("title" to "Coffee Day", "merchant" to "Coffee Day", "createdByUid" to "u1")),
+            e("b", mapOf("title" to "Coffee Day", "merchant" to "Coffee Day", "createdByUid" to "u2", "dateMillis" to t0 + 3 * 3_600_000L))
+        ))
+        check("dups: two typed entries by different people are only medium, with a caution",
+            two.size == 1 && two[0].confidence == com.familyhub.app.money.Duplicates.Confidence.MEDIUM && two[0].cautions.any { it.contains("different people") }, two.map { it.cautions })
+        val monthly = listOf(
+            e("m1", mapOf("title" to "Netflix", "merchant" to "Netflix", "dateMillis" to at(2026, 9, 12))),
+            e("m2", mapOf("title" to "Netflix", "merchant" to "Netflix", "dateMillis" to at(2026, 10, 12))),
+            e("m3", mapOf("title" to "Netflix", "merchant" to "Netflix", "dateMillis" to t0, "sourceKey" to "sms-1")),
+            e("m4", mapOf("title" to "Netflix", "merchant" to "Netflix", "dateMillis" to t0 + 60_000L, "sourceKey" to "email-1"))
+        )
+        val mg = D.find(monthly)
+        check("dups: monthly payments in other months are not grouped", mg.size == 1 && mg[0].records.map { it["id"] }.toSet() == setOf("m3", "m4"))
+        check("dups: a regular payment gets a caution and is not high confidence", mg[0].cautions.any { it.contains("regular") } && mg[0].confidence == com.familyhub.app.money.Duplicates.Confidence.MEDIUM, mg[0].cautions)
+        val transfer = listOf(
+            mapOf("id" to "x1", "type" to "TRANSFER", "amountInr" to 5000.0, "dateMillis" to t0, "title" to "To savings", "isDeleted" to false),
+            mapOf("id" to "x2", "type" to "EXPENSE", "amountInr" to 5000.0, "dateMillis" to t0, "title" to "Rent", "isDeleted" to false)
+        )
+        check("dups: a transfer and a rent payment of the same amount are not grouped", D.find(transfer).isEmpty())
+        check("dups: 'Not duplicates' hides the group", D.find(listOf(sms, mail, typed), excluded = setOf("g1|s1|t1")).isEmpty())
+        check("dups: deleted entries are never offered", D.find(listOf(sms, mail + mapOf("isDeleted" to true))).isEmpty())
+        val rf = D.removeFields(typed, 5L)
+        check("dups: removing goes to Recently deleted and remembers the kept entry", rf["isDeleted"] == true && rf["duplicateOf"] == "t1")
+        check("dups: restore clears it", D.restoreFields(6L).let { it["isDeleted"] == false && it["duplicateOf"] == null })
+        check("dups: origin from the source key", D.origin(sms) == "SMS" && D.origin(mail) == "Email" && D.origin(typed) == "Typed in")
+    }
+
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

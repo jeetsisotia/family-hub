@@ -51,24 +51,8 @@ class DemoActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // The emulator test opens a fixed list of routes; these names show the newest screens instead.
-        val asked = when (val name = intent.getStringExtra("route") ?: "health_hub") {
-            "assistant_new" -> "assistant_tidy"
-            // Screens of this release: Family safety and SOS (Phase 6), plus chats, dark mode and Reduce transparency.
-            "sos" -> "safety"
-            "families" -> "sos"
-            "workouts" -> "dark:safety"
-            "arrange" -> "reminders"
-            "medicines" -> "categories"
-            "profile" -> "settings"
-            "settings" -> "solid:home"
-            "alerts" -> "food"
-            "home_hub" -> "universal"
-            "life_hub" -> "ai_settings"
-            "insights" -> "dark:finance"
-            "periods" -> "dark:transactions"
-            else -> name
-        }
+        // The emulator test names each screen by its real route; "dark:" and "solid:" prefixes are allowed.
+        val asked = intent.getStringExtra("route") ?: "health_hub"
         // "dark:" shows the screen in the dark theme, "solid:" with Reduce transparency (not saved).
         val dark = asked.startsWith("dark:")
         val solid = asked.startsWith("solid:")
@@ -300,7 +284,7 @@ object DemoData {
         expenses.add(0, rec("type" to "EXPENSE", "title" to "Swiggy order from Meghana Foods Koramangala", "category" to "Dining",
             "amountInr" to 645.0, "dateMillis" to now - 2 * d, "paymentMethod" to "UPI", "memberName" to "Demo User", "memberUid" to UID,
             "isPaid" to true, "isDeleted" to false))
-        expenses.add(rec("type" to "EXPENSE", "title" to "SWIGGY", "category" to "Other",
+        expenses.add(rec("type" to "EXPENSE", "title" to "SWIGGY", "category" to "Other", "sourceKey" to "sms-demo-1",
             "amountInr" to 645.0, "dateMillis" to now - 2 * d + 600_000L, "paymentMethod" to "UPI", "isPaid" to true, "isDeleted" to false))
         expenses.add(rec("type" to "EXPENSE", "title" to "Myntra shoes", "category" to "Shopping", "amountInr" to 2499.0,
             "dateMillis" to now - 9 * d, "paymentMethod" to "Credit card", "card" to "HDFC Millennia", "memberName" to "Demo User",

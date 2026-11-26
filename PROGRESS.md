@@ -456,6 +456,62 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ---
 
+## Brief 3: completeness, Finance categories and duplicates (bundle p38)
+
+Brief of 27 Nov 2026 (master development and release prompt plus the completeness requirement). The inventory came first: `docs/INVENTORY.md` lists every module, screen, route and integration, where each one lives, and what is missing or duplicated. It is checked against the code, not against earlier reports. Ongoing status: `docs/CONTINUATION-REPORT.md`.
+
+### Moving existing transactions to another category
+
+Before this bundle, a new or renamed category never reached past transactions, and there was no way to move several entries at once. Now:
+- **Transactions:**
+  - touch and hold an entry to start selecting
+  - tap others to add them, or tap **All** to select everything shown
+  - **Category** moves the selection to another category, including a new one made on the spot
+- **Categories → ✓ (Apply to existing transactions)** on any category, built-in or custom:
+  - search, a period (All time, Last 3 months, This month) and "Only uncategorised"
+  - pick entries one by one or with **Select all shown**
+- **Rename** a category: it offers to rename it on past transactions too, with the count.
+- **Delete** a category:
+  - Its transactions move to a category you choose ("Other" by default).
+  - Or "Delete only" keeps them as they are.
+- **Every bulk change:**
+  - First says how many entries change and how many are left alone (already in that category, deleted, or a transfer or card payment).
+  - Changes only the category and subcategory. Amount, date, account, card, notes, receipts and refunds stay, and so does the record itself (same id, no copies).
+  - Re-checks that Finance editing is on for you.
+  - Goes into **Recent changes** on this phone with **Undo**. Undo only puts back entries nobody has changed since.
+  - Totals, budgets and Insights follow at once.
+- **Transactions** also has an **account or card filter** (chips for the accounts and cards used in the period).
+- New categories appear in both add and edit forms straight away. This was already so, and has been checked in the code.
+
+### Duplicates (Finance → Duplicates)
+
+- **Matching:**
+  - It uses the existing payment matcher: same direction and amount within a day and a half, then the same reference, card ending or shop. Amount alone is never enough.
+  - Each group shows **why** it looks like one payment (same reference, card ending, shop, saved from SMS and email, minutes or hours apart) and **how sure** it is ("Very likely" or "Possible").
+  - It also shows **warnings**: added by different people, typed in at different times, a regular payment at that shop, different reference numbers.
+- **Removing:**
+  - The suggested entry to keep is the one with the most detail. You can pick another, and untick any entry you want to keep.
+  - **Not duplicates** hides a group while it has the same entries.
+  - **Remove N** confirms the count. The others go to **Recently deleted** with a note of which entry was kept, and **Undo** puts them back.
+- **AI:** "Find duplicate transactions" uses the same finder, shows the same reasons and warnings, and removes through the same safe path.
+
+### Tests
+
+- `tools/ledger-test`: **138 checks, all passed** (27 Nov). There are 36 new ones.
+- Category changes:
+  - only the category changes, and no record is copied or lost
+  - totals follow the change, and total spending stays the same
+  - transfers, deleted entries and missing ids are skipped and counted
+  - rename and delete carry entries along
+  - the "eligible" filter
+  - the account filter
+- Duplicates:
+  - SMS, email and a typed entry of one payment are found together
+  - a different shop, a transfer against rent, monthly payments, entries by different people, exclusions and deleted entries are handled
+- Build and screens: pending (see `docs/CONTINUATION-REPORT.md`).
+
+---
+
 ## Brief 2, Part A: Finance redesign (bundle p33)
 
 The second brief (Finance redesign and a universal AI assistant) is being done in phases. **Audit first** (27 Nov, from the code, not from earlier reports):

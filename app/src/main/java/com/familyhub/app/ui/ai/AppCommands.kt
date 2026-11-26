@@ -107,8 +107,33 @@ object AppCommands {
             val recs = env.data[c].orEmpty()
             // Money entries use the stricter payment matcher (same direction and amount, within a day and a half, and the
             // same reference, card ending or shop). Other lists match on title and date.
-            val groups = if (c == "expenses") com.familyhub.app.money.Ledger.duplicateGroups(recs)
-            else recs.groupBy { dupKey(c, it) }.filterKeys { it != null }.values.filter { it.size > 1 }
+            if (c == "expenses") {
+                // Money uses the shared duplicate finder (also behind Finance → Duplicates): reasons, confidence and
+                // the entry to keep. Removing sends the others to Recently deleted and can be undone there.
+                for (g in com.familyhub.app.money.Duplicates.find(recs)) {
+                    val sure = if (g.confidence == com.familyhub.app.money.Duplicates.Confidence.HIGH) "Very likely" else "Possible"
+                    actions.add(
+                        AiAction(
+                            kind = "delete_dups",
+                            title = g.keep.str("title").ifBlank { "(untitled)" },
+                            amount = g.keep.num("amountInr"),
+                            dateText = listOfNotNull(
+                                day(firstDate(g.keep)).ifBlank { null }, sure,
+                                g.reasons.drop(1).take(2).joinToString("; ").ifBlank { null },
+                                g.cautions.firstOrNull()?.let { "Check: $it" },
+                                "${g.records.size} entries, removes ${g.remove.size}"
+                            ).joinToString(" • "),
+                            collection = c,
+                            refs = g.remove,
+                            value = g.keep.str("id")
+                        )
+                    )
+                    if (actions.size >= 12) break
+                }
+                if (actions.size >= 12) break
+                continue
+            }
+            val groups = recs.groupBy { dupKey(c, it) }.filterKeys { it != null }.values.filter { it.size > 1 }
             for (g in groups.sortedByDescending { it.size }) {
                 // Keep the entry with the most detail (a hand-made one usually has a category, notes or a member).
                 val keep = g.maxByOrNull { r -> r.values.count { v -> v is String && v.isNotBlank() } } ?: g.first()

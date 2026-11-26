@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -18,9 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.clickable
 import com.familyhub.app.ui.common.PersonAvatar
-import com.familyhub.app.core.ai.FamilyAiAssistant
-import com.familyhub.app.core.theme.AccentCard
-import com.familyhub.app.core.theme.GlassCard
 import com.familyhub.app.core.theme.glass
 import com.familyhub.app.core.theme.riseIn
 import com.familyhub.app.core.theme.tileBrush
@@ -59,36 +55,7 @@ fun HomeDashboardScreen(
 ) {
     var familyWideView by remember { mutableStateOf(true) }
     var profileMenu by remember { mutableStateOf(false) }
-    var aiQuestion by remember { mutableStateOf("") }
-    var aiResponse by remember { mutableStateOf<String?>(null) }
-    val assistant = remember { FamilyAiAssistant() }
-    val inrFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
     val todayLabel = remember { SimpleDateFormat("EEEE, dd MMM yyyy", Locale.getDefault()).format(Date()) }
-
-    val visibleTx = if (familyWideView) transactions else transactions.filter { it.memberUid == currentUser.uid }
-    // The same figure as the Finance tab: this calendar month, in paise, leaving out "Not an expense" entries and
-    // taking merged and arrived refunds off. Falls back to the plain list only if the record data has not loaded.
-    val monthlyExpense = remember(records, visibleTx, familyWideView, currentUser.uid, currentUser.name) {
-        val expenses = records["expenses"]
-        if (expenses == null) {
-            visibleTx.filter { it.type == "EXPENSE" }.sumOf { it.amountInr }
-        } else {
-            val c = Calendar.getInstance()
-            c.set(Calendar.DAY_OF_MONTH, 1); c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
-            val from = c.timeInMillis
-            c.add(Calendar.MONTH, 1)
-            com.familyhub.app.money.Ledger.totals(
-                expenses, from, c.timeInMillis - 1,
-                com.familyhub.app.ui.hub.homeViewFilter(familyWideView, currentUser.uid, currentUser.name)
-            ).spentRupees
-        }
-    }
-    val upcomingBills = transactions.filter { !it.isPaid && it.type in listOf("BILL", "EMI") }
-    val pendingTasks = tasks.filter { !it.isCompleted }
-    val expiringDocs = documents.filter {
-        val exp = it.expiryDateMillis ?: return@filter false
-        exp - System.currentTimeMillis() in 0..(30L * 24 * 60 * 60 * 1000)
-    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -177,53 +144,27 @@ fun HomeDashboardScreen(
             item { Box(modifier = Modifier.riseIn(1)) { duesCard() } }
         }
 
-        // The top categories, counted for the family or just for me.
+        // Everyday actions: a few round buttons, like a phone's control row.
         item {
-            val filter = remember(familyWideView, currentUser.uid, currentUser.name) {
-                com.familyhub.app.ui.hub.homeViewFilter(familyWideView, currentUser.uid, currentUser.name)
-            }
-            val cats = remember(homeOrder, homeHidden) { com.familyhub.app.ui.hub.arrangedHomeCategories(homeOrder, homeHidden) }
-            Column(modifier = Modifier.riseIn(1), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (familyWideView) "FAMILY CATEGORIES" else "MY CATEGORIES",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = { onQuickNavigate("arrange_home") }) { Text("Arrange") }
-                }
-                cats.chunked(3).forEachIndexed { row, line ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        line.forEachIndexed { col, c ->
-                            val n = remember(records, filter) { c.count(records, filter) }
-                            GlassCard(
-                                onClick = { onQuickNavigate(c.route) },
-                                shape = RoundedCornerShape(22.dp),
-                                modifier = Modifier.weight(1f).height(112.dp)
-                            ) {
-                                Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                                    IconTile(c.icon, row * 3 + col)
-                                    Spacer(modifier = Modifier.weight(1f))
-                                    com.familyhub.app.ui.hub.FitLabel(
-                                        c.title, MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                        maxLines = 1, textAlign = androidx.compose.ui.text.style.TextAlign.Start
-                                    )
-                                    com.familyhub.app.ui.hub.FitLabel(
-                                        when {
-                                            c.unit.isBlank() -> "Ask anything"
-                                            c.unit == "entries" -> com.familyhub.app.ui.common.plural(n, "entry", "entries")
-                                            else -> "$n ${c.unit}"
-                                        },
-                                        MaterialTheme.typography.labelSmall,
-                                        maxLines = 1,
-                                        textAlign = androidx.compose.ui.text.style.TextAlign.Start,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            }
-                        }
-                        repeat(3 - line.size) { Spacer(modifier = Modifier.weight(1f)) }
+            val actions: List<Triple<String, String, ImageVector>> = listOf(
+                Triple("transactions", "Spending", Icons.Rounded.ReceiptLong),
+                Triple("reminders", "Reminders", Icons.Rounded.Alarm),
+                Triple("calendar", "Calendar", Icons.Rounded.CalendarMonth),
+                Triple("assistant", "Ask AI", Icons.Rounded.AutoAwesome)
+            )
+            Row(modifier = Modifier.fillMaxWidth().riseIn(2), horizontalArrangement = Arrangement.SpaceEvenly) {
+                actions.forEach { (route, label, icon) ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.width(76.dp).clip(RoundedCornerShape(14.dp)).clickable { onQuickNavigate(route) }.padding(vertical = 6.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(52.dp).clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) { Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
                     }
                 }
             }
@@ -231,159 +172,100 @@ fun HomeDashboardScreen(
 
         if (aiCard != null) {
             item { Box(modifier = Modifier.riseIn(3)) { aiCard() } }
-        } else item {
-            GlassCard(
-                shape = RoundedCornerShape(24.dp),
+        }
+
+        // The areas of the app, counted for the family or just for me (order and visibility from Arrange Home).
+        item {
+            val filter = remember(familyWideView, currentUser.uid, currentUser.name) {
+                com.familyhub.app.ui.hub.homeViewFilter(familyWideView, currentUser.uid, currentUser.name)
+            }
+            val cats = remember(homeOrder, homeHidden) {
+                com.familyhub.app.ui.hub.arrangedHomeCategories(homeOrder, homeHidden).filter { it.route != "assistant" }
+            }
+            com.familyhub.app.core.theme.GroupedSection(
+                title = if (familyWideView) "Family" else "Mine",
                 modifier = Modifier.riseIn(3)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconTile(Icons.Rounded.AutoAwesome, 4)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Family AI Assistant", fontWeight = FontWeight.SemiBold)
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = aiQuestion,
-                        onValueChange = { aiQuestion = it },
-                        placeholder = { Text("Ask about bills, events, insurance expiry...") },
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                if (aiQuestion.isNotBlank()) {
-                                    aiResponse = assistant.answerQuery(
-                                        aiQuestion, currentMember, events, transactions, documents, tasks, trips
-                                    )
-                                }
-                            }) {
-                                Icon(Icons.Rounded.Send, contentDescription = "Ask")
-                            }
+                cats.forEachIndexed { i, c ->
+                    val n = remember(records, filter) { c.count(records, filter) }
+                    com.familyhub.app.core.theme.GroupedRow(
+                        c.title,
+                        icon = c.icon,
+                        tile = i,
+                        value = when {
+                            c.unit.isBlank() -> null
+                            c.unit == "entries" -> com.familyhub.app.ui.common.plural(n, "entry", "entries")
+                            else -> "$n ${c.unit}"
                         },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                        ),
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (aiResponse != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(text = aiResponse!!, style = MaterialTheme.typography.bodyMedium)
+                        divider = i < cats.lastIndex
+                    ) { onQuickNavigate(c.route) }
+                }
+            }
+        }
+
+        // Recent activity: the newest money entries, tasks and events (health and "Only me" notes stay off Home).
+        item {
+            val filter = remember(familyWideView, currentUser.uid, currentUser.name) {
+                com.familyhub.app.ui.hub.homeViewFilter(familyWideView, currentUser.uid, currentUser.name)
+            }
+            val recent = remember(records, filter) { recentActivity(records, filter) }
+            if (recent.isNotEmpty()) {
+                val fmt = remember { SimpleDateFormat("d MMM", Locale.getDefault()) }
+                com.familyhub.app.core.theme.GroupedSection(title = "Recent", modifier = Modifier.riseIn(4)) {
+                    recent.forEachIndexed { i, r ->
+                        com.familyhub.app.core.theme.GroupedRow(
+                            r.title,
+                            note = r.kind + " · " + fmt.format(Date(r.at)),
+                            value = r.amount,
+                            divider = i < recent.lastIndex
+                        ) { onQuickNavigate(r.route) }
                     }
                 }
             }
         }
 
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.riseIn(4)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.riseIn(5)) {
                 items(members.filter { it.status == "ACTIVE" }) { member ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(modifier = Modifier.size(56.dp).glass(CircleShape, strong = true).padding(3.dp)) {
-                            PersonAvatar(
-                                name = member.name,
-                                photoData = member.photoData,
-                                photoUrl = member.photoUrl,
-                                size = 50.dp
-                            )
-                        }
+                        PersonAvatar(name = member.name, photoData = member.photoData, photoUrl = member.photoUrl, size = 48.dp)
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(member.name.substringBefore(" "), style = MaterialTheme.typography.labelMedium)
-                        Text(member.role.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-        }
-
-        item {
-            AccentCard(
-                onClick = { onQuickNavigate("finance") },
-                shape = RoundedCornerShape(28.dp),
-                modifier = Modifier.riseIn(2)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(18.dp)) {
-                    Text(
-                        text = if (familyWideView) "Monthly Family Expenses" else "My Monthly Expenses",
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                    Text(
-                        text = inrFormat.format(monthlyExpense),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "${upcomingBills.size} upcoming bills • Budget: ${inrFormat.format(family.monthlyBudget)}",
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-        }
-
-        // Everyday shortcuts, like app icons on a phone's home screen.
-        item {
-            val shortcuts: List<Triple<String, String, ImageVector>> = listOf(
-                Triple("assistant_voice", "Speak", Icons.Rounded.Mic),
-                Triple("sos", "SOS", Icons.Rounded.Warning),
-                Triple("health_hub", "Health", Icons.Rounded.FavoriteBorder),
-                Triple("medicines", "Medicines", Icons.Rounded.Medication),
-                Triple("reminders", "Reminders", Icons.Rounded.Alarm),
-                Triple("insights", "Insights", Icons.Rounded.PieChart),
-                Triple("cards", "Card bills", Icons.Rounded.CreditCard),
-                Triple("assistant", "Ask AI", Icons.Rounded.AutoAwesome),
-                Triple("import", "Import", Icons.Rounded.MarkEmailRead),
-                Triple("periods", "Periods", Icons.Rounded.WaterDrop)
-            )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.riseIn(4)) {
-                itemsIndexed(shortcuts) { i, (route, label, icon) ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.width(64.dp).clickable { onQuickNavigate(route) }
-                    ) {
-                        Box(
-                            modifier = Modifier.size(54.dp).clip(RoundedCornerShape(15.dp)).background(
-                                if (route == "sos") androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(0xFFFF453A), Color(0xFFC20F0F)))
-                                else tileBrush(i + 3)
-                            ),
-                            contentAlignment = Alignment.Center
-                        ) { Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp)) }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
-                    }
-                }
-            }
-        }
-
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().riseIn(5)) {
-                GlassCard(
-                    onClick = { onQuickNavigate("household") },
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        IconTile(Icons.Rounded.TaskAlt, 1)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("${pendingTasks.size} Pending", fontWeight = FontWeight.Bold)
-                        Text("Household Tasks", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                GlassCard(
-                    onClick = { onQuickNavigate("documents") },
-                    shape = RoundedCornerShape(24.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        IconTile(Icons.Rounded.WarningAmber, 2)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("${expiringDocs.size} Alerts", fontWeight = FontWeight.Bold)
-                        Text("Doc Renewals", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
         }
     }
+}
+
+/** One line of Home's "Recent" list. */
+data class RecentItem(val title: String, val kind: String, val at: Long, val amount: String?, val route: String)
+
+/** The five newest money entries, tasks and events the chosen view shows. Health records are never listed. */
+fun recentActivity(records: Map<String, List<com.familyhub.app.data.remote.Rec>>, include: (com.familyhub.app.data.remote.Rec) -> Boolean): List<RecentItem> {
+    val inr = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }
+    fun at(r: com.familyhub.app.data.remote.Rec): Long? =
+        listOf("updatedAt", "createdAt").firstNotNullOfOrNull { (r[it] as? Number)?.toLong() }
+    fun live(r: com.familyhub.app.data.remote.Rec) = r["isDeleted"] != true && include(r)
+    val out = ArrayList<RecentItem>()
+    records["expenses"].orEmpty().filter { live(it) }.forEach { r ->
+        val t = at(r) ?: return@forEach
+        val type = (r["type"] as? String).orEmpty()
+        val title = (r["title"] as? String).orEmpty().ifBlank { (r["category"] as? String).orEmpty() }.ifBlank { "Entry" }
+        out += RecentItem(title, if (type == "INCOME") "Income" else "Money", t,
+            (r["amountInr"] as? Number)?.toDouble()?.let { inr.format(it) }, "transactions")
+    }
+    records["tasks"].orEmpty().filter { live(it) }.forEach { r ->
+        val t = at(r) ?: return@forEach
+        val shopping = (r["type"] as? String) == "SHOPPING"
+        out += RecentItem((r["title"] as? String).orEmpty().ifBlank { "Task" }, if (shopping) "Shopping" else "Task", t, null,
+            if (shopping) "shopping" else "household")
+    }
+    records["events"].orEmpty().filter { live(it) }.forEach { r ->
+        val t = at(r) ?: return@forEach
+        out += RecentItem((r["title"] as? String).orEmpty().ifBlank { "Event" }, "Event", t, null, "calendar")
+    }
+    return out.sortedByDescending { it.at }.take(5)
 }
 
 /** A small rounded colour tile with a white icon, like the icons in the iPhone Settings app. */
