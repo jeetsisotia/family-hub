@@ -3,6 +3,8 @@ name: Apply code bundle
 # Upload a file named fhbundle-<anything>.tgz to the repository root on main.
 # This workflow unpacks it over the repository, commits the result, removes the bundle
 # and starts the APK build. Workflow files cannot be changed this way.
+# Optional .fhbundle/tag.txt: one restore tag per line, "<name>" (the version before this bundle)
+# or "<name> <commit>". Existing tags are never moved. If firebase/ changed, the rules tests run too.
 
 on:
   push:
@@ -24,6 +26,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Unpack bundle and commit
         id: unpack
@@ -36,6 +40,9 @@ jobs:
             echo "applied=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # The version before the bundle was uploaded (the upload commit only adds the bundle file).
+          base="$(git rev-parse HEAD^)"
+          tags=()
           for f in "${bundles[@]}"; do
             echo "Unpacking $f"
             if tar -tzf "$f" | grep -E '(^/|(^|/)\.\.(/|$)|^\.git/|^\.github/)'; then
@@ -51,6 +58,21 @@ jobs:
           done
           msg="Apply code bundle"
           if [ -f .fhbundle/message.txt ]; then msg="$(cat .fhbundle/message.txt)"; fi
+          if [ -f .fhbundle/tag.txt ]; then
+            while read -r name ref; do
+              name="$(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-')"
+              [ -n "$name" ] || continue
+              target="${ref:-$base}"
+              if git rev-parse -q --verify "refs/tags/$name" >/dev/null; then
+                echo "Tag $name already exists; left unchanged"
+              elif git cat-file -e "$target^{commit}" 2>/dev/null; then
+                git tag "$name" "$target"
+                tags+=("$name")
+              else
+                echo "Unknown commit for tag $name"
+              fi
+            done < .fhbundle/tag.txt
+          fi
           if [ -f .fhbundle/delete.txt ]; then
             while IFS= read -r p; do
               if [ -n "$p" ]; then git rm -r -q --ignore-unmatch -- "$p"; fi
@@ -63,6 +85,10 @@ jobs:
           git status --short
           git commit -q -m "$msg"
           git push
+          for t in "${tags[@]}"; do git push origin "refs/tags/$t"; done
+          if git diff --name-only "$base" HEAD | grep '^firebase/' >/dev/null; then
+            echo "rules=true" >> "$GITHUB_OUTPUT"
+          fi
           echo "applied=true" >> "$GITHUB_OUTPUT"
 
       - name: Start the APK build
@@ -70,3 +96,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run build-apk.yml --ref main --repo "$GITHUB_REPOSITORY"
+
+      - name: Start the Firestore rules tests
+        if: steps.unpack.outputs.rules == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run rules-test.yml --ref main --repo "$GITHUB_REPOSITORY"
