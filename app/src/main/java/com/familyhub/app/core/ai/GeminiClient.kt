@@ -28,7 +28,7 @@ object GeminiClient {
             "temperature" to temperature.coerceIn(0.0, 1.0)
         )
         return try {
-            val result = FirebaseFunctions.getInstance()
+            val result = FirebaseFunctions.getInstance("asia-south1")
                 .getHttpsCallable("generateFamilyHubAI")
                 .call(payload)
                 .await()
