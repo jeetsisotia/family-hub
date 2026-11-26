@@ -393,7 +393,8 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 | `tools/reminder-test` (40 checks) | **Passed** |
 | `tools/ledger-test` (78 checks, 2 new for month ends and 2 for premiums) | **Passed** |
 | `tools/safety-test` (64 checks) | **Passed** (unchanged) |
-| APK build and emulator screens (Home with Today, the reminder list) | Runs after upload |
+| APK build #55 (commit `7185b5f`) | **Passed.** It compiled on its first build. Attempt 1 was cancelled when the "Check Gemini API key" step hung again; attempt 2 passed. |
+| Emulator screen check: Home with the Today card, the reminder list, and the other 19 screens | **Passed**: no crash. The screenshots were not reviewed (their download host is blocked here). |
 | Alarms on a real phone: closed app, restart, time zone change, Done and Snooze buttons, early alerts | **Needs my phone** |
 
 ### Phone checklist for reminders (Needs my phone)
@@ -469,9 +470,8 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ## Next step
 
-1. Bundle p29 (Phase 7): check the APK build and the emulator screens.
-2. Phase 8: extra free features, then the final report. Data reliability (backup, restore, sync conflicts) is still to be reviewed in depth.
-3. **Suggested workflow fix (not applied: changing CI files from here was refused).** In `.github/workflows/build-apk.yml`, the "Check Gemini API key" step should get `timeout-minutes: 2` and `continue-on-error: true`, and its two `curl` calls `--max-time 20`. Then a slow Gemini reply can never hold up the APK again. Jeet can make this edit on github.com.
+1. Phase 8: extra free features, then the final report. Data reliability (backup, restore, sync conflicts) is still to be reviewed in depth.
+2. **Workflow fix needed (not applied: changing CI files from here was refused).** The "Check Gemini API key" step hung in 3 of the last 4 builds (#53, #54, #55), and each time the run had to be cancelled and re-run. In `.github/workflows/build-apk.yml`, the "Check Gemini API key" step should get `timeout-minutes: 2` and `continue-on-error: true`, and its two `curl` calls `--max-time 20`. Then a slow Gemini reply can never hold up the APK again. Jeet can make this edit on github.com.
 3. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
 
 ### Restore points (git tags)
