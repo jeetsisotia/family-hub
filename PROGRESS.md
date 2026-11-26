@@ -23,6 +23,11 @@ Status words:
 | Firebase plan | Spark (free). Usage on 25–26 Nov: 6.7K reads and 2.6K writes in 24 h, against free daily limits of 50K reads and 20K writes. |
 | Resume task | Created for 26 Nov 2026, 11:35 PM IST |
 
+**Second account (27 Nov 2026, 1:20 AM IST).** The work moved to another Claude account, using a handoff note.
+- Reading the repository and the Actions runs works.
+- Pushing from the workspace is refused, so code still goes up as an uploaded bundle through Jeet's Chrome, which works.
+- The scheduled resume task could not be created from this account (refused by a permission check). The first account's task (27 Nov, 11:35 PM IST) is the only one.
+
 ---
 
 ## Phase 1: audit and fixes
@@ -302,15 +307,17 @@ What is in it:
   - the server's own time
   - no extra fields
 - **13 new emulator tests**, 79 in all.
-- Rollback copy of the live rules: `firebase/firestore.rules.backup-2026-11-27-before-safety`.
+- Rollback copy of the live rules: `firebase/firestore.rules.backup-2026-11-27-before-safety`, also kept in the console's rules history ("1:00 AM").
+- **Published 27 Nov, 1:38 AM IST**, after 79 of 79 passed. The live text was checked afterwards and matches the tested file exactly (same SHA-256). Existing data was not touched.
 
 ### Tests
 
 | What | Result |
 |---|---|
 | `tools/safety-test` (64 checks): battery trigger and simulated discharges, cooldown, SMS limit, SMS wording, medical card off by default, upload limits, stale and expired, arrival timer | **Passed** (run in this workspace, 27 Nov) |
-| Firestore rules (79, emulator on GitHub) | Runs after upload |
-| APK build and emulator screens (Family safety light and dark, SOS) | Runs after upload |
+| Firestore rules (79, emulator on GitHub, run #7) | **Passed**, 79 of 79, on the first run |
+| APK build #53 (commit `1cddcb2`) | **Passed.** The Phase 6 code compiled on its first build. Attempt 1 was cancelled after the old "Check Gemini API key" step hung for 20 minutes on a network call without a time limit (not Phase 6 code); attempt 2 passed every step. |
+| Emulator screen check (Android 14): Family safety (light and dark), SOS, and the 18 other screens | **Passed**: no crash on any screen. The screenshots were not reviewed: their download host is blocked from this workspace. |
 | Real SMS, delivery reports, low battery with the app closed, live location on two phones, Quick Settings tile, shortcut, safe-arrival after a restart | **Needs my phone** (checklist below) |
 
 ### Phone checklist for safety (Needs my phone)
@@ -390,8 +397,9 @@ Use a family member's number who knows it is a test.
 
 ## Next step
 
-1. Bundle p27 (Phase 6 safety): check the APK build, the emulator screens and the rules tests (79 expected). Then publish the rules with the location block, keeping a rollback copy.
-2. Phase 7 reliability and reminders, Phase 8 extra features, then the final report.
+1. Phase 7: reliability, calendar, reminder dates and times, Home summaries (including safety status and missed calls).
+2. Phase 8: extra free features, then the final report.
+3. **Suggested workflow fix (not applied: changing CI files from here was refused).** In `.github/workflows/build-apk.yml`, the "Check Gemini API key" step should get `timeout-minutes: 2` and `continue-on-error: true`, and its two `curl` calls `--max-time 20`. Then a slow Gemini reply can never hold up the APK again. Jeet can make this edit on github.com.
 3. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
 
 ### Restore points (git tags)
