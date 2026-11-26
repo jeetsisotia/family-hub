@@ -455,17 +455,26 @@ object Ledger {
         val liabilities: Double, val accounts: List<AccountBalance>, val cards: List<CardStatus>, val loans: List<LoanStatus>
     )
 
-    fun summary(data: Map<String, List<Map<String, Any?>>>, monthFrom: Long, monthTo: Long, now: Long): Summary {
+    /**
+     * The dashboard for the accounts, cards and loans in [data]. Income and spending count the entries in [data];
+     * balances, card bills and EMIs count every entry in [ledgerExpenses] (all entries on those accounts and cards,
+     * whoever added them), which defaults to the same entries.
+     */
+    fun summary(
+        data: Map<String, List<Map<String, Any?>>>, monthFrom: Long, monthTo: Long, now: Long,
+        ledgerExpenses: List<Map<String, Any?>>? = null
+    ): Summary {
         val expenses = data["expenses"].orEmpty()
+        val all = ledgerExpenses ?: expenses
         val items = data["items"].orEmpty().filter { live(it) }
         val debit = items.filter { it.s("type") == "debit_card" }
-        val accounts = items.filter { it.s("type") == "account" }.map { accountBalance(it, expenses, debit) }
-        val cards = items.filter { it.s("type") == "card" }.map { cardStatus(it, expenses, now) }
-        val loans = items.filter { it.s("type") == "loan" }.map { loanStatus(it, expenses, now) }
+        val accounts = items.filter { it.s("type") == "account" }.map { accountBalance(it, all, debit) }
+        val cards = items.filter { it.s("type") == "card" }.map { cardStatus(it, all, now) }
+        val loans = items.filter { it.s("type") == "loan" }.map { loanStatus(it, all, now) }
         val month = expenses.filter { (it.l("dateMillis") ?: 0L) in monthFrom..monthTo }
         val income = month.filter { isIncome(it) }.sumOf { amount(it) }
         val spent = month.filter { isSpend(it) }.sumOf { spendAmount(it) }
-        val dues = dues(data, monthFrom, monthTo, now).filter { it.status != "PAID" }
+        val dues = dues(mapOf("items" to items, "expenses" to all), monthFrom, monthTo, now).filter { it.status != "PAID" }
         val emis = dues.filter { it.kind == "emi" }.sumOf { it.amount }
         val cardBills = dues.filter { it.kind == "card" }.sumOf { it.amount }
         val otherBills = dues.filter { it.kind != "emi" && it.kind != "card" }.sumOf { it.amount }
@@ -493,6 +502,13 @@ object Ledger {
         val ta = a.l("dateMillis") ?: return false
         val tb = b.l("dateMillis") ?: return false
         if (kotlin.math.abs(ta - tb) > DAY + DAY / 2) return false
+        // A card bill payment shows up twice: debited by the bank and received by the card, with different
+        // endings and references. Same amount and day is enough, unless they name different cards.
+        if (type(a) == "CARD_PAYMENT" && type(b) == "CARD_PAYMENT") {
+            val ca = a.s("cardId").ifBlank { a.s("card") }.takeIf { it != "None" }.orEmpty()
+            val cb = b.s("cardId").ifBlank { b.s("card") }.takeIf { it != "None" }.orEmpty()
+            return ca.isBlank() || cb.isBlank() || ca == cb
+        }
         val ra = a.s("refNo")
         val rb = b.s("refNo")
         if (ra.isNotBlank() && rb.isNotBlank()) return ra == rb

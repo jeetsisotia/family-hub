@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Only approved (ACTIVE) members count as family members.
+    function isFamilyMember(familyId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)).data.status == 'ACTIVE';
+    }
+
+    function isFamilyOwner(familyId) {
+      return signedIn() &&
+        get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Private ("Only me") records, profile details, ID numbers and step history: owner only.
+    match /users/{userId}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /families/{familyId} {
+      allow read: if isFamilyMember(familyId) || (signedIn() && resource.data.inviteCode != null);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      allow update, delete: if isFamilyOwner(familyId);
+
+      match /members/{memberUid} {
+        allow read: if isFamilyMember(familyId) || (signedIn() && request.auth.uid == memberUid);
+        // A person may only create their own record as PENDING_APPROVAL, unless they are creating the family.
+        allow create: if signedIn() && request.auth.uid == memberUid && (
+          request.resource.data.status == 'PENDING_APPROVAL' ||
+          getAfter(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid
+        );
+        // Members cannot change their own status or role; only the owner can.
+        allow update: if isFamilyOwner(familyId) || (
+          signedIn() && request.auth.uid == memberUid &&
+          request.resource.data.status == resource.data.status &&
+          request.resource.data.role == resource.data.role
+        );
+        allow delete: if isFamilyOwner(familyId) || (signedIn() && request.auth.uid == memberUid);
+      }
+
+      match /events/{docId} {
+        allow read, write: if isFamilyMember(familyId);
+      }
+
+      match /expenses/{docId} {
+        allow read, write: if isFamilyMember(familyId);
+      }
+
+      match /tasks/{docId} {
+        allow read, write: if isFamilyMember(familyId);
+      }
+
+      match /trips/{docId} {
+        allow read, write: if isFamilyMember(familyId);
+      }
+
+      // Vault, documents, health, vehicles, loans, subscriptions, notices and more.
+      match /items/{docId} {
+        allow read, write: if isFamilyMember(familyId);
+      }
+
+      match /documents/{docId} {
+        allow read: if isFamilyMember(familyId) && (
+          isFamilyOwner(familyId) ||
+          resource.data.isPrivate == false ||
+          resource.data.ownerUid == request.auth.uid ||
+          (resource.data.authorizedUids != null && request.auth.uid in resource.data.authorizedUids)
+        );
+        allow create: if isFamilyMember(familyId) && request.resource.data.ownerUid == request.auth.uid;
+        allow update, delete: if isFamilyMember(familyId) && (
+          isFamilyOwner(familyId) || resource.data.ownerUid == request.auth.uid
+        );
+      }
+    }
+  }
+}

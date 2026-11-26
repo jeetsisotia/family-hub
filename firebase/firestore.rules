@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function myMemberDoc(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid));
+    }
+
+    function familyOwnerUid(familyId) {
+      return get(/databases/$(database)/documents/families/$(familyId)).data.ownerUid;
+    }
+
+    // Only approved (ACTIVE) members count as family members.
+    function isFamilyMember(familyId) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/families/$(familyId)/members/$(request.auth.uid)) &&
+        myMemberDoc(familyId).data.status == 'ACTIVE';
+    }
+
+    // Super Admin: the person who created the family.
+    function isFamilyOwner(familyId) {
+      return signedIn() && familyOwnerUid(familyId) == request.auth.uid;
+    }
+
+    // Super Admin, or a member the Super Admin made a Family Admin.
+    function isFamilyAdmin(familyId) {
+      return isFamilyOwner(familyId) ||
+        (isFamilyMember(familyId) && myMemberDoc(familyId).data.get('isAdmin', false) == true);
+    }
+
+    // Admin flag and role are unchanged by this write.
+    function keepsRole() {
+      return request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) &&
+        request.resource.data.get('role', '') == resource.data.get('role', '');
+    }
+
+    match /users/{userId} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Private ("Only me") records, profile details, ID numbers and step history: owner only.
+    match /users/{userId}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == userId;
+    }
+
+    match /families/{familyId} {
+      allow read: if isFamilyMember(familyId) || (signedIn() && resource.data.inviteCode != null);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      // Admins may change family settings; only the Super Admin may hand over or delete the family.
+      allow update: if isFamilyOwner(familyId) ||
+        (isFamilyAdmin(familyId) && request.resource.data.ownerUid == resource.data.ownerUid);
+      allow delete: if isFamilyOwner(familyId);
+
+      match /members/{memberUid} {
+        allow read: if isFamilyMember(familyId) || (signedIn() && request.auth.uid == memberUid);
+        // A person may only create their own record as PENDING_APPROVAL, unless they are creating the family.
+        allow create: if signedIn() && request.auth.uid == memberUid && (
+          request.resource.data.status == 'PENDING_APPROVAL' ||
+          getAfter(/databases/$(database)/documents/families/$(familyId)).data.ownerUid == request.auth.uid
+        );
+        // The Super Admin may change anyone. A Family Admin may approve or update other members (not the
+        // Super Admin) but cannot make or remove admins. Members may edit their own card, not their status,
+        // role or admin flag.
+        allow update: if isFamilyOwner(familyId) ||
+          (isFamilyAdmin(familyId) && memberUid != familyOwnerUid(familyId) && keepsRole()) ||
+          (signedIn() && request.auth.uid == memberUid && keepsRole() &&
+            request.resource.data.status == resource.data.status);
+        // Leaving is always allowed. A Family Admin may remove members who are not admins.
+        allow delete: if isFamilyOwner(familyId) || (signedIn() && request.auth.uid == memberUid) ||
+          (isFamilyAdmin(familyId) && memberUid != familyOwnerUid(familyId) && resource.data.get('isAdmin', false) == false);
+      }
+
+      // Shared records: members add, edit and move them to Recently deleted; only admins delete for good.
+      match /events/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /expenses/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /tasks/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /trips/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      // Vault, documents, health, vehicles, loans, subscriptions, accounts, cards and more.
+      match /items/{docId} {
+        allow read, create, update: if isFamilyMember(familyId);
+        allow delete: if isFamilyAdmin(familyId);
+      }
+
+      match /documents/{docId} {
+        // Private documents stay visible only to their owner, the people they chose, and the Super Admin.
+        allow read: if isFamilyMember(familyId) && (
+          isFamilyOwner(familyId) ||
+          resource.data.isPrivate == false ||
+          resource.data.ownerUid == request.auth.uid ||
+          (resource.data.authorizedUids != null && request.auth.uid in resource.data.authorizedUids)
+        );
+        allow create: if isFamilyMember(familyId) && request.resource.data.ownerUid == request.auth.uid;
+        allow update, delete: if isFamilyMember(familyId) && (
+          isFamilyOwner(familyId) || resource.data.ownerUid == request.auth.uid
+        );
+      }
+    }
+  }
+}

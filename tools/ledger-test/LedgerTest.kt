@@ -111,5 +111,10 @@ fun main() {
     check("transfer is not spending or income", !Ledger.isSpend(tx[5]) && !Ledger.isIncome(tx[5]))
     check("card payment is not spending", !Ledger.isSpend(tx[4]))
 
+    val bankSide = mapOf("type" to "CARD_PAYMENT", "amountInr" to 12601.0, "dateMillis" to at(2026, 11, 5), "last4" to "1234", "refNo" to "111222333")
+    val cardSide = mapOf("type" to "CARD_PAYMENT", "amountInr" to 12601.0, "dateMillis" to at(2026, 11, 6), "last4" to "4321", "cardId" to "c1")
+    check("card payment seen from bank and card is one payment", Ledger.sameTransaction(bankSide, cardSide))
+    check("payments to two different cards are not duplicates", !Ledger.sameTransaction(cardSide + ("id" to "p1"), cardSide + mapOf("id" to "p2", "cardId" to "c2")))
+
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

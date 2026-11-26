@@ -31,9 +31,9 @@ import com.familyhub.app.ui.hub.Hubs
 
 enum class PrimaryTab(val label: String, val icon: ImageVector) {
     HOME("Home", Icons.Rounded.Home),
-    CALENDAR("Calendar", Icons.Rounded.CalendarMonth),
-    FAMILY("Family", Icons.Rounded.Groups),
     FINANCE("Finance", Icons.Rounded.AccountBalanceWallet),
+    HEALTH("Health", Icons.Rounded.FavoriteBorder),
+    FAMILY("Family", Icons.Rounded.Groups),
     MORE("More", Icons.Rounded.GridView)
 }
 
@@ -47,8 +47,8 @@ val MoreDestinations: List<SecondaryDestination> =
     listOf(
         SecondaryDestination("assistant", "AI Assistant", Icons.Rounded.AutoAwesome),
         SecondaryDestination("sos", "SOS", Icons.Rounded.Warning),
-        SecondaryDestination(Hubs.health.route, Hubs.health.title, Hubs.health.icon),
-        SecondaryDestination(Hubs.money.route, Hubs.money.title, Hubs.money.icon),
+        // Health and Finance have their own tabs; Calendar now lives here.
+        SecondaryDestination("calendar", "Calendar", Icons.Rounded.CalendarMonth),
         SecondaryDestination(Hubs.home.route, Hubs.home.title, Hubs.home.icon),
         SecondaryDestination(Hubs.life.route, Hubs.life.title, Hubs.life.icon),
         SecondaryDestination(Hubs.reminders.route, Hubs.reminders.title, Hubs.reminders.icon)

@@ -37,6 +37,7 @@ import com.familyhub.app.money.ParsedAlert
 import com.familyhub.app.money.ParsedTxn
 import com.familyhub.app.money.PhoneEvent
 import com.familyhub.app.money.SmsReader
+import com.familyhub.app.money.StatementImport
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.common.*
 import com.familyhub.app.ui.modules.DAY_MS
@@ -122,12 +123,28 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
 
     val fresh = found.filter { it.key !in known && it.key !in ignored }
     val alreadyAdded = found.count { it.key in known }
+    // Possible duplicates: already in Finance (typed in, or from the other source), or found twice in this scan.
+    val dupOf = remember { mutableStateMapOf<String, String>() }
 
     fun accept(list: List<ParsedTxn>, source: String) {
         val merged = (found.filter { it.source != source } + list).distinctBy { it.key }.sortedByDescending { it.dateMillis }
         found = merged
+        val existing = expenses.filter { !(it["isDeleted"] == true) }
+        val earlier = ArrayList<Pair<ParsedTxn, Map<String, Any?>>>()
+        for (t in merged.sortedBy { if (it.source == "SMS") 0 else 1 }) {
+            val cand = StatementImport.candidate(t)
+            val hit = existing.firstOrNull { com.familyhub.app.money.Ledger.sameTransaction(cand, it) }
+            val twin = earlier.firstOrNull { com.familyhub.app.money.Ledger.sameTransaction(cand, it.second) }
+            when {
+                hit != null -> dupOf[t.key] = "Already in Finance: " + hit.str("title").ifBlank { "an entry" }
+                twin != null -> dupOf[t.key] = "Same payment as the ${twin.first.source} alert"
+                else -> dupOf.remove(t.key)
+            }
+            if (hit == null && twin == null) earlier.add(t to cand)
+        }
         for (t in list) {
-            if (selected[t.key] == null) selected[t.key] = !t.isTransfer
+            // Unsure readings and likely duplicates start unticked; card payments and transfers are added as money moved.
+            if (selected[t.key] == null) selected[t.key] = t.confidence != "LOW" && dupOf[t.key] == null
             if (category[t.key] == null) category[t.key] = if (t.isCredit && t.category == "Other") "Other" else t.category
         }
         val newCount = list.count { it.key !in known && it.key !in ignored }
@@ -304,37 +321,23 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
         busy = true
         scope.launch {
             var ok = 0
+            val items = env.data["items"].orEmpty()
             for (t in chosen) {
-                val card = if (t.last4.isNotBlank()) cards.firstOrNull { it.str("last4") == t.last4 } else null
-                val method = when {
-                    card != null -> "Credit card"
-                    t.method in PAYMENT_METHODS -> t.method
-                    else -> "Other"
-                }
-                val title = t.merchant.ifBlank { if (t.isCredit) "Money received" else "Payment" }
-                val data = hashMapOf<String, Any?>(
-                    "type" to if (t.isCredit && !t.isTransfer) "INCOME" else "EXPENSE",
-                    "title" to title,
-                    "amountInr" to t.amount,
-                    "category" to (category[t.key] ?: t.category).ifBlank { "Other" },
-                    "dateMillis" to t.dateMillis,
-                    "paymentMethod" to method,
-                    "card" to (card?.str("title") ?: "None"),
-                    "notes" to "Added from bank ${if (t.source == "SMS") "SMS" else "email"}" +
-                        (if (t.last4.isNotBlank()) " (account or card ending ${t.last4})" else ""),
-                    "sourceKey" to t.key,
-                    "isPaid" to true,
-                    "isDeleted" to false,
-                    "memberUid" to env.uid,
-                    "memberName" to env.profile.name,
-                    "createdAt" to System.currentTimeMillis()
-                )
+                val data = StatementImport.entryFor(t, items, (category[t.key] ?: t.category).ifBlank { "Other" })
+                data["sourceKey"] = t.key
+                data["memberUid"] = env.uid
+                data["memberName"] = env.profile.name
+                data["createdAt"] = System.currentTimeMillis()
                 try {
                     env.repo.saveScoped(env.familyId, env.uid, "expenses", null, data, visibility == "Only me")
                     ok++
                 } catch (e: Exception) {
                     // keep going; the rest are still added
                 }
+            }
+            // Remember the latest balance each account's alerts reported, for matching the balance later.
+            for ((rec, fields) in StatementImport.balanceUpdates(chosen, items)) {
+                try { env.repo.setFieldsScoped(env.familyId, env.uid, "items", rec, fields) } catch (e: Exception) { }
             }
             busy = false
             Toast.makeText(context, "${com.familyhub.app.ui.common.plural(ok, "transaction")} added to Finance", Toast.LENGTH_SHORT).show()
@@ -404,6 +407,13 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     ) {
                         Text(if (gmailToken == null) "Gmail" else "Gmail ✓", maxLines = 1, softWrap = false)
                     }
+                }
+            }
+            item {
+                OutlinedButton(onClick = { env.navigate("statement_import") }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Import a bank statement or Axio export (CSV / Excel)", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (smsDenied) {
@@ -563,13 +573,21 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                                         category[t.key] ?: t.category,
                                         t.method,
                                         if (t.last4.isNotBlank()) "••${t.last4}" else "",
-                                        if (t.isTransfer) "card bill / transfer" else "",
+                                        if (t.isCardPayment) "card bill payment (not spending)" else if (t.isTransfer) "transfer (not spending)" else "",
                                         t.source
                                     ).filter { it.isNotBlank() }.joinToString(" • "),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                     maxLines = 2, overflow = TextOverflow.Ellipsis
                                 )
+                                val dup = dupOf[t.key]
+                                if (dup != null || t.confidence != "HIGH") {
+                                    Text(
+                                        dup ?: if (t.confidence == "LOW") "Unclear message: check before adding" else "Check the details",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFFD97706)
+                                    )
+                                }
                             }
                             Text(
                                 (if (t.isCredit) "+" else "−") + inr(t.amount),

@@ -83,8 +83,13 @@ fun FinanceOverview(env: AppEnv) {
     val data = remember(env.data, familyView) { viewData(env, familyView) }
     val (from, to) = remember { monthRange() }
     val now = remember { System.currentTimeMillis() }
-    val s = remember(data) { Ledger.summary(data, from, to, now) }
-    val dues = remember(data) { Ledger.dues(data, from - 60 * Ledger.DAY, to + 7 * Ledger.DAY, now).filter { it.status != "PAID" } }
+    // The view picks whose accounts, cards, loans and spending count; balances use every entry on those accounts.
+    val all = env.data["expenses"].orEmpty()
+    val s = remember(data) { Ledger.summary(data, from, to, now, all) }
+    val dues = remember(data) {
+        Ledger.dues(mapOf("items" to data["items"].orEmpty(), "expenses" to all), from - 60 * Ledger.DAY, to + 7 * Ledger.DAY, now)
+            .filter { it.status != "PAID" && (it.sourceCollection != "expenses" || data["expenses"].orEmpty().any { e -> e.str("id") == it.sourceId }) }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             SegmentedButton(selected = !familyView, onClick = { familyView = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Mine") }
@@ -110,6 +115,30 @@ fun FinanceOverview(env: AppEnv) {
 }
 
 // ---------- dues ----------
+
+/** Home: what needs paying now (overdue and the next 10 days). Tap one to pay, snooze or move it. */
+@Composable
+fun HomeDues(env: AppEnv) {
+    val now = remember { System.currentTimeMillis() }
+    val dues = remember(env.data) {
+        Ledger.dues(env.data, now - 60 * Ledger.DAY, now + 10 * Ledger.DAY, now)
+            .filter { it.status != "PAID" && (it.snoozedUntil ?: 0L) <= now }
+    }
+    if (dues.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "TO PAY • ${inr(dues.sumOf { it.amount })}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = { env.navigate("due_calendar") }) { Text("Due calendar") }
+        }
+        dues.take(4).forEach { d -> DueRow(env, d) }
+        if (dues.size > 4) Text("+${dues.size - 4} more in the due calendar", style = MaterialTheme.typography.labelSmall)
+    }
+}
 
 private fun dueIcon(kind: String) = when (kind) {
     "card" -> Icons.Rounded.CreditCard
@@ -419,10 +448,26 @@ fun AccountDetailScreen(env: AppEnv, accountId: String) {
                         Text("Balance", style = MaterialTheme.typography.labelMedium)
                         Text(inr(b.balance), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         Row { Stat("Opening", inr(b.opening), Modifier.weight(1f)); Stat("In this month", inr(month.moneyIn), Modifier.weight(1f), Green); Stat("Out this month", inr(month.moneyOut), Modifier.weight(1f)) }
+                        val seen = (account["lastSeenBalance"] as? Number)?.toDouble()
+                        val seenAt = (account["lastSeenBalanceAt"] as? Number)?.toLong()
+                        if (seen != null && seenAt != null) {
+                            val off = Ledger.round2(seen - Ledger.accountBalance(account, tx, debit, Ledger.endOfDay(seenAt)).balance)
+                            Text(
+                                "Bank ${account.str("lastSeenBalanceFrom").ifBlank { "alert" }.lowercase()} said ${inr(seen)} on ${formatDate(seenAt)}" +
+                                    if (kotlin.math.abs(off) < 1) " • matches" else " • differs by ${inr(off)}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (kotlin.math.abs(off) < 1) Green else Amber
+                            )
+                            if (kotlin.math.abs(off) >= 1) {
+                                TextButton(onClick = { scope.launch { DueActions.reconcile(env, account, b.balance, b.balance + off, seenAt) } }) {
+                                    Text("Match to ${inr(seen)} (saves a ${inr(off)} adjustment)")
+                                }
+                            }
+                        }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { reconcile = true }) { Text("Match statement") }
                             OutlinedButton(onClick = { env.navigate("transfer") }) { Text("Transfer") }
-                            OutlinedButton(onClick = { env.navigate("import") }) { Text("Import") }
+                            OutlinedButton(onClick = { env.navigate("statement_import") }) { Text("Import") }
                         }
                     }
                 }
@@ -600,9 +645,9 @@ fun LoanDetailScreen(env: AppEnv, loanId: String) {
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(enabled = s.status != "PAID") { payFor = s }.padding(vertical = 6.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("${s.no}", Modifier.width(34.dp), style = MaterialTheme.typography.labelMedium)
-                    Text(formatDate(s.dueMillis), Modifier.weight(1f))
-                    Text(inr(s.emi), Modifier.weight(1f))
+                    Text("${s.no}", Modifier.width(30.dp), style = MaterialTheme.typography.labelMedium)
+                    Text(formatDate(s.dueMillis), Modifier.weight(1.3f), maxLines = 1)
+                    Text(inr(s.emi), Modifier.weight(1f), maxLines = 1)
                     Text(
                         when (s.status) { "PAID" -> "Paid"; "OVERDUE" -> "Overdue"; "DUE" -> "Due soon"; else -> "Upcoming" },
                         color = when (s.status) { "PAID" -> Green; "OVERDUE" -> Red; "DUE" -> Amber; else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f) },

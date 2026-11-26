@@ -838,7 +838,8 @@ fun recordsFor(def: ModuleDef, all: List<Rec>): List<Rec> {
             val t = r.str("type")
             (if (t.isBlank() && def.defaultType) wanted else t) == wanted
         }
-        val notDeleted = softKey == null || !r.bool(softKey)
+        // Anything in Recently deleted is hidden everywhere.
+        val notDeleted = (softKey == null || !r.bool(softKey)) && !r.bool("isDeleted")
         typeOk && notDeleted
     }
 }

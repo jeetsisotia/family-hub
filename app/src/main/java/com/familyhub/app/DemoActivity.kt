@@ -62,6 +62,7 @@ class DemoActivity : FragmentActivity() {
             "insights" -> "accounts_home"
             "medicines" -> "loan:demo-loan"
             "profile" -> "ccard:demo-hdfc-card"
+            "settings" -> "data_tools"
             else -> asked
         }
         val ask = intent.getStringExtra("ask")?.replace('_', ' ')?.takeIf { it.isNotBlank() }
@@ -106,7 +107,8 @@ class DemoActivity : FragmentActivity() {
                                 trips = emptyList(),
                                 onQuickNavigate = {},
                                 aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) },
-                                records = env.data
+                                records = env.data,
+                                duesCard = { com.familyhub.app.ui.money.HomeDues(env) }
                             )
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
                             route == "assistant_new" -> AssistantScreen(env)

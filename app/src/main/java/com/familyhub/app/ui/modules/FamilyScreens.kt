@@ -143,9 +143,36 @@ fun FamilyScreen(
     currentUid: String,
     isOwner: Boolean,
     onApprove: (String) -> Unit,
-    onRemove: (String) -> Unit
+    onRemove: (String) -> Unit,
+    /** Super Admin or Family Admin: approves and removes members. */
+    isAdmin: Boolean = isOwner,
+    /** Only the Super Admin (the family's creator) makes or unmakes Family Admins. */
+    onSetAdmin: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
+    fun isSuper(m: FamilyMember) = m.uid == family.ownerUid || m.role == FamilyRole.OWNER
+    fun roleLabel(m: FamilyMember) = when {
+        isSuper(m) -> "Super Admin"
+        m.isAdmin -> "Family Admin"
+        else -> "Member"
+    }
+    var confirmAdmin by remember { mutableStateOf<FamilyMember?>(null) }
+    confirmAdmin?.let { who ->
+        AlertDialog(
+            onDismissRequest = { confirmAdmin = null },
+            title = { Text(if (who.isAdmin) "Remove ${who.name} as Family Admin?" else "Make ${who.name} a Family Admin?") },
+            text = {
+                Text(
+                    if (who.isAdmin) "${who.name} will be a member again: they can add and edit entries, but not approve members, delete for good, reset or restore data."
+                    else "Family Admins can approve and remove members, restore or permanently delete entries, back up, restore and reset family data. Only you can make or remove admins."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmAdmin = null; onSetAdmin(who.uid, !who.isAdmin) }) { Text(if (who.isAdmin) "Remove admin" else "Make admin", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { confirmAdmin = null }) { Text("Cancel") } }
+        )
+    }
     val clipboard = LocalClipboardManager.current
     val active = members.filter { it.status == "ACTIVE" }
     val pending = members.filter { it.status != "ACTIVE" }
@@ -234,7 +261,7 @@ fun FamilyScreen(
             }
         }
 
-        if (isOwner && pending.isNotEmpty()) {
+        if (isAdmin && pending.isNotEmpty()) {
             item { Text("Waiting for your approval", fontWeight = FontWeight.Bold) }
             items(pending, key = { "p_" + it.uid }) { m ->
                 GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
@@ -271,7 +298,7 @@ fun FamilyScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(m.name + if (m.uid == currentUid) " (you)" else "", fontWeight = FontWeight.SemiBold)
                         Text(
-                            listOf(if (m.role == FamilyRole.OWNER) "Owner" else m.relation, m.email)
+                            listOf(roleLabel(m), m.relation.takeIf { it != "Member" }.orEmpty(), m.email)
                                 .filter { it.isNotBlank() }.joinToString(" • "),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
@@ -301,8 +328,10 @@ fun FamilyScreen(
                             }
                         }) { Icon(Icons.Rounded.Call, contentDescription = "Call ${m.name}") }
                     }
-                    if (isOwner && m.uid != currentUid) {
-                        TextButton(onClick = { confirmRemove = m }) { Text("Remove") }
+                    if (m.uid != currentUid && !isSuper(m)) {
+                        if (isOwner) TextButton(onClick = { confirmAdmin = m }) { Text(if (m.isAdmin) "Unmake admin" else "Make admin", maxLines = 1) }
+                        // A Family Admin may remove members, but not other admins.
+                        if (isOwner || (isAdmin && !m.isAdmin)) TextButton(onClick = { confirmRemove = m }) { Text("Remove") }
                     }
                 }
             }
@@ -396,6 +425,7 @@ fun SettingsScreen(
                             SettingsLink(Icons.Rounded.Diversity3, "My Families", "Switch, create or join a family") { onOpen("families") }
                             SettingsLink(Icons.Rounded.Dashboard, "Arrange Home", "Move Home categories up or down, or hide them") { onOpen("arrange_home") }
                             SettingsLink(Icons.Rounded.Tune, "Arrange More", "Order and hide the More icons") { onOpen("arrange") }
+                            SettingsLink(Icons.Rounded.Backup, "Data & backup", "Back up, restore, recently deleted and reset") { onOpen("data_tools") }
                         }
                     }
                 }

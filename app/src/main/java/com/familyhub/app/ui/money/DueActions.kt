@@ -183,14 +183,14 @@ object DueActions {
     }
 
     /** Brings an account in line with its statement by recording the difference (not income or spending). */
-    suspend fun reconcile(env: AppEnv, account: Rec, appBalance: Double, statementBalance: Double) {
+    suspend fun reconcile(env: AppEnv, account: Rec, appBalance: Double, statementBalance: Double, at: Long = System.currentTimeMillis()) {
         val diff = Ledger.round2(statementBalance - appBalance)
         if (kotlin.math.abs(diff) < 0.01) return
         env.repo.saveScoped(
             env.familyId, env.uid, "expenses", null,
             mapOf(
                 "type" to "ADJUSTMENT", "title" to "Balance matched to statement", "amountInr" to diff,
-                "dateMillis" to System.currentTimeMillis(), "account" to account.str("title"), "accountId" to account.str("id"),
+                "dateMillis" to at, "account" to account.str("title"), "accountId" to account.str("id"),
                 "category" to "Adjustment", "isDeleted" to false, "memberUid" to env.uid, "createdAt" to System.currentTimeMillis()
             ),
             account[PRIVATE_FLAG] == true

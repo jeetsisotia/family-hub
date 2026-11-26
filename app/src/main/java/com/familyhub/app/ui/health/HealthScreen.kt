@@ -65,7 +65,7 @@ private fun habitStreak(days: List<String>, now: Long = System.currentTimeMillis
 }
 
 @Composable
-fun HealthScreen(env: AppEnv) {
+fun HealthScreen(env: AppEnv, showBack: Boolean = true) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val fmt = remember { NumberFormat.getIntegerInstance() }
@@ -186,7 +186,7 @@ fun HealthScreen(env: AppEnv) {
         .sortedByDescending { it.stepsToday ?: 0L }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Health & Fitness", onBack = env.onBack)
+        ScreenTopBar(title = "Health & Fitness", onBack = if (showBack) env.onBack else null)
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)

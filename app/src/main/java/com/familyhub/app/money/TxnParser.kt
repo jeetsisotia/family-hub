@@ -17,7 +17,18 @@ data class ParsedTxn(
     val method: String,
     val category: String,
     /** Credit-card bill payments and own-account transfers are not real spending. */
-    val isTransfer: Boolean
+    val isTransfer: Boolean,
+    /** A payment towards a credit card bill (from the bank side or the card side). */
+    val isCardPayment: Boolean = false,
+    /** Account balance the alert reports ("Avl Bal"), if any. */
+    val balance: Double? = null,
+    /** Card limit still available ("Avl Lmt"), if any. */
+    val availableLimit: Double? = null,
+    /** UPI / NEFT / IMPS reference number, used to spot the same payment from SMS and email. */
+    val refNo: String = "",
+    val bank: String = "",
+    /** HIGH, MEDIUM or LOW: how sure the reading is. Low ones start unticked. */
+    val confidence: String = "HIGH"
 )
 
 /**
@@ -45,6 +56,13 @@ object TxnParser {
     private val last4Rx = Regex(
         """(?i)(?:a/c|ac|acct|account|card|cc)\s*(?:no\.?|number)?\s*(?:ending\s*(?:with|in)?)?\s*[:\-]?\s*[xX*•.]*\s*([0-9]{4})\b"""
     )
+    private val cardPaymentRx = Regex(
+        """(?i)(payment (?:of .{0,25})?(?:has been )?received (?:towards|on|for) your .{0,25}card|towards your (?:.{0,20})?credit card|""" +
+            """credit card (?:bill )?payment|card bill paid|paid towards (?:your )?.{0,20}card|cc bill|bill ?desk.{0,20}credit card)"""
+    )
+    private val balanceRx = Regex("""(?i)(?:avl\.?|avail(?:able)?)\s*(?:bal(?:ance)?|bal\.?)\s*(?:is|:)?\s*(?:rs\.?|inr|₹)?\s*[:.]?\s*(-?[0-9][0-9,]*(?:\.[0-9]{1,2})?)""")
+    private val limitRx = Regex("""(?i)(?:avl\.?|avail(?:able)?)\s*(?:lmt|limit|credit limit|cr\.? limit)\s*(?:is|:)?\s*(?:rs\.?|inr|₹)?\s*[:.]?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)""")
+    private val refRx = Regex("""(?i)\b(?:upi\s*ref(?:erence)?(?:\s*no)?|ref(?:erence)?\s*(?:no|number|id)?|rrn|utr|txn\s*(?:id|no))\s*[:.#-]?\s*([0-9]{6,18}|[A-Z0-9]{10,22})\b""")
     private val vpaRx = Regex("""(?i)\b(?:vpa|upi id|to)\s*:?\s*([a-z0-9.\-_]{2,}@[a-z]{2,})""")
     private val merchantRx = listOf(
         Regex(
@@ -91,7 +109,8 @@ object TxnParser {
             else -> return null
         }
         val lower = t.lowercase(Locale.ROOT)
-        val isTransfer = transferRx.containsMatchIn(t)
+        val isCardPayment = cardPaymentRx.containsMatchIn(t)
+        val isTransfer = isCardPayment || transferRx.containsMatchIn(t)
         val last4 = last4Rx.find(t)?.groupValues?.get(1).orEmpty()
         val method = when {
             "upi" in lower || "vpa" in lower || vpaRx.containsMatchIn(t) -> "UPI"
@@ -109,6 +128,23 @@ object TxnParser {
         }
         val key = "${source.lowercase(Locale.ROOT)}-${sender.filter { it.isLetterOrDigit() }.takeLast(8)}-" +
             "${dateMillis / 60_000L}-${"%.2f".format(Locale.ROOT, amount)}"
+        val balance = balanceRx.find(t)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+        val limit = limitRx.find(t)?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+        val refNo = refRx.find(t)?.groupValues?.get(1).orEmpty()
+        val bank = AlertParser.bankName(sender, t)
+        // How sure the reading is: a clear debit/credit word, an account or card ending, a reference, a known bank.
+        val strongWord = Regex("""(?i)\b(debited|credited|spent|withdrawn|deposited|received)\b""").containsMatchIn(t)
+        var score = 0
+        if (strongWord) score += 2 else score += 1
+        if (last4.isNotBlank()) score += 2
+        if (refNo.isNotBlank()) score += 1
+        if (bank.isNotBlank()) score += 1
+        if (merchant.isNotBlank()) score += 1
+        val confidence = when {
+            score >= 5 -> "HIGH"
+            score >= 3 -> "MEDIUM"
+            else -> "LOW"
+        }
         return ParsedTxn(
             key = key,
             source = source,
@@ -120,7 +156,13 @@ object TxnParser {
             last4 = last4,
             method = method,
             category = category,
-            isTransfer = isTransfer
+            isTransfer = isTransfer,
+            isCardPayment = isCardPayment,
+            balance = balance,
+            availableLimit = limit,
+            refNo = refNo,
+            bank = bank,
+            confidence = confidence
         )
     }
 

@@ -37,6 +37,8 @@ data class AppEnv(
     val members: List<FamilyMember>,
     val memberNames: List<String>,
     val isOwner: Boolean,
+    /** Super Admin (the family's creator) or a Family Admin: may delete for good, reset, back up and restore. */
+    val isAdmin: Boolean = isOwner,
     /** Family plus "Only me" records, keyed by collection (items, events, expenses, tasks, trips). */
     val data: Map<String, List<Rec>>,
     val repo: RecordRepository,
@@ -55,7 +57,7 @@ fun Rec.stringList(key: String): List<String> = (this[key] as? List<*>)?.mapNotN
 val ExtraRouteIds: Set<String> = setOf(
     "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos",
     "home_hub", "life_hub", "reminders_hub", "arrange_home",
-    "accounts_home", "loans_home", "due_calendar", "transfer"
+    "accounts_home", "loans_home", "due_calendar", "transfer", "statement_import", "data_tools"
 )
 
 /** Screens for one account, card or loan: "acct:<id>", "ccard:<id>", "loan:<id>". */
@@ -131,6 +133,8 @@ fun ExtraRoute(route: String, env: AppEnv) {
         "loans_home" -> LoansScreen(env)
         "due_calendar" -> DueCalendarScreen(env)
         "transfer" -> TransferScreen(env)
+        "statement_import" -> com.familyhub.app.ui.money.StatementImportScreen(env)
+        "data_tools" -> com.familyhub.app.ui.settings.DataToolsScreen(env)
         "import" -> ImportScreen(env)
         else -> Hubs.screens[route]?.let { HubScreen(it, env) }
     }

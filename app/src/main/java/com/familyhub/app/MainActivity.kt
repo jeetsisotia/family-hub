@@ -217,13 +217,16 @@ class MainActivity : FragmentActivity() {
                     val statusFlow = remember(activeFamilyId, uid) { recordRepository.observeMyStatus(activeFamilyId, uid) }
                     val myStatus by statusFlow.collectAsState(initial = "LOADING")
 
+                    // Deleted records stay out of every screen (Recently deleted reads them on its own).
+                    // Finance entries are kept whole: skipped dues are deleted entries the due calendar still needs.
                     val recordData = remember(itemRecs, eventRecs, expenseRecs, taskRecs, tripRecs) {
+                        fun live(l: List<Rec>) = l.filter { it["isDeleted"] != true }
                         mapOf(
-                            "items" to itemRecs,
-                            "events" to eventRecs,
+                            "items" to live(itemRecs),
+                            "events" to live(eventRecs),
                             "expenses" to expenseRecs,
-                            "tasks" to taskRecs,
-                            "trips" to tripRecs
+                            "tasks" to live(taskRecs),
+                            "trips" to live(tripRecs)
                         )
                     }
                     val alerts = remember(recordData, userDoc, members) {
@@ -232,7 +235,7 @@ class MainActivity : FragmentActivity() {
 
                     // Exact-time alarms for medicines and reminders follow the records.
                     LaunchedEffect(itemRecs, activeFamilyId) {
-                        AlarmScheduler.scheduleAll(context, itemRecs, activeFamilyId, uid)
+                        AlarmScheduler.scheduleAll(context, itemRecs.filter { it["isDeleted"] != true }, activeFamilyId, uid)
                     }
                     LaunchedEffect(uid, profile.familyIds, activeFamilyId) {
                         StepTracker.setFamilies(context, profile.familyIds + activeFamilyId)
@@ -242,7 +245,7 @@ class MainActivity : FragmentActivity() {
                     val moneyOptions = remember(itemRecs) { com.familyhub.app.ui.money.moneyFieldOptions(itemRecs) }
 
                     val lockerDocs = remember(itemRecs) {
-                        itemRecs.filter { it.str("type") == "document" }.map {
+                        itemRecs.filter { it.str("type") == "document" && it["isDeleted"] != true }.map {
                             FamilyDocument(
                                 id = it.str("id"),
                                 familyId = activeFamilyId,
@@ -270,14 +273,16 @@ class MainActivity : FragmentActivity() {
 
                     val currentMember = members.firstOrNull { it.uid == uid }
                         ?: FamilyMember(uid = uid, name = profile.name, role = FamilyRole.ADULT)
+                    // The family's creator is its Super Admin; they can make others Family Admins.
                     val isOwner = family?.ownerUid == uid || currentMember.role == FamilyRole.OWNER
+                    val isAdmin = isOwner || currentMember.isAdmin
                     val activeNames = remember(members) { members.filter { it.status == "ACTIVE" }.map { it.name } }
                     val memberNames = if (activeNames.isEmpty()) listOf(profile.name) else activeNames
 
                     val navigate: (String) -> Unit = { r ->
                         when (r) {
-                            "calendar" -> {
-                                selectedTab = PrimaryTab.CALENDAR
+                            "health_hub" -> {
+                                selectedTab = PrimaryTab.HEALTH
                                 subRoute = null
                                 backStack.clear()
                             }
@@ -349,6 +354,7 @@ class MainActivity : FragmentActivity() {
                         members = members,
                         memberNames = memberNames,
                         isOwner = isOwner,
+                        isAdmin = isAdmin,
                         data = recordData,
                         repo = recordRepository,
                         familyRepository = familyRepository,
@@ -471,28 +477,27 @@ class MainActivity : FragmentActivity() {
                                                 },
                                                 records = recordData,
                                                 homeOrder = userDoc.stringList("homeOrder"),
-                                                homeHidden = userDoc.stringList("homeHidden").toSet()
+                                                homeHidden = userDoc.stringList("homeHidden").toSet(),
+                                                duesCard = { com.familyhub.app.ui.money.HomeDues(envFor(currentFamily)) }
                                             )
                                         }
                                     }
-                                    PrimaryTab.CALENDAR -> ModuleScreen(
-                                        def = CalendarModule,
-                                        familyId = activeFamilyId,
-                                        uid = uid,
-                                        userName = profile.name,
-                                        memberNames = memberNames,
-                                        monthlyBudget = currentFamily.monthlyBudget,
-                                        isOwner = isOwner,
-                                        repo = recordRepository,
-                                        onBack = null,
-                                        families = familyList,
-                                        onAskAi = { t -> askAi("Calendar", t) }
-                                    )
+                                    PrimaryTab.HEALTH -> com.familyhub.app.ui.health.HealthScreen(envFor(currentFamily), showBack = false)
                                     PrimaryTab.FAMILY -> FamilyScreen(
                                         family = currentFamily,
                                         members = members,
                                         currentUid = uid,
                                         isOwner = isOwner,
+                                        isAdmin = isAdmin,
+                                        onSetAdmin = { memberUid, admin ->
+                                            scope.launch {
+                                                try {
+                                                    recordRepository.setMemberAdmin(activeFamilyId, memberUid, admin)
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "Could not change: ${e.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        },
                                         onApprove = { memberUid ->
                                             scope.launch {
                                                 try {

@@ -42,6 +42,8 @@ data class FamilyMember(
     val relation: String = "Member",
     val role: FamilyRole = FamilyRole.ADULT,
     val status: String = "ACTIVE",
+    /** A Family Admin, chosen by the family's creator (the Super Admin). */
+    @get:PropertyName("isAdmin") val isAdmin: Boolean = false,
     val allowedModules: List<String> = AppModuleType.entries.map { it.name },
     val canEditFinance: Boolean = true,
     val canViewPrivateDocs: Boolean = false,

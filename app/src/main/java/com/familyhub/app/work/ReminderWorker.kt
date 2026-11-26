@@ -73,7 +73,8 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                     m[PRIVATE_FLAG] = true
                     list.add(m)
                 }
-                data[c] = list
+                // Recently deleted records do not remind (Finance keeps them: skipped dues are deleted entries).
+                data[c] = if (c == "expenses") list else list.filter { it["isDeleted"] != true }
             }
 
             AlarmScheduler.scheduleAll(ctx, data["items"].orEmpty(), familyId, user.uid)

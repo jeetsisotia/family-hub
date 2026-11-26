@@ -2,6 +2,7 @@ package com.familyhub.app.data.remote
 
 import android.util.Log
 import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
@@ -98,7 +99,13 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
             val merged = HashMap<String, Any?>(clean(existing))
             merged.putAll(clean(data))
             ref.set(merged).await()
-            target(familyId, uid, collection, wasPrivate).document(id).delete().await()
+            val old = target(familyId, uid, collection, wasPrivate).document(id)
+            try {
+                old.delete().await()
+            } catch (e: Exception) {
+                // Only admins may delete shared records for good; hide the old shared copy instead.
+                old.update(mapOf("isDeleted" to true, "deletedAt" to System.currentTimeMillis(), "deletedByUid" to uid, "movedToPrivate" to true)).await()
+            }
         } else {
             ref.set(clean(data), SetOptions.merge()).await()
         }
@@ -116,9 +123,56 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
         target(familyId, uid, collection, rec[PRIVATE_FLAG] == true).document(id).update(fields).await()
     }
 
+    /**
+     * Deletes a record. Your own "Only me" records are removed; shared family records go to Recently deleted
+     * (marked deleted), where a family admin can restore them or delete them for good.
+     */
     suspend fun deleteScoped(familyId: String, uid: String, collection: String, rec: Rec) {
         val id = rec["id"] as? String ?: return
+        if (rec[PRIVATE_FLAG] == true) {
+            privateCol(uid, collection).document(id).delete().await()
+        } else {
+            col(familyId, collection).document(id)
+                .update(mapOf("isDeleted" to true, "deletedAt" to System.currentTimeMillis(), "deletedByUid" to uid)).await()
+        }
+    }
+
+    /** Deletes a record for good (family admins only for shared records). */
+    suspend fun purgeScoped(familyId: String, uid: String, collection: String, rec: Rec) {
+        val id = rec["id"] as? String ?: return
         target(familyId, uid, collection, rec[PRIVATE_FLAG] == true).document(id).delete().await()
+    }
+
+    /** Brings a deleted record back. */
+    suspend fun restoreScoped(familyId: String, uid: String, collection: String, rec: Rec) {
+        val id = rec["id"] as? String ?: return
+        target(familyId, uid, collection, rec[PRIVATE_FLAG] == true).document(id)
+            .update(mapOf("isDeleted" to false, "deletedAt" to FieldValue.delete(), "deletedByUid" to FieldValue.delete(), "skipped" to FieldValue.delete())).await()
+    }
+
+    /** Writes a record with its original id (restoring from a backup). Existing fields are kept, backup values win. */
+    suspend fun putScoped(familyId: String, uid: String, collection: String, id: String, data: Map<String, Any?>, private: Boolean) {
+        target(familyId, uid, collection, private).document(id).set(clean(data), SetOptions.merge()).await()
+    }
+
+    /** Deletes many records for good in batches of 400 (resets; admins only). Returns how many were deleted. */
+    suspend fun purgeMany(familyId: String, uid: String, collection: String, recs: List<Rec>): Int {
+        var n = 0
+        for (chunk in recs.chunked(400)) {
+            val batch = com.google.firebase.firestore.FirebaseFirestore.getInstance().batch()
+            for (r in chunk) {
+                val id = r["id"] as? String ?: continue
+                batch.delete(target(familyId, uid, collection, r[PRIVATE_FLAG] == true).document(id))
+                n++
+            }
+            batch.commit().await()
+        }
+        return n
+    }
+
+    /** Makes a member a Family Admin, or takes it away (the Super Admin only). */
+    suspend fun setMemberAdmin(familyId: String, memberUid: String, admin: Boolean) {
+        familyRef(familyId).collection("members").document(memberUid).update("isAdmin", admin).await()
     }
 
     /** Writes a private record with a fixed id (for example one step-count record per day). */

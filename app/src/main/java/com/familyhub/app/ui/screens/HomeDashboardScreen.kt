@@ -49,7 +49,9 @@ fun HomeDashboardScreen(
     /** Family plus "Only me" records by collection, for the category counts. */
     records: Map<String, List<com.familyhub.app.data.remote.Rec>> = emptyMap(),
     homeOrder: List<String> = emptyList(),
-    homeHidden: Set<String> = emptySet()
+    homeHidden: Set<String> = emptySet(),
+    /** Bills, card bills, EMIs and renewals due now, with Mark paid; paid ones drop off. */
+    duesCard: (@Composable () -> Unit)? = null
 ) {
     var familyWideView by remember { mutableStateOf(true) }
     var profileMenu by remember { mutableStateOf(false) }
@@ -143,6 +145,10 @@ fun HomeDashboardScreen(
                     shape = SegmentedButtonDefaults.itemShape(1, 2)
                 ) { Text("My View") }
             }
+        }
+
+        if (duesCard != null) {
+            item { Box(modifier = Modifier.riseIn(1)) { duesCard() } }
         }
 
         // The top categories, counted for the family or just for me.
