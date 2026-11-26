@@ -24,11 +24,13 @@ jobs:
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME --licenses
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-35" "build-tools;35.0.0"
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "platforms;android-35" "build-tools;35.0.0" "platforms;android-36" "build-tools;36.0.0"
 
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
 
 
       - name: Restore Fixed Debug Keystore
@@ -93,6 +95,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    permissions:
+      contents: write
     steps:
       - name: Download APK
         uses: actions/download-artifact@v4
@@ -176,8 +180,8 @@ jobs:
             [ "$after" != "$before" ] && echo "DEMO_CRASH: $1"
             adb shell am force-stop $PKG
           }
-          for r in home more sos profile families arrange medicines workouts; do demo "$r" "" 6 no; done
-          for r in health_hub insights periods cards import; do demo "$r" "" 6 scroll; done
+          for r in home more sos profile families arrange settings family_tab alerts home_hub life_hub assistant_new medicines workouts; do demo "$r" "" 6 no; done
+          for r in health_hub finance insights periods cards import; do demo "$r" "" 6 scroll; done
           demo assistant "What_is_due_this_week_and_how_much_did_we_spend_this_month?" 75 up
           adb shell am start -n $PKG/.MainActivity >/dev/null 2>&1
           sleep 5
@@ -213,3 +217,24 @@ jobs:
         with:
           name: smoke-test-results
           path: shots
+
+      - name: Publish demo screenshots to the demo-screenshots branch
+        if: always()
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          mkdir -p pub
+          for f in shots/*-full.png; do
+            [ -e "$f" ] || continue
+            n=$(basename "$f" -full.png)
+            convert "$f" -resize 720x -quality 85 "pub/$n.jpg" || cp "$f" "pub/$n.png"
+          done
+          ls pub | head -80
+          cd pub
+          git init -q -b demo-screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -qm "Demo screenshots from ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" demo-screenshots
