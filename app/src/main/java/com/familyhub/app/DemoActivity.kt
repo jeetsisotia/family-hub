@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -51,23 +52,32 @@ class DemoActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // The emulator test opens a fixed list of routes; these names show the newest screens instead.
-        val route = when (val asked = intent.getStringExtra("route") ?: "health_hub") {
-            "sos" -> "reminders_hub"
-            "families" -> "txn_sheet"
-            "workouts" -> "txn_select"
-            "arrange" -> "arrange_home"
+        val asked = when (val name = intent.getStringExtra("route") ?: "health_hub") {
             "assistant_new" -> "assistant_tidy"
-            // Money screens of this release.
-            "periods" -> "due_calendar"
-            "insights" -> "accounts_home"
-            "medicines" -> "loan:demo-loan"
-            "profile" -> "ccard:demo-hdfc-card"
-            "settings" -> "data_tools"
-            else -> asked
+            // Screens of this release: chats, dark mode and Reduce transparency.
+            "sos" -> "chat_list"
+            "families" -> "chat:family"
+            "workouts" -> "dark:chat:family"
+            "arrange" -> "dark:home"
+            "medicines" -> "dark:chat_list"
+            "profile" -> "settings"
+            "settings" -> "solid:home"
+            "insights" -> "dark:finance"
+            "periods" -> "dark:health_hub"
+            else -> name
         }
+        // "dark:" shows the screen in the dark theme, "solid:" with Reduce transparency (not saved).
+        val dark = asked.startsWith("dark:")
+        val solid = asked.startsWith("solid:")
+        val route = asked.removePrefix("dark:").removePrefix("solid:")
+        if (solid) {
+            com.familyhub.app.core.theme.GlassPrefs.load(this)
+            com.familyhub.app.core.theme.GlassPrefs.reduceTransparency.value = true
+        }
+        com.familyhub.app.data.remote.DemoChats.seed(DemoData.FAMILY, DemoData.UID, "Demo User", listOf("asha" to "Asha", "ravi" to "Ravi"))
         val ask = intent.getStringExtra("ask")?.replace('_', ' ')?.takeIf { it.isNotBlank() }
         setContent {
-            FamilyHubTheme {
+            FamilyHubTheme(darkTheme = if (dark) true else com.familyhub.app.core.theme.themeIsDark()) {
                 val scope = rememberCoroutineScope()
                 val env = androidx.compose.runtime.remember { DemoData.env(recordRepository, familyRepository, scope) }
                 Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -80,7 +90,9 @@ class DemoActivity : FragmentActivity() {
                             .background(Color(0x99000000), MaterialTheme.shapes.small)
                             .padding(horizontal = 8.dp, vertical = 2.dp)
                     )
-                    Box(modifier = Modifier.fillMaxSize()) {
+                    val titleCollapse = androidx.compose.runtime.remember { com.familyhub.app.core.theme.TitleCollapse() }
+                    androidx.compose.runtime.CompositionLocalProvider(com.familyhub.app.core.theme.LocalTitleCollapse provides titleCollapse) {
+                    Box(modifier = Modifier.fillMaxSize().nestedScroll(titleCollapse.connection)) {
                         val def = ModuleByRoute[route]
                         val financeOverview: @Composable () -> Unit = { com.familyhub.app.ui.money.FinanceOverview(env) }
                         when {
@@ -112,6 +124,8 @@ class DemoActivity : FragmentActivity() {
                                 glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(env, fv) }
                             )
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
+                            route == "chat_list" -> com.familyhub.app.ui.chat.ChatListScreen(env) { }
+                            route.startsWith("chat:") -> com.familyhub.app.ui.chat.ChatScreen(env, route.removePrefix("chat:"), onBack = {})
                             route == "assistant_new" -> AssistantScreen(env)
                             route == "assistant_tidy" -> AssistantScreen(
                                 env,
@@ -166,6 +180,7 @@ class DemoActivity : FragmentActivity() {
                             )
                             else -> Text("Unknown screen: $route", modifier = Modifier.padding(24.dp))
                         }
+                    }
                     }
                 }
             }

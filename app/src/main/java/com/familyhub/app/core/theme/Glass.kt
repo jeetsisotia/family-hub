@@ -49,6 +49,13 @@ import kotlinx.coroutines.launch
 @Composable
 fun AuroraBackground(modifier: Modifier = Modifier) {
     val dark = LocalGlassDark.current
+    // Reduce transparency: a plain system colour, nothing moving behind the screens.
+    if (LocalSolidGlass.current) {
+        Box(modifier = modifier.fillMaxSize().background(if (dark) Color.Black else IosGrayBg))
+        return
+    }
+    // Animations turned off on the phone: the glows stay still.
+    val still = reducedMotion()
     val transition = rememberInfiniteTransition(label = "aurora")
     val t1 = transition.animateFloat(
         initialValue = 0f, targetValue = 1f,
@@ -71,8 +78,8 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
         val w = size.width
         val h = size.height
         val r = maxOf(w, h)
-        val a = t1.value
-        val b = t2.value
+        val a = if (still) 0.3f else t1.value
+        val b = if (still) 0.6f else t2.value
         fun glow(color: Color, cx: Float, cy: Float, radius: Float) {
             drawCircle(
                 brush = Brush.radialGradient(listOf(color, Color.Transparent), center = Offset(cx, cy), radius = radius),
@@ -89,6 +96,15 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
 /** Frosted glass: a see-through white fill, a bright edge and a soft shadow. */
 fun Modifier.glass(shape: Shape = RoundedCornerShape(24.dp), strong: Boolean = false): Modifier = composed {
     val dark = LocalGlassDark.current
+    if (LocalSolidGlass.current) {
+        // Reduce transparency: solid cards with a hairline edge, like iPhone grouped lists.
+        val solid = if (dark) (if (strong) Color(0xFF2C2C2E) else Color(0xFF1C1C1E)) else Color.White
+        val line = if (dark) Color(0x29FFFFFF) else Color(0x1F3C3C43)
+        return@composed this
+            .clip(shape)
+            .background(solid)
+            .border(0.5.dp, line, shape)
+    }
     val fill = if (dark) {
         Brush.verticalGradient(
             listOf(Color.White.copy(alpha = if (strong) 0.17f else 0.11f), Color.White.copy(alpha = if (strong) 0.10f else 0.05f))
@@ -197,7 +213,7 @@ fun AccentCard(
     }
 }
 
-data class GlassTab(val label: String, val icon: ImageVector)
+data class GlassTab(val label: String, val icon: ImageVector, val badge: Int = 0)
 
 /** Floating frosted tab bar, like the iPhone dock. The selected tab turns blue and pops a little. */
 @Composable
@@ -207,6 +223,8 @@ fun GlassTabBar(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val tick = rememberTick()
+    val still = reducedMotion()
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -231,7 +249,7 @@ fun GlassTabBar(
                     label = "tabTint"
                 )
                 val iconScale by animateFloatAsState(
-                    targetValue = if (selected) 1.15f else 1f,
+                    targetValue = if (selected && !still) 1.15f else 1f,
                     animationSpec = spring(dampingRatio = 0.45f, stiffness = 500f),
                     label = "tabScale"
                 )
@@ -241,28 +259,38 @@ fun GlassTabBar(
                         .weight(1f)
                         .clip(RoundedCornerShape(24.dp))
                         .background(bg)
-                        .clickable(interactionSource = interaction, indication = null) { onSelect(index) }
+                        .clickable(interactionSource = interaction, indication = null) {
+                            if (!selected) tick()
+                            onSelect(index)
+                        }
                         .padding(vertical = 8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.label,
-                        tint = tint,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .graphicsLayer {
-                                scaleX = iconScale
-                                scaleY = iconScale
-                            }
-                    )
+                    Box {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = if (tab.badge > 0) "${tab.label}, ${tab.badge} unread" else tab.label,
+                            tint = tint,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .graphicsLayer {
+                                    scaleX = iconScale
+                                    scaleY = iconScale
+                                }
+                        )
+                        if (tab.badge > 0) {
+                            CountBadge(tab.badge, modifier = Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp))
+                        }
+                    }
                     Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = tab.label,
                         style = MaterialTheme.typography.labelSmall,
                         color = tint,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        maxLines = 1
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }

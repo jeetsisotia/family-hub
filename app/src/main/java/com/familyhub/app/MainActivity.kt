@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -387,12 +388,22 @@ class MainActivity : FragmentActivity() {
                         navigate = navigate
                     )
 
+                    // Chats with new messages from others, for the red count on the Chats tab. Uses the same
+                    // listener as the chat list (Firestore shares it), so it costs no extra reads.
+                    val chatList by remember(activeFamilyId, uid, myStatus) {
+                        if (activeFamilyId.isBlank() || uid.isBlank() || myStatus != "ACTIVE") kotlinx.coroutines.flow.flowOf(emptyList<com.familyhub.app.data.remote.ChatRepository.Chat>())
+                        else com.familyhub.app.data.remote.ChatRepository.observeChats(activeFamilyId, uid)
+                    }.collectAsState(initial = emptyList())
+                    val chatBadge = remember(chatList, com.familyhub.app.ui.chat.ChatPrefs.seenTick.intValue) {
+                        com.familyhub.app.ui.chat.ChatPrefs.unreadChats(context, chatList, uid)
+                    }
+
                     Scaffold(
                         containerColor = Color.Transparent,
                         bottomBar = {
                             // A conversation uses the whole screen for messages and the keyboard, like other messengers.
                             if (subRoute?.startsWith("chat:") != true) GlassTabBar(
-                                tabs = PrimaryTab.entries.map { GlassTab(it.label, it.icon) },
+                                tabs = PrimaryTab.entries.map { GlassTab(it.label, it.icon, if (it == PrimaryTab.CHATS) chatBadge else 0) },
                                 selectedIndex = selectedTab.ordinal,
                                 onSelect = { i ->
                                     selectedTab = PrimaryTab.entries[i]
@@ -404,10 +415,13 @@ class MainActivity : FragmentActivity() {
                     ) { innerPadding ->
                         Box(modifier = Modifier.fillMaxSize().padding(innerPadding).consumeWindowInsets(innerPadding)) {
                             val currentFamily = family
+                            // Each page gets its own large-title state; scrolling any list on it shrinks the title.
+                            val titleCollapse = remember(selectedTab, subRoute) { com.familyhub.app.core.theme.TitleCollapse() }
+                            androidx.compose.runtime.CompositionLocalProvider(com.familyhub.app.core.theme.LocalTitleCollapse provides titleCollapse) {
                             // Screens cross-fade and settle into place when switching tabs or opening a module.
                             AnimatedContent(
                                 targetState = selectedTab to subRoute,
-                                modifier = Modifier.fillMaxSize(),
+                                modifier = Modifier.fillMaxSize().nestedScroll(titleCollapse.connection),
                                 transitionSpec = {
                                     (fadeIn(tween(280)) + scaleIn(tween(280), initialScale = 0.97f)) togetherWith
                                         fadeOut(tween(160))
@@ -575,6 +589,7 @@ class MainActivity : FragmentActivity() {
                                         onEdit = { subRoute = "arrange" }
                                     )
                                 }
+                            }
                             }
                             }
                             }

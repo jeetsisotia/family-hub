@@ -145,7 +145,9 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
         for (t in list) {
             // Unsure readings and likely duplicates start unticked; card payments and transfers are added as money moved.
             if (selected[t.key] == null) selected[t.key] = t.confidence != "LOW" && dupOf[t.key] == null
-            if (category[t.key] == null) category[t.key] = if (t.isCredit && t.category == "Other") "Other" else t.category
+            if (category[t.key] == null) category[t.key] =
+                com.familyhub.app.money.MerchantRules.categoryFor(t.merchant, env.data["items"].orEmpty())
+                    ?: if (t.isCredit && t.category == "Other") "Other" else t.category
         }
         val newCount = list.count { it.key !in known && it.key !in ignored }
         message = when {

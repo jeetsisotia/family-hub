@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.common
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -27,11 +28,32 @@ private val dateFmt = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
 
 fun formatDate(millis: Long?): String = if (millis == null) "" else dateFmt.format(Date(millis))
 
-/** Big iPhone-style title with a round glass back button and optional actions on the right. */
+/**
+ * Big iPhone-style title with a round glass back button and optional actions on the right. The large title
+ * shrinks into a slim frosted bar once the page scrolls ([compact] keeps it slim, as in a conversation).
+ */
 @Composable
-fun ScreenTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowScope.() -> Unit = {}) {
+fun ScreenTopBar(
+    title: String,
+    onBack: (() -> Unit)?,
+    compact: Boolean = false,
+    actions: @Composable RowScope.() -> Unit = {}
+) {
+    val collapsed = compact || com.familyhub.app.core.theme.titleCollapsed()
+    val barAlpha by androidx.compose.animation.core.animateFloatAsState(if (collapsed && !compact) 1f else 0f, label = "bar")
+    val dark = com.familyhub.app.core.theme.LocalGlassDark.current
+    val solid = com.familyhub.app.core.theme.LocalSolidGlass.current
+    val barColor = when {
+        solid && dark -> androidx.compose.ui.graphics.Color(0xFF1C1C1E)
+        solid -> androidx.compose.ui.graphics.Color(0xFFF9F9F9)
+        dark -> androidx.compose.ui.graphics.Color(0xB31C1C1E)
+        else -> androidx.compose.ui.graphics.Color(0xB8FFFFFF)
+    }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(barColor.copy(alpha = barColor.alpha * barAlpha))
+            .padding(horizontal = 8.dp, vertical = if (collapsed) 4.dp else 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (onBack != null) {
@@ -42,24 +64,34 @@ fun ScreenTopBar(title: String, onBack: (() -> Unit)?, actions: @Composable RowS
         } else {
             Spacer(modifier = Modifier.width(12.dp))
         }
-        // Long titles step down in size so they fit next to the buttons instead of being cut off.
-        val styles = listOf(
-            MaterialTheme.typography.headlineLarge,
-            MaterialTheme.typography.headlineMedium,
-            MaterialTheme.typography.headlineSmall,
-            MaterialTheme.typography.titleLarge
-        )
-        var level by remember(title) { mutableStateOf(0) }
-        Text(
-            text = title,
-            style = styles[level],
-            modifier = Modifier.weight(1f),
-            maxLines = 1,
-            softWrap = false,
-            overflow = if (level == styles.size - 1) androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            else androidx.compose.ui.text.style.TextOverflow.Clip,
-            onTextLayout = { r -> if ((r.didOverflowWidth || r.hasVisualOverflow) && level < styles.size - 1) level++ }
-        )
+        if (collapsed) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        } else {
+            // Long titles step down in size so they fit next to the buttons instead of being cut off.
+            val styles = listOf(
+                MaterialTheme.typography.headlineLarge,
+                MaterialTheme.typography.headlineMedium,
+                MaterialTheme.typography.headlineSmall,
+                MaterialTheme.typography.titleLarge
+            )
+            var level by remember(title) { mutableStateOf(0) }
+            Text(
+                text = title,
+                style = styles[level],
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                softWrap = false,
+                overflow = if (level == styles.size - 1) androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                else androidx.compose.ui.text.style.TextOverflow.Clip,
+                onTextLayout = { r -> if ((r.didOverflowWidth || r.hasVisualOverflow) && level < styles.size - 1) level++ }
+            )
+        }
         actions()
         // The same assistant, opened with this page's context.
         val pageAi = com.familyhub.app.ui.ai.LocalPageAi.current

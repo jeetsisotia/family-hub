@@ -423,107 +423,95 @@ fun SettingsScreen(
     }
     Column(modifier = Modifier.fillMaxSize()) {
         ScreenTopBar(title = "Settings", onBack = onBack)
+        val ctx = LocalContext.current
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(22.dp)
         ) {
             item {
-                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Your account", fontWeight = FontWeight.Bold)
-                        Text(user.name)
-                        Text(
-                            user.email,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
+                com.familyhub.app.core.theme.GroupedSection(title = "Your account") {
+                    com.familyhub.app.core.theme.GroupedRow(
+                        title = user.name.ifBlank { "Signed in" },
+                        note = user.email,
+                        icon = Icons.Rounded.AccountCircle,
+                        tile = 0,
+                        divider = onOpen != null,
+                        onClick = onOpen?.let { open -> { open("profile") } }
+                    )
+                    if (onOpen != null) {
+                        com.familyhub.app.core.theme.GroupedRow("My Families", note = "Switch, create or join a family", icon = Icons.Rounded.Diversity3, tile = 7, divider = false) { onOpen("families") }
                     }
                 }
             }
             if (onOpen != null) {
                 item {
-                    GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(vertical = 4.dp)) {
-                            SettingsLink(Icons.Rounded.AccountCircle, "My Profile", "Photo, details, IDs and app lock") { onOpen("profile") }
-                            SettingsLink(Icons.Rounded.Diversity3, "My Families", "Switch, create or join a family") { onOpen("families") }
-                            SettingsLink(Icons.Rounded.Dashboard, "Arrange Home", "Move Home categories up or down, or hide them") { onOpen("arrange_home") }
-                            SettingsLink(Icons.Rounded.Tune, "Arrange More", "Order and hide the More icons") { onOpen("arrange") }
-                            SettingsLink(Icons.Rounded.Backup, "Data & backup", "Back up, restore, recently deleted and reset") { onOpen("data_tools") }
-                        }
+                    com.familyhub.app.core.theme.GroupedSection(title = "Layout and data") {
+                        com.familyhub.app.core.theme.GroupedRow("Arrange Home", note = "Move Home categories up or down, or hide them", icon = Icons.Rounded.Dashboard, tile = 1) { onOpen("arrange_home") }
+                        com.familyhub.app.core.theme.GroupedRow("Arrange More", note = "Order and hide the More icons", icon = Icons.Rounded.Tune, tile = 2) { onOpen("arrange") }
+                        com.familyhub.app.core.theme.GroupedRow("Data & backup", note = "Back up, restore, recently deleted and reset", icon = Icons.Rounded.Backup, tile = 6, divider = false) { onOpen("data_tools") }
                     }
                 }
             }
             item {
-                val themeContext = LocalContext.current
-                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Appearance", fontWeight = FontWeight.Bold)
-                        val labels = mapOf(
-                            com.familyhub.app.core.theme.ThemeChoice.SYSTEM to "Phone setting",
-                            com.familyhub.app.core.theme.ThemeChoice.LIGHT to "Light",
-                            com.familyhub.app.core.theme.ThemeChoice.DARK to "Dark"
-                        )
-                        com.familyhub.app.ui.common.ChoiceChips(
-                            labels.values.toList(),
-                            labels[com.familyhub.app.core.theme.ThemeChoice.mode.value] ?: "Phone setting",
-                            { picked ->
+                com.familyhub.app.core.theme.GroupedSection(
+                    title = "Appearance",
+                    footer = "Reduce transparency makes cards and bars solid and stops the moving background. It can be easier to read and lighter on older phones."
+                ) {
+                    val labels = mapOf(
+                        com.familyhub.app.core.theme.ThemeChoice.SYSTEM to "Automatic",
+                        com.familyhub.app.core.theme.ThemeChoice.LIGHT to "Light",
+                        com.familyhub.app.core.theme.ThemeChoice.DARK to "Dark"
+                    )
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        Text("Theme", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        com.familyhub.app.core.theme.SegmentedControl(
+                            options = labels.values.toList(),
+                            selected = labels[com.familyhub.app.core.theme.ThemeChoice.mode.value] ?: "Automatic",
+                            onSelect = { picked ->
                                 val key = labels.entries.firstOrNull { it.value == picked }?.key ?: com.familyhub.app.core.theme.ThemeChoice.SYSTEM
-                                com.familyhub.app.core.theme.ThemeChoice.set(themeContext, key)
+                                com.familyhub.app.core.theme.ThemeChoice.set(ctx, key)
                             }
                         )
                     }
+                    HorizontalDivider(modifier = Modifier.padding(start = 14.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant)
+                    com.familyhub.app.core.theme.GroupedSwitchRow(
+                        title = "Reduce transparency",
+                        checked = com.familyhub.app.core.theme.GlassPrefs.reduceTransparency.value,
+                        onChange = { com.familyhub.app.core.theme.GlassPrefs.setReduceTransparency(ctx, it) },
+                        divider = false
+                    )
                 }
             }
             item {
-                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Family", fontWeight = FontWeight.Bold)
-                        Text(family.name)
-                        Text(
-                            "Invite code: ${family.inviteCode}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                        Text(
-                            "Monthly budget: ${money(family.monthlyBudget)}" + if (isOwner) " (edit it in Finance)" else "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
+                com.familyhub.app.core.theme.GroupedSection(title = "Family") {
+                    com.familyhub.app.core.theme.GroupedRow("Name", value = family.name, divider = true)
+                    com.familyhub.app.core.theme.GroupedRow("Invite code", value = family.inviteCode, divider = true)
+                    com.familyhub.app.core.theme.GroupedRow(
+                        "Monthly budget",
+                        value = money(family.monthlyBudget),
+                        note = if (isOwner) "Edit it in Finance" else null,
+                        divider = false
+                    )
                 }
             }
             item {
-                GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Privacy", fontWeight = FontWeight.Bold)
-                        Text(
-                            "Your family's data lives in your own private Firebase project and is visible only to approved family members. Nothing is uploaded as files. Documents, health and other records store details only.",
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-            }
-            item {
-                OutlinedButton(onClick = { confirmSignOut = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Sign out / switch Google account", color = MaterialTheme.colorScheme.error)
+                com.familyhub.app.core.theme.GroupedSection(
+                    title = "Privacy",
+                    footer = "Your family's data lives in your own private Firebase project and is visible only to approved family members. " +
+                        "Pictures stay on the phone that added them. Documents, health and other records store details only. " +
+                        "Chats are protected by access rules and Google's encryption in transit and at rest; they are not end-to-end encrypted."
+                ) {
+                    com.familyhub.app.core.theme.GroupedRow(
+                        "Sign out / switch Google account",
+                        icon = Icons.Rounded.Logout,
+                        tile = 3,
+                        divider = false,
+                        onClick = { confirmSignOut = true }
+                    )
                 }
             }
         }
     }
 }
 
-@Composable
-private fun SettingsLink(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, note: String, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            Text(note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-        }
-        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
-    }
-}

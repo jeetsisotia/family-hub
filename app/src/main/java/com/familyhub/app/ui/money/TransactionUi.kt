@@ -224,9 +224,52 @@ fun TransactionSheet(
     onEdit: () -> Unit,
     onSet: (Rec, Map<String, Any?>) -> Unit,
     onDelete: () -> Unit,
-    onAskAi: (() -> Unit)? = null
+    onAskAi: (() -> Unit)? = null,
+    onRemember: ((merchant: String, category: String) -> Unit)? = null
 ) {
     val type = rec.str("type").ifBlank { "EXPENSE" }
+    // After a category change: offer the same category for this merchant (like Axio).
+    var askMerchant by remember { mutableStateOf<Pair<String, List<Rec>>?>(null) }
+    var newCategory by remember { mutableStateOf("") }
+    var rememberRule by remember { mutableStateOf(true) }
+    askMerchant?.let { (merchant, others) ->
+        val name = com.familyhub.app.money.MerchantRules.label(merchant)
+        val cap = 300
+        AlertDialog(
+            onDismissRequest = { askMerchant = null },
+            title = { Text("Use \"$newCategory\" for $name?") },
+            text = {
+                Column {
+                    Text(
+                        if (others.isEmpty()) "No other $name transactions need changing."
+                        else "${com.familyhub.app.ui.common.plural(others.size, "other transaction")} from $name " +
+                            (if (others.size == 1) "has" else "have") + " a different category." +
+                            (if (others.size > cap) " The first $cap will be changed now; do the rest the same way." else "")
+                    )
+                    if (onRemember != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clickable { rememberRule = !rememberRule }
+                        ) {
+                            Checkbox(checked = rememberRule, onCheckedChange = { rememberRule = it })
+                            Text("Also use it for new $name transactions from SMS and statement imports", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = others.isNotEmpty() || (onRemember != null && rememberRule),
+                    onClick = {
+                        others.take(cap).forEach { onSet(it, mapOf("category" to newCategory)) }
+                        if (rememberRule) onRemember?.invoke(merchant, newCategory)
+                        askMerchant = null
+                    }
+                ) { Text(if (others.isEmpty()) "Remember" else "Apply to all ${others.size.coerceAtMost(cap) + 1}", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { askMerchant = null }) { Text("Only this one") } }
+        )
+    }
     val amount = rec.num("amountInr") ?: 0.0
     val refund = rec.num("refundAmount") ?: 0.0
     var showCategories by remember { mutableStateOf(false) }
@@ -296,7 +339,19 @@ fun TransactionSheet(
                     financeCategories.forEach { c ->
                         FilterChip(
                             selected = rec.str("category") == c,
-                            onClick = { onSet(rec, mapOf("category" to c)); showCategories = false },
+                            onClick = {
+                                val changed = rec.str("category") != c
+                                onSet(rec, mapOf("category" to c))
+                                showCategories = false
+                                val merchant = com.familyhub.app.money.MerchantRules.merchantOf(rec)
+                                if (changed && type != "TRANSFER" && type != "CARD_PAYMENT" &&
+                                    com.familyhub.app.money.MerchantRules.key(merchant).isNotBlank()
+                                ) {
+                                    newCategory = c
+                                    rememberRule = onRemember != null
+                                    askMerchant = merchant to com.familyhub.app.money.MerchantRules.matches(rec, all, c)
+                                }
+                            },
                             label = { Text(c) },
                             leadingIcon = { Icon(categoryIcon(c), contentDescription = null, modifier = Modifier.size(16.dp)) }
                         )

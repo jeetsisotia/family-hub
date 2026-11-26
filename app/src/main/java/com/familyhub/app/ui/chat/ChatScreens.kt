@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,6 +56,7 @@ object ChatPrefs {
         val s = set(ctx, key).toMutableSet()
         if (!s.add(value)) s.remove(value)
         prefs(ctx).edit().putStringSet(key, s).apply()
+        seenTick.intValue++
     }
     fun pinned(ctx: Context) = set(ctx, "pinned")
     fun muted(ctx: Context) = set(ctx, "muted")
@@ -74,6 +74,40 @@ object ChatPrefs {
     fun useEmoji(ctx: Context, e: String) {
         val list = (listOf(e) + recentEmojis(ctx).filter { it != e }).take(24)
         prefs(ctx).edit().putString("recentEmoji", list.joinToString("\u0001")).apply()
+    }
+
+    /** Changes whenever a chat is read here, so the Chats tab count updates. */
+    val seenTick = mutableIntStateOf(0)
+
+    fun seenAt(ctx: Context, chatId: String): Long = prefs(ctx).getLong("seen_$chatId", 0L)
+
+    /** Remembers that this chat was read here up to [at] (server time of the newest message shown). */
+    fun markSeen(ctx: Context, chatId: String, at: Long) {
+        if (at <= seenAt(ctx, chatId)) return
+        prefs(ctx).edit().putLong("seen_$chatId", at).apply()
+        seenTick.intValue++
+    }
+
+    /** From when the Chats tab count starts: the first time this version ran, so old history is not counted as new. */
+    private fun countSince(ctx: Context): Long {
+        val p = prefs(ctx)
+        val since = p.getLong("badge_since", 0L)
+        if (since > 0L) return since
+        val now = System.currentTimeMillis()
+        p.edit().putLong("badge_since", now).apply()
+        return now
+    }
+
+    /** How many chats (not muted or archived) have a newer message from someone else than was read on this phone. */
+    fun unreadChats(ctx: Context, chats: List<Chat>, uid: String): Int {
+        if (chats.isEmpty() || uid.isBlank()) return 0
+        val since = countSince(ctx)
+        val muted = muted(ctx)
+        val archived = archived(ctx)
+        return chats.count { c ->
+            c.lastSenderUid.isNotBlank() && c.lastSenderUid != uid && c.id !in muted && c.id !in archived &&
+                c.lastAt > maxOf(seenAt(ctx, c.id), since)
+        }
     }
 }
 
@@ -120,7 +154,7 @@ private fun chatTitle(c: Chat, env: AppEnv): String =
 
 // ---------------------------------------------------------------- chat list
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
     val context = LocalContext.current
@@ -146,27 +180,44 @@ fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
         ScreenTopBar(title = "Chats", onBack = null) {
             IconButton(onClick = { newChat = true }) { Icon(Icons.Rounded.Edit, contentDescription = "New chat") }
         }
-        OutlinedTextField(
-            value = query, onValueChange = { query = it }, singleLine = true,
-            placeholder = { Text("Search chats") }, leadingIcon = { Icon(Icons.Rounded.Search, null) },
-            shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        com.familyhub.app.core.theme.GlassSearchField(
+            value = query, onValueChange = { query = it }, placeholder = "Search chats",
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
         val list = chats
         when {
-            list == null -> Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            list == null -> com.familyhub.app.core.theme.LoadingState(rows = 3)
             else -> {
                 val visible = list.filter { query.isBlank() || chatTitle(it, env).contains(query, true) || it.lastText.contains(query, true) }
                 val active = visible.filter { it.id !in archived }.sortedWith(compareByDescending<Chat> { it.id in pinned }.thenByDescending { it.lastAt })
                 val old = visible.filter { it.id in archived }
                 LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 120.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (active.isEmpty()) item {
-                        Text(
-                            if (query.isBlank()) "No chats yet. Tap the pencil to message someone, or open the family chat." else "No chats match.",
-                            style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(12.dp)
-                        )
+                        if (query.isBlank()) {
+                            com.familyhub.app.core.theme.EmptyState(
+                                icon = Icons.Rounded.ChatBubbleOutline,
+                                title = "No chats yet",
+                                message = "Message the whole family, or tap the pencil to chat with one person.",
+                                actionLabel = "Open family chat",
+                                onAction = { onOpen(ChatRepository.FAMILY_CHAT) }
+                            )
+                        } else {
+                            com.familyhub.app.core.theme.EmptyState(
+                                icon = Icons.Rounded.Search,
+                                title = "No results",
+                                message = "Search looks at chat names and each chat's latest message on this phone, not the whole history."
+                            )
+                        }
                     }
                     items(active, key = { it.id }) { c ->
-                        ChatRow(env, c, c.id in pinned, c.id in muted, onClick = { onOpen(c.id) }, onLong = { menuFor = c })
+                        SwipeChat(
+                            pinned = c.id in pinned,
+                            archived = false,
+                            onPin = { ChatPrefs.togglePinned(context, c.id); prefsTick++ },
+                            onArchive = { ChatPrefs.toggleArchived(context, c.id); prefsTick++ }
+                        ) {
+                            ChatRow(env, c, c.id in pinned, c.id in muted, onClick = { onOpen(c.id) }, onLong = { menuFor = c })
+                        }
                     }
                     if (old.isNotEmpty()) {
                         item {
@@ -175,7 +226,14 @@ fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
                             }
                         }
                         if (showArchived) items(old, key = { "a_" + it.id }) { c ->
-                            ChatRow(env, c, false, c.id in muted, onClick = { onOpen(c.id) }, onLong = { menuFor = c })
+                            SwipeChat(
+                                pinned = c.id in pinned,
+                                archived = true,
+                                onPin = { ChatPrefs.togglePinned(context, c.id); prefsTick++ },
+                                onArchive = { ChatPrefs.toggleArchived(context, c.id); prefsTick++ }
+                            ) {
+                                ChatRow(env, c, false, c.id in muted, onClick = { onOpen(c.id) }, onLong = { menuFor = c })
+                            }
                         }
                     }
                     item {
@@ -238,6 +296,48 @@ fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
             confirmButton = { TextButton(onClick = { newChat = false }) { Text("Cancel") } }
         )
     }
+}
+
+/** Swipe right to pin or unpin, left to archive or unarchive (the row springs back afterwards). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeChat(
+    pinned: Boolean,
+    archived: Boolean,
+    onPin: () -> Unit,
+    onArchive: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val tick = com.familyhub.app.core.theme.rememberTick()
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { v ->
+            when (v) {
+                SwipeToDismissBoxValue.StartToEnd -> { tick(); onPin() }
+                SwipeToDismissBoxValue.EndToStart -> { tick(); onArchive() }
+                SwipeToDismissBoxValue.Settled -> Unit
+            }
+            false
+        }
+    )
+    SwipeToDismissBox(
+        state = state,
+        backgroundContent = {
+            val toEnd = state.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            val color = if (toEnd) Color(0xFFFF9F0A) else Color(0xFF8E8E93)
+            Row(
+                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(18.dp)).background(color).padding(horizontal = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = if (toEnd) Arrangement.Start else Arrangement.End
+            ) {
+                Icon(if (toEnd) Icons.Rounded.PushPin else Icons.Rounded.Archive, contentDescription = null, tint = Color.White)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    if (toEnd) (if (pinned) "Unpin" else "Pin") else (if (archived) "Unarchive" else "Archive"),
+                    color = Color.White, fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    ) { content() }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -318,7 +418,12 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
     }
     // Reading the chat marks it read (once per new message, not on every scroll).
     val newest = messages?.lastOrNull()
-    LaunchedEffect(newest?.id) { if (newest != null) ChatRepository.markRead(env.familyId, chatId, env.uid) }
+    LaunchedEffect(newest?.id) {
+        if (newest != null) {
+            ChatPrefs.markSeen(context, chatId, newest.at)
+            ChatRepository.markRead(env.familyId, chatId, env.uid)
+        }
+    }
     // Keep the draft when leaving.
     DisposableEffect(chatId) { onDispose { ChatPrefs.saveDraft(context, chatId, text) } }
 
@@ -357,7 +462,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().imePadding()) {
-        ScreenTopBar(title = title, onBack = onBack) {
+        ScreenTopBar(title = title, onBack = onBack, compact = true) {
             IconButton(onClick = { searching = !searching; if (!searching) search = "" }) { Icon(Icons.Rounded.Search, "Search in this chat") }
         }
         if (searching) {
@@ -426,7 +531,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
                         Text("Say hello 👋", modifier = Modifier.fillMaxWidth().padding(24.dp), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                AnimatedVisibility(visible = !atBottom, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+                androidx.compose.animation.AnimatedVisibility(visible = !atBottom, modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
                     SmallFloatingActionButton(onClick = { scope.launch { listState.animateScrollToItem(0) } }) {
                         Icon(Icons.Rounded.KeyboardArrowDown, "Jump to latest")
                     }

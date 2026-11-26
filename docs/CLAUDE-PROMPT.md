@@ -9,7 +9,7 @@ Continue development of my existing native Android app, **Family Hub** (Kotlin, 
 
 ## How to work: autonomous mode
 
-I will be away from my laptop and Chrome. **Do the whole task yourself, from Phase 1 to Phase 7, without stopping for my approval, access requests or routine questions.**
+I will be away from my laptop and Chrome. **Do the whole task yourself, from Phase 1 to Phase 8, without stopping for my approval, access requests or routine questions.**
 
 - Phases are the order of work, not stopping points. Check and test each phase, record the result, then start the next.
 - Make design, technical and feature choices yourself. Choose the safest zero-cost option and record why.
@@ -117,13 +117,31 @@ I want this feature. Build it with free open-source WebRTC, Android to Android, 
 6. **Incoming calls:** ringing when the app is in the background or closed may not be reliable without a trusted server. Follow the Phase 3 notification rules and tell me exactly what works.
 7. Test on two real phones: same Wi-Fi, different Wi-Fi and mobile data. Label calling **Beta** and list what fails. Do not call it complete until it is reliable. Never weaken the zero-cost rule to improve it.
 
-## Phase 6: Data reliability, calendar and dashboard
+## Phase 6: Family safety, live location and emergency alerts
+
+Build these with native Android and existing Firebase within Spark limits. Check Android background, battery and permission rules first.
+
+- **Emergency contacts:** add, edit, order and choose contacts, including people who do not use the app. Each person controls their own contacts and settings.
+- **Low battery alert:** send an SMS to chosen emergency contacts when battery reaches a level I set (default 15%) and is not charging. Include name, battery level, time, and last known location with its time, as a standard map link. Send once per low-battery episode, with a cooldown, and keep a sent, delivered if available, or failed log. Verify that the trigger works with the app closed; do not assume a battery broadcast will wake it.
+- **Live location:** share with chosen family members for 15 minutes, 1 hour, 8 hours or until stopped. Show last update time, accuracy, battery level and stale status, with a stop button. Limit update frequency to protect battery and Firestore quotas, and delete expired location points. This new temporary data may be deleted automatically.
+- **People without the app:** SMS can send only a location snapshot, not live tracking. Do not send repeated location SMS by default.
+- **SOS:** large button with a cancellable countdown that alerts chosen contacts by SMS and family chat, starts live sharing, and offers a call button. Open the dialer for 112; never call or message emergency services automatically.
+- **Other safety features:** "I'm safe" check-in, request check-in, safe arrival timer with an alert if I do not confirm, optional arrive and leave place alerts, home screen or quick-settings SOS shortcut, and an opt-in emergency card (blood group, allergies, notes, contacts). Never send emergency card data to AI or include it in SMS unless I turn that on.
+- **Consent and privacy:** location features are off by default. Each member must enable sharing on their own phone. No hidden tracking and no admin override. Show a persistent notification while tracking, and enforce who can see location in Firestore rules.
+- **SMS and maps cost:** use only the phone's own SIM, with clear notice that carrier SMS charges may apply, and a limit on repeat messages. No SMS gateway. Open locations in an installed maps app; add no maps SDK, API or tile service that needs billing or breaks its usage terms.
+- **Permissions:** ask for SMS, location and background location only when the feature is enabled, and explain why. Include phone steps for restrictions on privately installed APKs and battery optimisation. Handle no SIM, no signal, location off and denied permission.
+- **Honest limits:** alerts cannot be promised if the phone is off, the battery dies, the app is force-stopped, permission or signal is missing, or Android blocks background work. Show this in the app. Skip fall or crash detection unless it can be shown to be reliable.
+- **Testing:** use simulated sending. Do not send real SMS to real contacts. Mark real SMS, background location and low battery behaviour **Needs my phone**, with a test checklist.
+
+## Phase 7: Data reliability, calendar, reminders and dashboard
 
 - Improve offline access, sync, conflict handling, duplicate prevention, backup, restore, export, import and recovery from interrupted operations. Explain backup privacy.
 - Extend the existing calendar and reminders: birthdays, anniversaries, family, school and work events, appointments, insurance renewals, EMI, card and utility dues, recurring and shared reminders.
-- Home summaries: finance, upcoming bills and EMIs, health, events, tasks, unread messages, important reminders, and missed calls only if calling is built.
+- **Date and time in reminders:** every reminder type must have a date and time picker, show the time in lists, the calendar and notifications, and allow all-day reminders. Add repeat options (daily, weekly, monthly, yearly, custom), multiple times a day for medicines, early alerts, snooze, mark done, and shared reminder assignment.
+- Reminders must work with the app closed and after a phone restart, within Android limits. Handle exact alarm and notification permissions, time zone changes and month-end dates without duplicate alerts. Keep existing reminders and do not invent times for old ones; treat date-only reminders as all-day.
+- Home summaries: finance, upcoming bills and EMIs, health, events, tasks, unread messages, important reminders, safety status and SOS, and missed calls only if calling is built.
 
-## Phase 7: More free features
+## Phase 8: More free features
 
 Suggest any other useful features that pass the zero-cost check, along with the items below. Rank them by value and effort, then build those that are useful, reliable and testable. List the rest.
 
@@ -144,7 +162,7 @@ Suggest any other useful features that pass the zero-cost check, along with the 
 
 ## Testing for every phase
 - Run build, automated tests and emulator tests where the environment supports them. Test Firestore rules with the emulator.
-- Retest affected existing features. As relevant: login, fingerprint, invites, roles, finance, SMS and Gmail imports, duplicates, Health Connect, reminders, backup and restore, offline use, chat access and APK update.
+- Retest affected existing features. As relevant: login, fingerprint, invites, roles, finance, SMS and Gmail imports, duplicates, Health Connect, reminders and their times, safety alerts, location sharing and privacy, backup and restore, offline use, chat access and APK update.
 - A successful compile does not mean a feature is complete.
 - Label every item **Passed / Failed / Not tested / Needs my phone**. Never claim a test you did not run.
 

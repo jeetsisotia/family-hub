@@ -59,7 +59,7 @@ class ChatWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
     override suspend fun doWork(): Result {
         val ctx = applicationContext
         val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return Result.success()
-        if (!AlarmScheduler.canPost(ctx)) return Result.success()
+        if (!Notifier.canPost(ctx)) return Result.success()
         val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val since = prefs.getLong(KEY_SEEN, System.currentTimeMillis())
         if (!prefs.contains(KEY_SEEN)) { prefs.edit().putLong(KEY_SEEN, since).apply(); return Result.success() }
@@ -83,7 +83,7 @@ class ChatWorker(appContext: Context, params: WorkerParameters) : CoroutineWorke
                     .setContentTitle(title)
                     .setContentText(d.getString("lastText").orEmpty().take(120))
                     .setAutoCancel(true)
-                    .setContentIntent(AlarmScheduler.openApp(ctx, "chats", d.id.hashCode()))
+                    .setContentIntent(Notifier.openApp(ctx, "chats", d.id.hashCode()))
                     .build()
                 try { NotificationManagerCompat.from(ctx).notify("chat", d.id.hashCode(), n) } catch (e: SecurityException) { }
             }

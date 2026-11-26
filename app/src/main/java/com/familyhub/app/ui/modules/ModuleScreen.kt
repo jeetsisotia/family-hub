@@ -381,6 +381,21 @@ fun ModuleScreen(
                 onEdit = { sheetKey = null; editing = sheetRec; showForm = true },
                 onSet = { r, f -> setFields(r, f) },
                 onDelete = { sheetKey = null; remove(sheetRec) },
+                // Remembered merchant categories are the person's own private records (in their backup too).
+                onRemember = if (!isFinance) null else { merchant, category ->
+                    scope.launch {
+                        try {
+                            repo.saveScoped(
+                                familyId, uid, "items",
+                                mapOf("id" to com.familyhub.app.money.MerchantRules.ruleId(merchant), com.familyhub.app.data.remote.PRIVATE_FLAG to true),
+                                com.familyhub.app.money.MerchantRules.ruleData(merchant, category, System.currentTimeMillis()),
+                                true
+                            )
+                        } catch (e: Exception) {
+                            error = "Could not remember this merchant's category: ${e.message}"
+                        }
+                    }
+                },
                 onAskAi = onAskAi?.let { ask ->
                     {
                         sheetKey = null

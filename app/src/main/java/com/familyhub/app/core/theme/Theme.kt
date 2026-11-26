@@ -79,15 +79,18 @@ private val DarkColors = darkColorScheme(
 
 private val base = Typography()
 
-// iPhone-like type: heavier titles with slightly tighter spacing.
+// Digits of equal width in titles and figures, so amounts line up and do not jump while they change.
+private const val TABULAR = "tnum"
+
+// iPhone-like type: heavier titles with slightly tighter spacing (Roboto, the phone's own free font).
 private val GlassTypography = Typography(
-    displaySmall = base.displaySmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
-    headlineLarge = base.headlineLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
-    headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp),
-    headlineSmall = base.headlineSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp),
-    titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
-    titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-    titleSmall = base.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+    displaySmall = base.displaySmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, fontFeatureSettings = TABULAR),
+    headlineLarge = base.headlineLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, fontFeatureSettings = TABULAR),
+    headlineMedium = base.headlineMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.4).sp, fontFeatureSettings = TABULAR),
+    headlineSmall = base.headlineSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, fontFeatureSettings = TABULAR),
+    titleLarge = base.titleLarge.copy(fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp, fontFeatureSettings = TABULAR),
+    titleMedium = base.titleMedium.copy(fontWeight = FontWeight.SemiBold, fontFeatureSettings = TABULAR),
+    titleSmall = base.titleSmall.copy(fontWeight = FontWeight.SemiBold, fontFeatureSettings = TABULAR),
     bodyLarge = base.bodyLarge,
     bodyMedium = base.bodyMedium,
     bodySmall = base.bodySmall,
@@ -138,11 +141,32 @@ fun themeIsDark(): Boolean {
     }
 }
 
+// Reduce transparency: the same colours with solid surfaces.
+private val LightSolidColors = LightColors.copy(
+    surface = Color(0xFFFFFFFF),
+    surfaceVariant = Color(0xFFF2F2F7),
+    surfaceContainerHighest = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFD6E8FF)
+)
+
+private val DarkSolidColors = DarkColors.copy(
+    surface = Color(0xFF1C1C1E),
+    surfaceVariant = Color(0xFF2C2C2E),
+    surfaceContainerHighest = Color(0xFF2C2C2E),
+    secondaryContainer = Color(0xFF0A3D7A)
+)
+
 @Composable
 fun FamilyHubTheme(darkTheme: Boolean = themeIsDark(), content: @Composable () -> Unit) {
-    CompositionLocalProvider(LocalGlassDark provides darkTheme) {
+    val solid = solidGlassChosen()
+    CompositionLocalProvider(LocalGlassDark provides darkTheme, LocalSolidGlass provides solid) {
         MaterialTheme(
-            colorScheme = if (darkTheme) DarkColors else LightColors,
+            colorScheme = when {
+                darkTheme && solid -> DarkSolidColors
+                darkTheme -> DarkColors
+                solid -> LightSolidColors
+                else -> LightColors
+            },
             typography = GlassTypography,
             shapes = GlassShapes
         ) {

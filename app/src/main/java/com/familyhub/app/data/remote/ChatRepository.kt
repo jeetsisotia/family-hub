@@ -10,7 +10,9 @@ import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
@@ -110,7 +112,8 @@ object ChatRepository {
      * Chats this person is in. Direct chats are found with an array-contains query on memberUids, which the
      * rules allow only for the person's own uid; the family group chat is read directly.
      */
-    fun observeChats(familyId: String, uid: String): Flow<List<Chat>> = callbackFlow {
+    fun observeChats(familyId: String, uid: String): Flow<List<Chat>> =
+        if (DemoChats.active(familyId)) DemoChats.chats.map { list -> list.sortedByDescending { it.lastAt } } else callbackFlow {
         if (familyId.isBlank() || uid.isBlank()) { trySend(emptyList()); awaitClose { }; return@callbackFlow }
         var direct: List<Chat> = emptyList()
         var group: Chat? = null
@@ -128,7 +131,8 @@ object ChatRepository {
     }
 
     /** The latest [limit] messages, oldest first, including ones still sending. */
-    fun observeMessages(familyId: String, chatId: String, limit: Long = PAGE): Flow<List<Message>> = callbackFlow {
+    fun observeMessages(familyId: String, chatId: String, limit: Long = PAGE): Flow<List<Message>> =
+        if (DemoChats.active(familyId)) DemoChats.messages.map { it[chatId].orEmpty().sortedBy { m -> m.at }.takeLast(limit.toInt()) } else callbackFlow {
         val reg = messages(familyId, chatId).orderBy("clientAt", Query.Direction.DESCENDING).limit(limit)
             .addSnapshotListener(MetadataChanges.INCLUDE) { snap, e ->
                 if (e == null && snap != null) trySend(snap.documents.map { toMessage(it) }.sortedBy { it.at })
@@ -138,7 +142,8 @@ object ChatRepository {
     }
 
     /** When each person last read the chat (uid to millis). */
-    fun observeReads(familyId: String, chatId: String): Flow<Map<String, Long>> = callbackFlow {
+    fun observeReads(familyId: String, chatId: String): Flow<Map<String, Long>> =
+        if (DemoChats.active(familyId)) DemoChats.reads.map { it[chatId].orEmpty() } else callbackFlow {
         val reg = chat(familyId, chatId).collection("reads").addSnapshotListener { snap, e ->
             if (e == null && snap != null) trySend(snap.documents.associate { it.id to millis(it.get("at")) })
         }
@@ -147,6 +152,7 @@ object ChatRepository {
 
     /** Creates the family group chat or a direct chat if it does not exist yet. */
     suspend fun ensureChat(familyId: String, chatId: String, members: List<String>, byUid: String) {
+        if (DemoChats.active(familyId)) return
         val ref = chat(familyId, chatId)
         if (ref.get().await().exists()) return
         val data = if (chatId == FAMILY_CHAT) {
@@ -171,6 +177,10 @@ object ChatRepository {
         require(body.isNotEmpty())
         val id = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
+        if (DemoChats.active(familyId)) {
+            DemoChats.add(chatId, Message(id, uid, name, body, now, false, null, false, replyTo?.id.orEmpty(), replyTo?.text?.take(160).orEmpty(), replyTo?.senderName.orEmpty(), forwarded, emptyMap()))
+            return id
+        }
         val msg = HashMap<String, Any?>()
         msg["senderUid"] = uid
         msg["senderName"] = name
@@ -202,26 +212,37 @@ object ChatRepository {
     suspend fun edit(familyId: String, chatId: String, id: String, text: String) {
         val body = text.trim().take(MAX_TEXT)
         require(body.isNotEmpty())
+        if (DemoChats.active(familyId)) { DemoChats.change(chatId, id) { it.copy(text = body, editedAt = System.currentTimeMillis()) }; return }
         messages(familyId, chatId).document(id).update(mapOf("text" to body, "editedAt" to FieldValue.serverTimestamp())).await()
     }
 
     /** Delete for everyone: the text is removed and the message shows as deleted. */
     suspend fun deleteForEveryone(familyId: String, chatId: String, id: String) {
+        if (DemoChats.active(familyId)) { DemoChats.change(chatId, id) { it.copy(text = "", deletedForAll = true) }; return }
         messages(familyId, chatId).document(id).update(mapOf("text" to "", "deletedForAll" to true, "editedAt" to FieldValue.serverTimestamp())).await()
     }
 
     /** Adds, changes or (with null) removes this person's reaction. */
     suspend fun react(familyId: String, chatId: String, id: String, uid: String, emoji: String?) {
+        if (DemoChats.active(familyId)) {
+            DemoChats.change(chatId, id) { m -> m.copy(reactions = if (emoji == null) m.reactions - uid else m.reactions + (uid to emoji)) }
+            return
+        }
         messages(familyId, chatId).document(id).update("reactions.$uid", emoji ?: FieldValue.delete()).await()
     }
 
     suspend fun markRead(familyId: String, chatId: String, uid: String) {
+        if (DemoChats.active(familyId)) return
         try {
             chat(familyId, chatId).collection("reads").document(uid).set(mapOf("at" to FieldValue.serverTimestamp())).await()
         } catch (e: Exception) { }
     }
 
     suspend fun pin(familyId: String, chatId: String, messageId: String?) {
+        if (DemoChats.active(familyId)) {
+            DemoChats.chats.value = DemoChats.chats.value.map { if (it.id == chatId) it.copy(pinnedMessageId = messageId.orEmpty()) else it }
+            return
+        }
         chat(familyId, chatId).update("pinnedMessageId", messageId ?: FieldValue.delete()).await()
     }
 
@@ -231,6 +252,10 @@ object ChatRepository {
      */
     suspend fun unreadCount(familyId: String, chatId: String, uid: String, lastAt: Long, lastSenderUid: String): Int {
         if (lastAt <= 0L || lastSenderUid == uid) return 0
+        if (DemoChats.active(familyId)) {
+            val readAt = DemoChats.reads.value[chatId]?.get(uid) ?: 0L
+            return DemoChats.messages.value[chatId].orEmpty().count { it.senderUid != uid && it.at > readAt }
+        }
         return try {
             val readAt = millis(chat(familyId, chatId).collection("reads").document(uid).get().await().get("at"))
             if (readAt >= lastAt) 0 else messages(familyId, chatId).whereGreaterThan("clientAt", readAt)
@@ -238,5 +263,59 @@ object ChatRepository {
         } catch (e: Exception) {
             0
         }
+    }
+}
+
+/**
+ * Made-up chats for the emulator test screen only (DemoActivity). Nothing here is read from or written to
+ * Firestore; it lets the automatic check open and photograph the chat screens without an account.
+ */
+object DemoChats {
+    private var familyId = ""
+    val chats = MutableStateFlow<List<ChatRepository.Chat>>(emptyList())
+    val messages = MutableStateFlow<Map<String, List<ChatRepository.Message>>>(emptyMap())
+    val reads = MutableStateFlow<Map<String, Map<String, Long>>>(emptyMap())
+
+    fun active(id: String): Boolean = id.isNotBlank() && id == familyId
+
+    fun add(chatId: String, m: ChatRepository.Message) {
+        messages.value = messages.value + (chatId to (messages.value[chatId].orEmpty() + m))
+        chats.value = chats.value.map { if (it.id == chatId) it.copy(lastText = m.text.take(160), lastSenderUid = m.senderUid, lastAt = m.at) else it }
+    }
+
+    fun change(chatId: String, id: String, edit: (ChatRepository.Message) -> ChatRepository.Message) {
+        messages.value = messages.value + (chatId to messages.value[chatId].orEmpty().map { if (it.id == id) edit(it) else it })
+    }
+
+    /** Fills a family chat and one direct chat with sample messages. [others] are (uid, name) pairs. */
+    fun seed(family: String, me: String, myName: String, others: List<Pair<String, String>>) {
+        familyId = family
+        val now = System.currentTimeMillis()
+        val hour = 3_600_000L
+        val a = others.getOrNull(0) ?: ("asha" to "Asha")
+        val b = others.getOrNull(1) ?: ("ravi" to "Ravi")
+        fun m(id: String, who: Pair<String, String>, text: String, at: Long, reply: ChatRepository.Message? = null, reactions: Map<String, String> = emptyMap()) =
+            ChatRepository.Message(id, who.first, who.second, text, at, false, null, false, reply?.id.orEmpty(), reply?.text.orEmpty(), reply?.senderName.orEmpty(), false, reactions)
+        val self = me to myName
+        val g1 = m("g1", a, "Good morning everyone! Dinner at our place on Sunday?", now - 26 * hour)
+        val g2 = m("g2", b, "Count me in. Shall I bring dessert?", now - 25 * hour, reactions = mapOf(a.first to "👍"))
+        val g3 = m("g3", self, "Yes please! I'll order the cake for Dadi's birthday too.", now - 24 * hour, reply = g1)
+        val g4 = m("g4", a, "🎂🎉", now - 23 * hour)
+        val g5 = m("g5", b, "Electricity bill is due on the 28th. I've added it to Finance.", now - 2 * hour, reactions = mapOf(me to "🙏", a.first to "❤️"))
+        val g6 = m("g6", self, "Thanks! I'll pay it tonight.", now - 90 * 60_000L, reply = g5)
+        val g7 = m("g7", a, "Don't forget Dadi's medicines on the way back 💊", now - 12 * 60_000L)
+        val dm = ChatRepository.directId(me, a.first)
+        val d1 = m("d1", a, "Can you pick up the kids from school today?", now - 5 * hour)
+        val d2 = m("d2", self, "Sure, I'll leave office by 3.", now - 4 * hour)
+        val d3 = m("d3", a, "😊", now - 3 * hour)
+        messages.value = mapOf(ChatRepository.FAMILY_CHAT to listOf(g1, g2, g3, g4, g5, g6, g7), dm to listOf(d1, d2, d3))
+        reads.value = mapOf(
+            ChatRepository.FAMILY_CHAT to mapOf(me to now - 60 * 60_000L, b.first to now - 30 * 60_000L),
+            dm to mapOf(me to now - 3 * hour, a.first to now - 3 * hour)
+        )
+        chats.value = listOf(
+            ChatRepository.Chat(ChatRepository.FAMILY_CHAT, "group", emptyList(), "Family", g7.text, a.first, g7.at, "g5"),
+            ChatRepository.Chat(dm, "direct", listOf(me, a.first).sorted(), "", d3.text, a.first, d3.at, "")
+        )
     }
 }

@@ -1,4 +1,5 @@
 import com.familyhub.app.money.Ledger
+import com.familyhub.app.money.MerchantRules
 import java.util.Calendar
 
 var failures = 0
@@ -149,6 +150,42 @@ fun main() {
     val merged = refundTx.toMutableList().also { it[1] = it[1] + ("refundAmount" to 2000.0); it[2] = it[2] + ("refundOf" to "r2") }
     val ms = Ledger.summary(mapOf("expenses" to merged, "items" to emptyList()), at(2026, 11, 1), at(2026, 11, 30), now)
     check("a merged refund is not counted twice", ms.spent == 0.0 && ms.income == 50000.0, ms.spent)
+
+    // ---------- one category for the same merchant (like Axio) ----------
+    check("SWIGGY and 'Swiggy order from Meghana Foods' are the same merchant", MerchantRules.same("SWIGGY", "Swiggy order from Meghana Foods"))
+    check("a UPI handle names its merchant", MerchantRules.same("swiggy@icici", "Swiggy"))
+    check("'Payment to Zepto' and 'ZEPTO MARKETPLACE' are the same merchant", MerchantRules.same("Payment to Zepto", "ZEPTO MARKETPLACE PVT LTD"))
+    check("Indian Oil and Indian Bank are different", !MerchantRules.same("Indian Oil", "Indian Bank"))
+    check("Amazon Pay and Amazon Prime are different", !MerchantRules.same("Amazon Prime Video", "Amazon Fresh"))
+    check("a two-letter name never matches", !MerchantRules.same("AB", "AB Stores"))
+    check("a name that is only payment words has no merchant", MerchantRules.key("UPI payment to") == "")
+    val shop = listOf(
+        mapOf("id" to "s1", "type" to "EXPENSE", "title" to "Swiggy order from Meghana Foods", "category" to "Other", "amountInr" to 645.0),
+        mapOf("id" to "s2", "type" to "EXPENSE", "title" to "SWIGGY", "merchant" to "swiggy@icici", "category" to "Food"),
+        mapOf("id" to "s3", "type" to "EXPENSE", "title" to "Swiggy Instamart", "category" to "Dining"),
+        mapOf("id" to "s4", "type" to "INCOME", "title" to "Swiggy refund", "category" to "Other"),
+        mapOf("id" to "s5", "type" to "TRANSFER", "title" to "Swiggy wallet top-up", "category" to "Transfer"),
+        mapOf("id" to "s6", "type" to "EXPENSE", "title" to "Swiggy", "category" to "Other", "isDeleted" to true),
+        mapOf("id" to "s7", "type" to "EXPENSE", "title" to "Zomato", "category" to "Other")
+    )
+    val same = MerchantRules.matches(shop[0], shop, "Dining").map { it["id"] }
+    check("same-merchant spends with another category are offered", same == listOf("s2"), same)
+    check("refunds, transfers, deleted entries and other shops are left alone", "s4" !in same && "s5" !in same && "s6" !in same && "s7" !in same)
+    val rules = listOf(
+        MerchantRules.ruleData("Swiggy", "Dining", 1L),
+        MerchantRules.ruleData("Swiggy Instamart", "Groceries", 2L),
+        MerchantRules.ruleData("Old shop", "Other", 3L) + ("isDeleted" to true)
+    )
+    check("a remembered merchant gets its category", MerchantRules.categoryFor("SWIGGY*ORDER", rules) == "Dining", MerchantRules.categoryFor("SWIGGY*ORDER", rules))
+    check("the more exact rule wins", MerchantRules.categoryFor("Swiggy Instamart Bangalore", rules) == "Groceries", MerchantRules.categoryFor("Swiggy Instamart Bangalore", rules))
+    check("an unknown merchant keeps its own category", MerchantRules.categoryFor("Zomato", rules) == null)
+    check("a deleted rule is ignored", MerchantRules.categoryFor("Old shop", rules) == null)
+    val wide = listOf(MerchantRules.ruleData("Swiggy order from Meghana Foods", "Dining", 1L))
+    check("a plain SMS name uses the only matching longer rule", MerchantRules.categoryFor("SWIGGY", wide) == "Dining")
+    val clash = wide + MerchantRules.ruleData("Swiggy Instamart", "Groceries", 2L)
+    check("longer rules that disagree are not guessed", MerchantRules.categoryFor("SWIGGY", clash) == null, MerchantRules.categoryFor("SWIGGY", clash))
+    check("the rule id is stable for the same merchant", MerchantRules.ruleId("SWIGGY") == MerchantRules.ruleId("swiggy@ybl"), MerchantRules.ruleId("SWIGGY"))
+    check("the label is tidy", MerchantRules.label("SWIGGY*ORDER") == "Swiggy", MerchantRules.label("SWIGGY*ORDER"))
 
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

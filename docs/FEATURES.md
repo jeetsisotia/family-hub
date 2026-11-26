@@ -30,6 +30,7 @@ Everything listed as Done is a working screen on real data, not a placeholder. S
 | Due calendar | Done | Finance → Due calendar.<br>Covers card bills, EMIs, insurance premiums, rent, electricity, mobile and other repeating bills, and subscriptions.<br>Each due has **Mark paid** (full, minimum or any amount, and from which account), **Snooze**, **Reschedule**, **Edit**, **Delete** or **Skip this month**, **Payment proof** (photo) and **View payment**. |
 | Paid updates everything | Done | Marking a due paid saves a real payment, updates the dashboard and Home, and stops its reminder. |
 | Categories | Done | Money categories: add, rename, remove, and subcategories under any category. The suggested list (Food, Groceries, Shopping and so on) is built in. |
+| Same category for a merchant | Done (Needs my phone) | Change a transaction's category and the app offers to use it for the other transactions from that merchant and for new ones from SMS and statement imports, like Axio. Remembered merchants are your own private records. |
 | Entry fields | Done | Date, amount, merchant, payment method, account, card, category, subcategory, description, family member and receipt photo |
 
 ## 3. Automatic tracking
@@ -91,9 +92,11 @@ Everything listed as Done is a working screen on real data, not a placeholder. S
 
 | Item | Status | Notes |
 |---|---|---|
-| Bottom bar | Done | Home, Finance, Health, Family, More |
+| Bottom bar | Done | Home, Finance, Health, Chats, Family, More, with a red count on Chats for new messages |
 | Light and dark | Done | Follows the phone, or pick **Light** or **Dark** in Family → Settings → Appearance (or ask the assistant) |
-| Reduced motion | Done | With Android's "Remove animations" turned on, cards, rings and charts appear without movement |
+| Reduced motion | Done | With Android's "Remove animations" turned on, cards, rings, charts, the background and tab icons stay still |
+| Reduce transparency | Done (Needs my phone) | Settings → Appearance: solid cards and bars, plain background |
+| Large titles | Done | Page titles shrink into a slim bar as you scroll |
 | Design | Done | Rounded glass cards, one colour per meaning (green for money in and steps, red for overdue and move, blue for actions), ring and bar charts |
 
 ## 9. Reminders

@@ -1,6 +1,6 @@
 # Family Hub: progress log
 
-The working brief is [`docs/CLAUDE-PROMPT.md`](docs/CLAUDE-PROMPT.md). This file records what is finished, the test results, what is pending and the next step, so a new session can carry on without redoing work.
+The working brief is [`docs/CLAUDE-PROMPT.md`](docs/CLAUDE-PROMPT.md) (updated 26 Nov 23:39 to 8 phases: Phase 6 is now family safety, live location and emergency alerts). This file records what is finished, the test results, what is pending and the next step, so a new session can carry on without redoing work.
 
 Status words:
 - **Passed:** tested and works.
@@ -103,10 +103,67 @@ How each status is known:
 
 ---
 
-### Phase 1 results so far
+### Phase 1 results
 
-- **APK build #47:** passed. It compiled with all Phase 1 changes. The emulator check was still running when this was written.
+- **APK build #47:** passed, including the emulator screen check.
 - **Rules tests, first run:** failed on setup, not on the rules. The emulator refused a rules file outside its folder. `firebase.json` now sits next to `firestore.rules`.
+- **Rules tests, run #2 (26 Nov):** passed, 46 of 46 in the Firestore emulator on GitHub Actions.
+- **Rules published (26 Nov, 11:34 PM IST)** to `family-hub-1465f` after the tests passed. The live text was checked afterwards and matches the tested file exactly.
+  - Rollback copy of the previous live rules: `firebase/firestore.rules.backup-2026-11-26-live`, also kept in the console's rules history ("Today, 2:59 PM").
+  - What changed: invite codes (`/invites`), chats, and families can no longer be listed or searched. Nothing became weaker.
+  - Rules Playground retest: **Not tested** (the 46 emulator tests cover the same cases).
+
+---
+
+## Phase 2: iPhone-style design (in progress)
+
+### What is in it
+
+- **One design system** (`core/theme/DesignSystem.kt`): spacing and corner sizes, plus shared parts used across screens:
+  - segmented control
+  - grouped list sections and rows, as in iPhone Settings
+  - search field
+  - loading, empty and error states
+  - red count badge
+  - light haptics
+- **Reduce transparency** (Settings → Appearance): cards and bars turn solid and the moving background stops. It is kept on this phone.
+- **Large titles shrink** into a slim frosted bar as a page scrolls. This works on every page that uses the shared title bar. Conversations keep a slim title.
+- **Settings** now uses iPhone-style grouped sections, with a segmented Automatic / Light / Dark control.
+- **Bottom bar:** a light tap feel when switching tabs, and a red count on Chats for chats with new messages. The count uses the same listener as the chat list, so it costs no extra reads.
+- **Chats list:**
+  - swipe right to pin, swipe left to archive
+  - new search field
+  - proper empty and loading states
+- **Money and titles** use equal-width digits, so amounts line up.
+- **Reduced motion** is respected: the background glows and tab icon bounce stay still when Android animations are off.
+
+### Choices and why
+
+- **No blur library.** The free blur library (Haze) needs a newer Kotlin than the app uses, and a failed build costs a whole cycle. Glass stays translucent, with the solid fallback above. This is the plain fallback the brief allows.
+- **Fonts and icons are Android's own** (Roboto and Material icons, free licences). No Apple fonts, symbols, emoji or names.
+
+### Screenshots
+
+The automatic emulator check now photographs:
+- the chat list and a conversation (sample messages, no account)
+- dark Home, Finance, Health, chat list and conversation
+- Home with Reduce transparency
+- the new Settings
+
+---
+
+## Finance: one category for the same merchant (asked 26 Nov 23:39)
+
+- **What it does:** change a transaction's category and the app asks: "Use Dining for Swiggy?" It shows how many other Swiggy transactions have a different category. You can choose:
+  - **Apply to all:** changes those transactions too, up to 300 at a time.
+  - **Only this one.**
+  - A tick box, on by default, to also use the category for new Swiggy transactions from SMS and statement imports.
+- **Remembered rules** are your own private records, so they are included in your backup and cost no extra reads.
+- **Matching:**
+  - "SWIGGY", "swiggy@icici" and "Swiggy order from Meghana Foods" count as one merchant.
+  - "Indian Oil" and "Indian Bank" stay apart.
+  - Transfers, card bill payments, deleted entries and refunds are never changed.
+- **Tests:** 17 new checks in `tools/ledger-test`; all 60 ledger checks pass. Trying it in the app: **Needs my phone**.
 
 ---
 
@@ -150,16 +207,30 @@ How each status is known:
 
 ### Rules
 
-- The new chat rules come with 16 more emulator tests, 46 in total.
-- They are published only after the tests pass on GitHub.
+- The new chat rules come with 16 more emulator tests, 46 in total. **Passed**, and published (see Phase 1).
+
+### Build
+
+- **APK build #48: failed** on 3 compile errors:
+  - two helper names in the chat notification worker
+  - a scope clash on the "jump to latest" button
+- All three are fixed in the next bundle, with Phase 2.
 
 ---
 
 ## Next step
 
-1. Upload Phase 1 (bundle p21) and build. Add the rules-test workflow and run it.
-2. If the rules tests pass, back up the live rules and publish the new ones in the console. Retest the playground cases.
-3. Then start Phase 2: the design system and glass UI on Home, Finance and the chat screen.
+1. Upload bundle p23 (chat fixes, Phase 2 design, merchant categories). Check that the build and emulator screenshots pass, then review the screenshots.
+2. Finish the chat extras (mentions, polls) and Phase 4 finance.
+3. Then Phase 5 calling (Beta), Phase 6 safety and location, Phase 7 reliability and reminders, Phase 8 extra features, and the final report.
+4. A resume task is set for **27 Nov 2026, 11:35 PM IST**, in case a usage limit stops the work.
+
+### Restore points (git tags)
+
+- `restore-before-phase-1`: the app before this work started (commit 3cb30fb).
+- `restore-phase-1`: Phase 1 finished, the last version whose build fully passed before chat (commit 0b4ecc3).
+
+From bundle p23, the bundle workflow can tag the version before each bundle (`.fhbundle/tag.txt`). To restore, download that tag's code from GitHub, or ask for a bundle that brings it back. Nothing is force-pushed.
 
 ## Pending, and anything only Jeet can do
 
@@ -168,3 +239,11 @@ How each status is known:
   - Sign in.
   - Allow notifications when asked.
   - Confirm the app no longer closes after sign-in.
+- **Because the new rules are live:**
+  - Open the new app once as the family admin. This turns on your invite code; until then, joining by code says the code was not found.
+  - Anyone joining needs the new app. Older versions cannot look up invite codes.
+  - Family members should update the app. Older versions keep working for everyday use, but deleting shared records for good is admin-only.
+- **Chats (Needs my phone):** send a message between two phones, then check unread counts, Retry when offline, and the notification within about 15 minutes.
+- **Reduce transparency and dark mode (Needs my phone):** switch them in Settings → Appearance and check that the text is easy to read.
+- **Merchant categories (Needs my phone):** change a transaction's category, pick "Apply to all", then import an SMS from the same shop.
+

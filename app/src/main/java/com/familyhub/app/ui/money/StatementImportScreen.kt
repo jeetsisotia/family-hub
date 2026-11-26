@@ -120,7 +120,9 @@ fun StatementImportScreen(env: AppEnv) {
         scope.launch {
             var ok = 0
             for (r in chosen) {
-                val cat = r.category.takeIf { it.isNotBlank() && it.lowercase() !in setOf("income", "expense", "others", "uncategorised", "uncategorized") }
+                // A category remembered for this merchant comes first, then the statement's own, then a guess.
+                val cat = com.familyhub.app.money.MerchantRules.categoryFor(StatementParser.merchantOf(r.description), items)
+                    ?: r.category.takeIf { it.isNotBlank() && it.lowercase() !in setOf("income", "expense", "others", "uncategorised", "uncategorized") }
                     ?: TxnParser.guessCategory(r.description) ?: "Other"
                 val data = StatementImport.entryForRow(r, target, items, cat)
                 data["sourceKey"] = StatementImport.rowKey(r, target)
