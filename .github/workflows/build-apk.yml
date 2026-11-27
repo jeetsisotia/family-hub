@@ -166,6 +166,7 @@ jobs:
           for r in home finance transactions insights cards import; do demo "$r" "" 6 scroll; done
           for r in dark:home dark:finance dark:transactions; do demo "$r" "" 6 scroll; done
           for r in dark:more dark:settings dark:categories dark:duplicates dark:safety dark:health_hub solid:home; do demo "$r" "" 6 no; done
+          for r in form_expense form_edit_expense sheet_transaction dark:form_expense dark:sheet_transaction; do demo "$r" "" 7 no; done
           demo assistant "Find_duplicate_transactions" 60 up
           adb shell am start -n $PKG/.MainActivity >/dev/null 2>&1
           sleep 5
