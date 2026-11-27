@@ -479,7 +479,7 @@ Live AI answer quality, web search and agent actions are **not** marked as passe
   - **All alerts** and **Due calendar** are one tap away.
 - **No repeats:** bills, card bills, EMIs, renewals and premiums come from the same ledger as before. Other alerts (documents, birthdays, medicines, period) are added only when they are not money alerts, so a card bill appears once.
 - **Unchanged:** reminders, notifications and the data behind them.
-- **Fix (p52):** the first screenshot showed "14 due ·" with the total missing; the line wrapped after "·". It now stays on one line and shows large totals short (₹1.2 L).
+- **Fix (p52):** the first screenshot showed "14 due ·" with the total missing; the line wrapped after "·". It now stays on one line and shows the total short (₹37.4 k, ₹1.2 L); exact amounts are on each line (p52, p54).
 
 ### AI checks (p49–p51)
 

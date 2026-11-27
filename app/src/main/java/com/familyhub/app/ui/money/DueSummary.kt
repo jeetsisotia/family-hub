@@ -115,7 +115,7 @@ fun DueSummary(env: AppEnv, alerts: List<AlertItem>, listState: LazyListState?, 
                 Spacer(Modifier.width(10.dp))
                 Text(
                     // Non-breaking spaces + no soft wrap: the line used to wrap after "·" and hide the total.
-                    ("${lines.size} due" + if (payable > 0) " · ${if (payable >= 100_000) inrShort(payable) else inr(payable)}" else "")
+                    ("${lines.size} due" + if (payable > 0) " · ${headerAmount(payable)}" else "")
                         .replace(' ', ' '),
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
                     maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis
@@ -170,4 +170,11 @@ private fun Line(l: DueLine, fmt: SimpleDateFormat, onClick: () -> Unit) {
         }
         l.amount?.takeIf { it > 0 }?.let { Text(inr(it), fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium) }
     }
+}
+
+/** Short total for the one-line header (exact amounts are on each line): ₹950, ₹9,714, ₹37.4 k, ₹1.2 L. */
+internal fun headerAmount(v: Double): String = when {
+    v >= 100_000 -> inrShort(v)
+    v >= 10_000 -> "₹%.1f k".format(v / 1_000)
+    else -> inr(v)
 }

@@ -26,7 +26,7 @@ Nothing below is marked PASS on code presence or a green build alone. Evidence i
 | Check | Result | Evidence |
 |---|---|---|
 | One summary replaces "Due soon" and "To pay"; no repeated bill cards | **PASS** | `demo_home`, `demo_dark_home`: one card, each bill listed once |
-| Shows due count, total and overdue count | **PASS** after fix p52 | Build #72 screenshot showed "14 due ·" with the total cut off by line wrap. Fixed in p52 (`0225e5d`); see the post-fix screenshot line below |
+| Shows due count, total and overdue count | **PASS** after fixes p52 + p54 | Build #72 showed "14 due ·" with no total (line wrap). After p52 the total showed but was cut ("₹37,4…") next to the badge. p54 shows it short ("₹37.4 k"); see section 7 |
 | Expanded near the top | **PASS** | `demo_home`, `demo_dark_home` |
 | Folds on scroll; overdue lines stay visible | **PASS** | `demo_home_scrolled`, `demo_dark_home_scrolled`: folded card with the 2 overdue items |
 | Manual toggle | **NOT TESTED** on screen | Code path is the same chevron row. The emulator demo does not tap |
