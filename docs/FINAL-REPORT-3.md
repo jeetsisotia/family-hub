@@ -39,7 +39,7 @@ Brief: "FamilyHub — Master development & release prompt" plus the "Final compl
 | 11 | **Light and dark themes** checked by eye | **PASS** for the screens above | Build #65 screenshots: Home, More, Finance, Transactions, Categories, Duplicates, Settings, Safety and Health in dark; Home with Reduce transparency |
 | 12 | **Shared AI**: one assistant layer; actions re-check membership and Finance permission just before writing; confirm before any change; a log of every AI action and whether it really worked (AI settings) | **PASS** (code), **NEEDS MY INPUT** (a Gemini key to test real answers) | `AiAudit.kt`, `checkActionAllowed`; duplicate removal through the same path as Finance |
 | 13 | **AI undo** for records the AI adds | **PASS** (code and build), **NEEDS MY PHONE** | p44: after the AI adds something, its card shows **Undo**. Undo uses the normal delete (shared records go to Recently deleted, "Only me" records are removed) and is logged. Undo also exists for duplicate removal and category changes |
-| 14 | **Contextual AI suggestions** tailored to every page | **PARTIAL** | p44: Finance, Transactions, Insights, Tasks and the money screens show suggestions only when they would find something, with counts ("Categorise uncategorised transactions (12)", "Find duplicate transactions (2 suspected)"). Only 3 general ones are added on a page. Each wording reaches the right answer without a key (ai-test 28). Health, Documents and the other modules still get the general set |
+| 14 | **Contextual AI suggestions** tailored to every page | **PARTIAL** | p44: Finance, Transactions, Insights, Tasks and the money screens show suggestions only when they would find something, with counts ("Categorise uncategorised transactions (12)", "Find duplicate transactions (2 suspected)"). Only 3 general ones are added on a page. Each wording reaches the right answer without a key (ai-test 28). p45: Health, Vitals, Periods and Medicines suggest one-tap entries read on the phone (your last weight, a walk, water, "Took <medicine> today"); Documents offers a renewal reminder for documents expiring within 90 days (with a Gemini key). The remaining modules get the general set |
 | 15 | **Gemini: your own key (BYOK)** in the Android Keystore; never logged, synced or backed up; no shared key in the APK | **PASS** (code review; done in p34) | `KeyVault.kt`; build no longer reads `GEMINI_API_KEY` |
 | 16 | **Backup and restore**: backward-compatible, never overwrites newer data | **PASS** (code review; p37), **NEEDS MY PHONE** | Restore adds only entries that are missing on the server. A backup is refused when the server can't be reached |
 | 17 | **CI**: the hanging Gemini check removed; unit tests on every push; screenshots named by screen, light and dark | **PASS** | Commit `cbd9555`; Unit tests run #1 |
@@ -65,5 +65,4 @@ Brief: "FamilyHub — Master development & release prompt" plus the "Final compl
 
 ## Next priority
 
-1. Tailored AI suggestions for Health and Documents.
-2. The Apple-style pass on the detail sheets and forms.
+1. The Apple-style pass on the detail sheets and forms (needs demo screens for forms so they can be checked by eye).

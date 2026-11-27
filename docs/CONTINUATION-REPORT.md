@@ -18,7 +18,7 @@ For picking up the work after a usage limit or a new session. Read this file and
 | | |
 |---|---|
 | Starting commit | `6e8cdbb` (build #63 passed) |
-| Latest bundle | p44 (Insights card, page suggestions, AI Undo); p43 (report). Code: p42 `ca703ec`; p41 `6663968`; p40 `d18184c`; p39 `b86ccef`; CI `cbd9555` |
+| Latest bundle | p45 (Health and Documents suggestions); p44 (Insights card, page suggestions, AI Undo); p43 (report). Code: p42 `ca703ec`; p41 `6663968`; p40 `d18184c`; p39 `b86ccef`; CI `cbd9555` |
 | How code reaches GitHub | Bundles through the upload page and `apply-bundle.yml` (see PROGRESS.md). Workflow files can only be changed on the upload page itself, not through a bundle |
 
 ## Tasks
@@ -38,4 +38,4 @@ For picking up the work after a usage limit or a new session. Read this file and
 
 ## Next exact step
 
-Check build #68 (p44: Insights card, page suggestions, AI Undo) and the Insights screenshot. Then: suggestions for Health and Documents; the detail sheets and forms.
+Check the build for p45 (Health, Medicines and Documents suggestions). Next: add demo routes that open the add/edit forms and detail sheets, so they can be screenshotted, then give them the Apple-style pass.

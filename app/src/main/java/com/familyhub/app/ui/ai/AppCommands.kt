@@ -358,6 +358,8 @@ object AppCommands {
         val dups = if (env != null) com.familyhub.app.money.Duplicates.find(expenses).size else 1
         val openTasks = env?.data?.get("tasks").orEmpty().count { it["isDeleted"] != true && it["isCompleted"] != true && (it["type"] as? String) != "SHOPPING" }
         fun ifAny(n: Int, s: String) = if (env == null || n > 0) s else null
+        // Reminders and other free-form requests need the person's own Gemini key; data questions do not.
+        val keyed = try { com.familyhub.app.core.ai.GeminiClient.isConfigured() } catch (_: Throwable) { false }
         return when (p) {
             "finance", "money", "expenses", "transactions" -> listOfNotNull(
                 ifAny(uncategorised, "Categorise uncategorised transactions" + if (env != null) " ($uncategorised)" else ""),
@@ -368,6 +370,40 @@ object AppCommands {
                 "Who spent the most this month?", "How much did we save this month?",
                 ifAny(uncategorised, "Categorise uncategorised transactions")
             )
+            "health", "vitals", "workouts" -> {
+                // Uses the person's own last weight, so one tap logs today's reading (parsed on the phone).
+                val lastWeight = env?.data?.get("items").orEmpty()
+                    .filter { it["type"] == "vital" && (it["kind"] as? String).orEmpty().startsWith("Weight") && it["isDeleted"] != true }
+                    .maxByOrNull { (it["dateMillis"] as? Number)?.toLong() ?: 0L }?.get("value") as? String
+                listOf(
+                    if (lastWeight != null) "Weight $lastWeight kg today" else "Weight 63.5 kg and BP 118/76",
+                    "Walked 30 minutes today",
+                    "2 glasses of water"
+                )
+            }
+            "periods", "period tracker" -> listOf("Start my periods from today")
+            "medicines" -> {
+                // Logging a dose is read on the phone (no key needed); a refill reminder needs the AI.
+                val first = env?.data?.get("items").orEmpty()
+                    .firstOrNull { it["type"] == "medicine" && it["isDeleted"] != true }?.get("title") as? String
+                listOfNotNull(
+                    first?.let { "Took $it today" },
+                    if (keyed) "Remind me to refill my medicines next Saturday at 10 am" else null
+                )
+            }
+            "documents" -> {
+                // Documents that expire in the next 90 days: offer a renewal reminder 30 days ahead (or tomorrow).
+                val now = System.currentTimeMillis()
+                val day = 86_400_000L
+                val fmt = java.text.SimpleDateFormat("d MMMM", Locale.ENGLISH)
+                val soon = env?.data?.get("items").orEmpty()
+                    .filter { it["type"] == "document" && it["isDeleted"] != true }
+                    .mapNotNull { r -> (r["expiryDateMillis"] as? Number)?.toLong()?.takeIf { it in now..(now + 90 * day) }?.let { r to it } }
+                    .sortedBy { it.second }.take(2)
+                (if (keyed) soon else emptyList()).map { (r, exp) ->
+                    "Remind me to renew my ${(r["title"] as? String).orEmpty().ifBlank { "document" }} on ${fmt.format(java.util.Date(maxOf(now + day, exp - 30 * day)))}"
+                } + listOf("Find duplicates on this page")
+            }
             "my profile", "profile" -> listOf("Add emergency contact Papa 98765 43210")
             "household", "tasks" -> listOfNotNull(ifAny(openTasks, "Help with my open tasks" + if (env != null) " ($openTasks)" else ""), "Find duplicate tasks")
             "shopping" -> listOf("Add milk, eggs and bread to shopping", "Find duplicate items")
