@@ -75,6 +75,7 @@ object Hubs {
             HubItem("import", "Scan SMS & Gmail", Icons.Rounded.MarkEmailRead),
             HubItem("insights", "Insights", Icons.Rounded.PieChart),
             HubItem("subscriptions", "Subscriptions", Icons.Rounded.Subscriptions),
+            HubItem("recurring", "Recurring payments", Icons.Rounded.EventRepeat),
             HubItem("categories", "Categories", Icons.Rounded.Category),
             HubItem("duplicates", "Duplicates", Icons.Rounded.ContentCopy),
             HubItem("goals", "Savings goals", Icons.Rounded.Savings),

@@ -24,9 +24,9 @@ For picking up the work after a usage limit or a new session. Read this file and
 | P0-D | Health (vitals, medicines), Documents and Reminders add forms, light and dark | Demo routes `form:<module>` added | p58 |
 | P0-E | Gemini errors: invalid key, key refused, API not enabled, rate limit, daily quota, web search quota and network problems each get their own message (`GeminiErrors`, 11 tests) | Code + tests | p58 |
 | P0-F | Regression table | To do after the build | |
-| 1.1 | Family activity timeline | NOT STARTED | |
-| 1.2 | Document expiry tracker | NOT STARTED | |
-| 1.3 | Recurring expense detection | NOT STARTED | |
+| 1.1 | Family activity timeline (More → Family activity): built from records already loaded; filters by type and member; "Only me", private, health and ID records never shown; documents show name and type only; saves now record who last updated and who completed | Code + tests (phase1-test) | p59 |
+| 1.2 | Document expiry tracker: Remind me window per document, renewal status and notes, more categories (Warranty, Vehicle PUC), summary card on Documents (expired, due soon, active, next to renew); notifications name documents only generically | Code + tests | p59 |
+| 1.3 | Recurring payment suggestions (Finance → Recurring payments): weekly, monthly, quarterly and yearly patterns; Track saves a Subscription (or a weekly reminder) after you confirm name, amount and frequency; Dismiss; never creates transactions; no duplicates of what is already tracked | Code + tests | p59 |
 
 ### How to resume
 

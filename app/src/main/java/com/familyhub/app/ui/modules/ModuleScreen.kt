@@ -177,6 +177,9 @@ fun ModuleScreen(
         val destFamily = if (existing == null && chosen.isNotBlank()) chosen else familyId
         data["familyId"] = destFamily
         data["updatedAt"] = System.currentTimeMillis()
+        // Who changed it last, for the family activity timeline.
+        data["updatedByUid"] = uid
+        data["updatedByName"] = userName
         if (existing == null) {
             data["createdByUid"] = uid
             data["createdByName"] = userName
@@ -198,7 +201,11 @@ fun ModuleScreen(
         val key = def.doneKey ?: return
         scope.launch {
             try {
-                repo.setFieldScoped(familyId, uid, def.collection, rec, key, checked)
+                // Who ticked it and when, for the family activity timeline.
+                val now = System.currentTimeMillis()
+                repo.setFieldsScoped(familyId, uid, def.collection, rec,
+                    if (checked) mapOf(key to true, "completedAt" to now, "completedByUid" to uid, "completedByName" to userName, "updatedAt" to now)
+                    else mapOf(key to false, "completedAt" to null, "updatedAt" to now))
             } catch (e: Exception) {
                 error = "Could not update: ${e.message}"
             }

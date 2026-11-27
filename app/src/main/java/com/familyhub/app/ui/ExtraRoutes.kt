@@ -58,7 +58,7 @@ val ExtraRouteIds: Set<String> = setOf(
     "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos",
     "home_hub", "life_hub", "reminders_hub", "arrange_home",
     "accounts_home", "loans_home", "due_calendar", "transfer", "statement_import", "data_tools", "calls", "safety",
-    "transactions", "categories", "assistant_family", "ai_settings", "duplicates"
+    "transactions", "categories", "assistant_family", "ai_settings", "duplicates", "activity", "recurring"
 )
 
 /** Screens for one account, card, loan or chat: "acct:<id>", "ccard:<id>", "loan:<id>", "chat:<id>". */
@@ -135,6 +135,8 @@ fun ExtraRoute(route: String, env: AppEnv) {
         "transactions" -> com.familyhub.app.ui.money.TransactionsScreen(env)
         "categories" -> com.familyhub.app.ui.money.CategoriesScreen(env)
         "duplicates" -> com.familyhub.app.ui.money.DuplicatesScreen(env)
+        "activity" -> com.familyhub.app.ui.family.ActivityTimelineScreen(env)
+        "recurring" -> com.familyhub.app.ui.family.RecurringScreen(env)
         "calls" -> com.familyhub.app.ui.calls.CallsScreen(env)
         "health_hub" -> HealthScreen(env)
         "periods" -> PeriodScreen(env)

@@ -117,11 +117,13 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         Notifier.ensureChannels(ctx)
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val first = alerts.first()
-        val lines = alerts.take(6).joinToString("\n") { "${it.title}: ${it.label}" }
+        // Documents are named only by kind on the lock screen: their titles can hold numbers or personal details.
+        fun line(a: AlertItem) = if (a.route == "documents") "A document: ${a.label.lowercase()} soon" else "${a.title}: ${a.label}"
+        val lines = alerts.take(6).joinToString("\n") { line(it) }
         val notification = NotificationCompat.Builder(ctx, Notifier.CH_GENERAL)
             .setSmallIcon(android.R.drawable.ic_popup_reminder)
             .setContentTitle("Family Hub: ${alerts.size} reminder(s)")
-            .setContentText("${first.title}: ${first.label}")
+            .setContentText(line(first))
             .setStyle(NotificationCompat.BigTextStyle().bigText(lines))
             .setContentIntent(Notifier.openApp(ctx, "alerts", NOTIFICATION_ID))
             .setAutoCancel(true)

@@ -283,10 +283,15 @@ val DocumentsModule = ModuleDef(
         FieldDef("title", "Document name", required = true),
         FieldDef("category", "Type", FieldType.CHOICE,
             listOf("Aadhaar", "PAN", "Passport", "Driving licence", "Voter ID", "Vehicle RC", "Health insurance",
-                "Life insurance", "Vehicle insurance", "Property", "Bank", "Education", "Other")),
+                "Life insurance", "Vehicle insurance", "Vehicle PUC", "Warranty", "Property", "Bank", "Education", "Other")),
         FieldDef("holder", "Belongs to", FieldType.MEMBER),
         FieldDef("number", "Document or policy number"),
         FieldDef("expiryDateMillis", "Expires or renews on", FieldType.DATE),
+        // Expiry tracker: when to start reminding, and where the renewal stands.
+        FieldDef("remindBefore", "Remind me", FieldType.CHOICE,
+            listOf("7 days before", "15 days before", "30 days before", "60 days before", "90 days before")),
+        FieldDef("renewalStatus", "Renewal", FieldType.CHOICE, listOf("Not started", "In progress", "Renewed", "Not renewing")),
+        FieldDef("renewalNotes", "Renewal notes (agent, documents needed)", FieldType.MULTILINE),
         FieldDef("notes", "Where the original is kept, other details", FieldType.MULTILINE)
     ),
     dateKeys = listOf(DateKey("expiryDateMillis", "Expires")),
@@ -913,7 +918,10 @@ fun buildAlerts(data: Map<String, List<Rec>>): List<AlertItem> {
                 val raw = r.lng(dk.key) ?: continue
                 val d = nextOccurrenceOf(r, raw, rep)
                 val days = daysUntil(d)
-                if (days > def.alertDays) continue
+                // A document can choose its own reminder window ("Remind me: 60 days before").
+                val window = r.str("remindBefore").filter(Char::isDigit).toIntOrNull() ?: def.alertDays
+                if (days > window) continue
+                if (r.str("renewalStatus").equals("Renewed", true) || r.str("renewalStatus").equals("Not renewing", true)) continue
                 if (days < 0 && (!def.alertOverdue || days < -30)) continue
                 out.add(AlertItem(r.str(def.titleKey), dk.label, d, def.route, days < 0))
             }

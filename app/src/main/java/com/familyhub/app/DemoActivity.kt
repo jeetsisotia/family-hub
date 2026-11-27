@@ -215,7 +215,8 @@ class DemoActivity : FragmentActivity() {
                                 onBack = {},
                                 onOpen = {},
                                 onAskAi = {},
-                                overview = if (def.kind == "finance") financeOverview else null,
+                                overview = if (def.kind == "finance") financeOverview
+                                    else if (def.route == "documents") ({ com.familyhub.app.ui.family.DocExpiryCard(env) }) else null,
                                 preview = env.data[def.collection],
                                 previewState = if (route.startsWith("form:")) "form" else null
                             )
@@ -374,6 +375,33 @@ object DemoData {
                 "createdByUid" to UID, "createdByName" to "Demo User"),
             rec("type" to "TASK", "title" to "Order milk and eggs", "isCompleted" to false, "createdByUid" to UID, "createdByName" to "Demo User")
         )
+        // Phase 1 sample data: documents with expiry dates, a monthly and a weekly payee, a finished task.
+        val docs = listOf(
+            rec("type" to "document", "title" to "Passport (Asha)", "category" to "Passport", "holder" to "Asha", "number" to "J1234567",
+                "expiryDateMillis" to now + 20 * d, "remindBefore" to "60 days before", "renewalStatus" to "In progress",
+                "createdAt" to now - 3 * 3_600_000L, "createdByName" to "Asha"),
+            rec("type" to "document", "title" to "Car insurance", "category" to "Vehicle insurance", "holder" to "Ravi",
+                "expiryDateMillis" to now - 5 * d, "renewalStatus" to "Not started", "createdAt" to now - 2 * d, "createdByName" to "Ravi"),
+            rec("type" to "document", "title" to "Driving licence", "category" to "Driving licence", "holder" to "Demo User",
+                "expiryDateMillis" to now + 400 * d, "createdAt" to now - 6 * d, "createdByName" to "Demo User")
+        )
+        for (k in 0..3) expenses.add(rec("type" to "EXPENSE", "title" to "NETFLIX.COM", "category" to "Entertainment", "amountInr" to 649.0,
+            "dateMillis" to now - (5 + 30 * k) * d, "paymentMethod" to "Credit card", "memberName" to "Demo User", "isPaid" to true, "isDeleted" to false))
+        for (k in 0..4) expenses.add(rec("type" to "EXPENSE", "title" to "Milkman Ramesh", "category" to "Groceries", "amountInr" to 300.0 + (k % 2) * 10,
+            "dateMillis" to now - (1 + 7 * k) * d, "paymentMethod" to "UPI", "memberName" to "Asha", "isPaid" to true, "isDeleted" to false))
+        // Sample "who did what" times for the activity timeline (sample data only).
+        expenses.forEach { r ->
+            val m = r as MutableMap<String, Any?>
+            if (m["createdAt"] == null) (m["dateMillis"] as? Long)?.let { m["createdAt"] = it + 3_600_000L }
+            if (m["createdByName"] == null) m["createdByName"] = m["memberName"] ?: "Ravi"
+        }
+        tasks.forEachIndexed { i, r ->
+            val m = r as MutableMap<String, Any?>
+            m["createdAt"] = now - (i + 1) * 5 * 3_600_000L
+            if (m["createdByName"] == null) m["createdByName"] = listOf("Asha", "Ravi", "Demo User")[i % 3]
+        }
+        (tasks[2] as MutableMap<String, Any?>).let { it["isCompleted"] = true; it["completedAt"] = now - 3_600_000L; it["completedByName"] = "Ravi" }
+        events.forEach { r -> (r as MutableMap<String, Any?>).let { it["createdAt"] = now - 26 * 3_600_000L; it["createdByName"] = "Asha" } }
         val trips = listOf(
             rec("destination" to "Jaipur", "startDateMillis" to now + 20 * d, "endDateMillis" to now + 23 * d)
         )
@@ -400,7 +428,7 @@ object DemoData {
             members = members,
             memberNames = members.map { it.name },
             isOwner = true,
-            data = mapOf("items" to items, "events" to events, "expenses" to expenses, "tasks" to tasks, "trips" to trips),
+            data = mapOf("items" to items + docs, "events" to events, "expenses" to expenses, "tasks" to tasks, "trips" to trips),
             repo = repo,
             familyRepository = families,
             scope = scope,

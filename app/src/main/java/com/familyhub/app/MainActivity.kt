@@ -502,7 +502,8 @@ class MainActivity : FragmentActivity() {
                                 val financeOverview: @Composable () -> Unit = { com.familyhub.app.ui.money.FinanceOverview(envFor(currentFamily)) }
                                 key(moduleDef.route) {
                                     ModuleScreen(
-                                        overview = if (moduleDef.kind == "finance") financeOverview else null,
+                                        overview = if (moduleDef.kind == "finance") financeOverview
+                                            else if (moduleDef.route == "documents") ({ com.familyhub.app.ui.family.DocExpiryCard(envFor(currentFamily)) }) else null,
                                         def = moduleDef,
                                         familyId = activeFamilyId,
                                         uid = uid,
