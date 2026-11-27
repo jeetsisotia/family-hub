@@ -479,6 +479,22 @@ Live AI answer quality, web search and agent actions are **not** marked as passe
   - **All alerts** and **Due calendar** are one tap away.
 - **No repeats:** bills, card bills, EMIs, renewals and premiums come from the same ledger as before. Other alerts (documents, birthdays, medicines, period) are added only when they are not money alerts, so a card bill appears once.
 - **Unchanged:** reminders, notifications and the data behind them.
+- **Fix (p52):** the first screenshot showed "14 due ·" with the total missing; the line wrapped after "·". It now stays on one line and shows large totals short (₹1.2 L).
+
+### AI checks (p49–p51)
+
+- A manual **AI live check** workflow calls Gemini with the repository secret, never printing it.
+- Results:
+  - Invalid key error: pass.
+  - General answer: pass.
+  - Follow-up context: pass.
+  - Web search: refused by the free quota (HTTP 429).
+- The app now says so plainly instead of a vague error.
+- Your own key on the phone still needs your check.
+
+### Evidence
+
+All results with labels: `docs/VERIFICATION-REPORT.md`.
 
 ## Brief 3: completeness, Finance categories and duplicates (bundle p38)
 

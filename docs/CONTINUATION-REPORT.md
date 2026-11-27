@@ -4,38 +4,29 @@ For picking up the work after a usage limit or a new session. Read this file and
 
 ## Current brief
 
-`FamilyHub — Master development & release prompt` (27 Nov 2026), plus the "Final completeness requirement":
-- make an inventory first
-- verify, don't assume
-- keep all working features and data
-- Finance needs historical category reassignment, date ranges, attachments, account and card details, and accurate totals
-- one shared AI layer
-- backup and restore stay backward-compatible
-- show evidence for every claim
+`FamilyHub — Final development, user feedback & release prompt` (27 Nov 2026, Brief 4). Evidence: `docs/VERIFICATION-REPORT.md`. Earlier briefs: `PROGRESS.md`, `docs/FINAL-REPORT-3.md`.
 
-## State (updated with each bundle)
+## State (Brief 4)
 
 | | |
 |---|---|
-| Starting commit | `6e8cdbb` (build #63 passed) |
-| Latest bundle | p45 (Health and Documents suggestions); p44 (Insights card, page suggestions, AI Undo); p43 (report). Code: p42 `ca703ec`; p41 `6663968`; p40 `d18184c`; p39 `b86ccef`; CI `cbd9555` |
-| How code reaches GitHub | Bundles through the upload page and `apply-bundle.yml` (see PROGRESS.md). Workflow files can only be changed on the upload page itself, not through a bundle |
+| Starting commit | `4b53592` (build #71) |
+| Bundles | p48 Due Summary (`f147faf`), p49–p50 AI live check, p51 web-search quota message (`04ce4c0`), p52 Due Summary header total (`0225e5d`), p53 docs |
+| How code reaches GitHub | Bundles through the upload page and `apply-bundle.yml`. Never include `.github/` in a bundle (p50 deleted a workflow that way). Workflow files are changed on the upload page itself |
+| Artifact | `family-hub-apk` on the Build APK run for the latest commit |
 
-## Tasks
+## Brief 4 tasks
 
 | # | Task | Status |
 |---|---|---|
-| 1 | Inventory of every module, screen, route and integration (`docs/INVENTORY.md`) | **Done** |
-| 2 | Finance: move existing transactions to another category (multi-select in Transactions, "Apply to existing" in Categories, rename and delete carry past entries along), with a count in every confirmation, Undo, and a permission re-check | **Code done, tests pass** (ledger-test 138; Unit tests run #1 on GitHub). Build #64: running |
-| 3 | Finance: account or card filter in Transactions | **Code done**. Build: pending |
-| 4 | Finance → Duplicates: reasons, confidence, which to keep, "Not duplicates", confirmation with a count, Undo; the AI uses the same finder and the same safe removal | **Code done, tests pass**. Build: pending |
-| 5 | Home and More: one place for each feature; Apple-style grouped lists | **Code done**: More is a grouped list without the repeated Loans, Accounts and SOS; Home without the repeated money card, shortcut row and task and document cards, plus Recent; hub screens and Finance → Manage as grouped lists. Screenshots: pending |
-| 6 | CI: remove the hanging Gemini check; name screenshots by real screens, light and dark; unit tests on every push | **Done** (commit `cbd9555`; Unit tests run #1 passed) |
-| 7 | AI action registry: permission, confirm, audit, undo for every data-changing action | **Code done**: permission re-check, a local log in AI settings, Undo for duplicate removal, category changes and (p44) records the AI adds |
-| 8 | Docs: AI-SETUP, LIMITATIONS, TESTING, INSTALL reconciled | **Done** |
-| 9 | Final report with PASS / FAIL / NOT TESTED / NEEDS MY PHONE / NEEDS MY INPUT / BLOCKED | **Done**: `docs/FINAL-REPORT-3.md` |
-| 10 | Shared module list screen as one inset grouped list | **Done**: build #67 passed, Reminders screenshot checked |
+| 1 | Home Due Summary (count, total, overdue; folds on scroll; manual toggle; no repeats) | **Done**, screenshots checked light and dark; header total fixed in p52 |
+| 2 | Apple-style forms and sheets | Transaction form and detail sheet **done** (both themes). Other module forms: no demo routes yet, **not screenshotted** |
+| 3 | Gemini live checks | Invalid key, general answer and follow-up **pass** on the repo key; web search **fails** on that key's free quota (429). Your key: needs your phone |
+| 4 | Agent actions live | Needs your phone |
+| 5 | Docs | VERIFICATION-REPORT, AI-SETUP, LIMITATIONS, PROGRESS, this file: **done** |
 
 ## Next exact step
 
-Check the build for p45 (Health, Medicines and Documents suggestions). Next: add demo routes that open the add/edit forms and detail sheets, so they can be screenshotted, then give them the Apple-style pass.
+1. Check the screenshot of the Due Summary header from the p52/p53 build.
+2. Add demo routes for the Health, Documents and Reminders add forms and screenshot them.
+3. Re-run AI live check when the free quota resets, to retry web search.
