@@ -137,6 +137,18 @@ object Subscriptions {
         val monthly = live.filter { status(it) == Status.ACTIVE }.sumOf { (it.n("amountInr") ?: 0.0) / monthsPerCycle(it.s("cycle")) }
         return Totals(monthly, monthly * 12, live.count { status(it) == Status.ACTIVE }, live.count { status(it) == Status.PAUSED }, live.count { status(it) == Status.CANCELLED })
     }
+
+    private fun key(t: String) = t.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+
+    /** Payments in Finance that look like this subscription (its name or provider in the entry's title), newest first. */
+    fun payments(sub: Map<String, Any?>, expenses: List<Map<String, Any?>>): List<Map<String, Any?>> {
+        val keys = listOf(sub.s("provider"), sub.s("title")).map(::key).filter { it.length >= 4 }.distinct()
+        if (keys.isEmpty()) return emptyList()
+        return expenses.filter { e ->
+            e["isDeleted"] != true && (e.n("amountInr") ?: 0.0) > 0 &&
+                key(e.s("title") + " " + e.s("merchant")).let { t -> keys.any { it in t } }
+        }.sortedByDescending { it.n("dateMillis") ?: 0.0 }
+    }
 }
 
 object Maintenance {

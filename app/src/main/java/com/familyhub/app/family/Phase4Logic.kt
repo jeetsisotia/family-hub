@@ -51,6 +51,35 @@ object Planner {
 
     data class Suggestion(val title: String, val dateMillis: Long, val why: String)
 
+    private val SPEND_ON = Regex(
+        "\\b(?:spen[dt]|spending|expenses?|kharcha|kharch)\\s+(?:on|for|in|par)\\s+(?:the\\s+|our\\s+|my\\s+)?" +
+            "([\\p{L}][\\p{L} &-]{1,30}?)(?=\\s+(?:this|last|is|so)\\b|\\s+(?:mahine|month)\\b|\\s*[?.!,]|\\s*$)"
+    )
+    private val NOT_TOPIC = setOf("it", "that", "this", "things", "stuff", "everything", "all", "average")
+
+    /** The thing a spending question is about: "how much did we spend on groceries this month?" → "groceries". */
+    fun spendTopic(text: String): String? =
+        SPEND_ON.find(text.lowercase(Locale.ROOT))?.groupValues?.get(1)?.trim()?.takeIf { it.length >= 3 && it !in NOT_TOPIC }
+
+    private fun stem(w: String): String {
+        val n = norm(w)
+        return when {
+            n.endsWith("ies") && n.length > 4 -> n.dropLast(3) + "y"
+            n.endsWith("es") && n.length > 4 && (n.endsWith("ches") || n.endsWith("shes") || n.endsWith("xes")) -> n.dropLast(2)
+            n.endsWith("s") && n.length > 3 -> n.dropLast(1)
+            else -> n
+        }
+    }
+
+    /** The category the person meant, from the categories that exist ("grocery" → "Groceries"), or null. */
+    fun matchCategory(topic: String, categories: Collection<String>): String? {
+        val t = stem(topic)
+        if (t.length < 3) return null
+        return categories.firstOrNull { stem(it) == t }
+            ?: categories.firstOrNull { c -> val s = stem(c); s.length >= 4 && t.length >= 4 && (s.startsWith(t) || t.startsWith(s)) }
+            ?: categories.firstOrNull { c -> c.split(' ', '&', '/', '-').any { p -> p.isNotBlank() && stem(p) == t } }
+    }
+
     private fun norm(t: String) = t.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 
     /**

@@ -64,6 +64,16 @@ Priority Zero and Phase 1: **done**. Latest full emulator run: Build APK #86 (`7
 
 All four phases are built. Premium features: see VERIFICATION-REPORT §9 (most already existed; savings challenges and per-record permissions are not started).
 
+### Audit against the master prompt (27 Nov 17:40, bundle p66)
+
+| Gap found | Fix | Status |
+|---|---|---|
+| "How much did we spend on groceries this month?" gave only the overall total | `Planner.spendTopic` / `matchCategory`; MoneyAnswers answers for that category (or payee), with last month alongside | Unit PASS; emulator check `ask_groc` |
+| Notification centre had no priority or category filters | Due soon: overdue first; chips All, Overdue, and each section | Emulator check `alc` |
+| Subscription history did not show real payments | `Subscriptions.payments`: "Paid recently (from Finance)" | Unit PASS; emulator check `p2sub` |
+| Maintenance had no warranty start or receipt | Warranty starts; receipt or bill photo (stays on the phone) for maintenance and vehicles | Build |
+| Docs had no commit SHAs for Phases 2–4; Household inventory marked PARTIAL though Home Vault exists | VERIFICATION §9 corrected | Done |
+
 ### Phone tests to give at the end (collect here)
 
 1. Mukul-style category change on your own data, in both AI screens.

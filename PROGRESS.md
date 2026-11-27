@@ -477,6 +477,12 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 Evidence: `docs/VERIFICATION-REPORT.md` §9. Every phone test is listed in `docs/CONTINUATION-REPORT.md` and in the final report.
 
+**Audit against the master prompt (27 Nov, 17:40)**
+- The assistant now answers "How much did we spend on groceries this month?" for that one category, with last month alongside.
+- Due soon is a notification centre: overdue first, filters for Overdue and each section.
+- Subscriptions show "Paid recently" from real Finance entries.
+- Maintenance and vehicles have a warranty start date and a receipt or bill photo, which stays on the phone.
+
 ## Brief 5: Priority Zero and Phase 1 (27 Nov 2026)
 
 You asked for Priority Zero and Phase 1 only; Phases 2–4 wait for your go-ahead.

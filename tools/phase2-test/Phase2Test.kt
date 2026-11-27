@@ -69,5 +69,17 @@ fun main() {
     check("maintenance: next due from the repeat", Maintenance.nextAfter(at(2026, 11, 20), "Half-yearly") == at(2026, 5 + 0, 20).let { at(2027, 5, 20) })
     check("maintenance: no repeat, no next date", Maintenance.nextAfter(at(2026, 11, 20), "None") == null)
 
+
+    // ---------- subscription payments from Finance ----------
+    val nf = mapOf<String, Any?>("title" to "Netflix", "provider" to "", "amountInr" to 649.0)
+    val ex = listOf(
+        mapOf<String, Any?>("title" to "NETFLIX.COM", "amountInr" to 649.0, "dateMillis" to at(2026, 10, 29)),
+        mapOf<String, Any?>("title" to "Netflix", "amountInr" to 649.0, "dateMillis" to at(2026, 11, 29)),
+        mapOf<String, Any?>("title" to "Swiggy", "amountInr" to 300.0, "dateMillis" to at(2026, 11, 2)),
+        mapOf<String, Any?>("title" to "NETFLIX.COM", "amountInr" to 649.0, "dateMillis" to at(2026, 9, 29), "isDeleted" to true)
+    )
+    val pays = Subscriptions.payments(nf, ex)
+    check("subscriptions: payments found in Finance, newest first, deleted ones skipped", pays.size == 2 && pays[0]["title"] == "Netflix", pays)
+    check("subscriptions: short names never match everything", Subscriptions.payments(mapOf("title" to "TV"), ex).isEmpty())
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

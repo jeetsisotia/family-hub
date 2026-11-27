@@ -338,6 +338,7 @@ val VehiclesModule = ModuleDef(
         FieldDef("vendor", "Service centre or mechanic"),
         FieldDef("phone", "Their phone"),
         FieldDef("warrantyExpiryMillis", "Warranty or extended warranty ends", FieldType.DATE),
+        FieldDef("receiptPhoto", "Service bill or insurance copy", FieldType.PHOTO),
         FieldDef("notes", "RC details, service history, challans", FieldType.MULTILINE)
     ),
     dateKeys = listOf(
@@ -505,11 +506,13 @@ val MaintenanceModule = ModuleDef(
             listOf("AC service", "Water purifier", "Appliance", "Plumbing", "Electrical", "Painting", "Pest control", "Water tank", "Other")),
         FieldDef("vendor", "Vendor or technician"),
         FieldDef("purchaseMillis", "Bought on (appliances)", FieldType.DATE),
+        FieldDef("warrantyStartMillis", "Warranty starts", FieldType.DATE),
         FieldDef("warrantyExpiryMillis", "Warranty ends", FieldType.DATE),
         FieldDef("lastServiceMillis", "Last service", FieldType.DATE),
         FieldDef("phone", "Phone"),
         FieldDef("costInr", "Last cost (₹)", FieldType.NUMBER),
         FieldDef("nextDueMillis", "Next due", FieldType.DATE),
+        FieldDef("receiptPhoto", "Receipt, invoice or warranty card", FieldType.PHOTO),
         FieldDef("repeat", "Repeats", FieldType.CHOICE, listOf("None", "Monthly", "Quarterly", "Yearly")),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),

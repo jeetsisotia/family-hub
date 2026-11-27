@@ -111,11 +111,28 @@ fun AlertsScreen(alerts: List<AlertItem>, onBack: () -> Unit, onOpen: (String) -
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
         } else {
+            // Notification centre: overdue first, then soonest; filter by priority or by section.
+            val sectionOf: (AlertItem) -> String = { a -> AllModules.firstOrNull { it.route == a.route }?.title ?: a.label }
+            val overdueN = alerts.count { it.overdue }
+            val sections = alerts.map(sectionOf).distinct().sorted()
+            val options = listOf("All (${alerts.size})") + (if (overdueN > 0) listOf("Overdue ($overdueN)") else emptyList()) + sections
+            var filter by remember { mutableStateOf(options.first()) }
+            val shown = alerts.filter { a ->
+                when {
+                    filter.startsWith("All") -> true
+                    filter.startsWith("Overdue") -> a.overdue
+                    else -> sectionOf(a) == filter
+                }
+            }.sortedWith(compareBy<AlertItem>({ !it.overdue }, { it.dateMillis }))
+            com.familyhub.app.ui.common.ChoiceChips(
+                options, filter, { if (it.isNotBlank()) filter = it },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), scroll = true
+            )
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(alerts) { a -> AlertRow(a) { onOpen(a.route) } }
+                items(shown) { a -> AlertRow(a) { onOpen(a.route) } }
             }
         }
     }

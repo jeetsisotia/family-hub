@@ -142,6 +142,28 @@ object MoneyAnswers {
                 else "$period: income ${inr(sum.income)}, spent ${inr(sum.spent)}, saved ${inr(sum.savings)} (${sum.savingsPct}%)."
                     .replaceFirstChar { it.uppercase() }
             )
+            Q_SPEND.containsMatchIn(s) && com.familyhub.app.family.Planner.spendTopic(s) != null -> {
+                // "How much did we spend on groceries this month?": one category (or payee) from the real entries.
+                val topic = com.familyhub.app.family.Planner.spendTopic(s)!!
+                fun inRange(r: Map<String, Any?>, a: Long, b: Long) = Ledger.isSpend(r) && ((r["dateMillis"] as? Number)?.toLong() ?: 0L) in a..b
+                val allSpends = data["expenses"].orEmpty().filter { Ledger.isSpend(it) }
+                val cat = com.familyhub.app.family.Planner.matchCategory(topic, allSpends.map { it.str("category").ifBlank { "Other" } }.distinct())
+                val pick: (Map<String, Any?>) -> Boolean = if (cat != null) { r -> r.str("category").ifBlank { "Other" } == cat }
+                    else { r -> r.str("title").lowercase(Locale.ROOT).contains(topic) }
+                val label = cat ?: "\"$topic\""
+                val now = data["expenses"].orEmpty().filter { inRange(it, from, to) && pick(it) }
+                if (cat == null && allSpends.none(pick)) reply("I couldn't find any spending on \"$topic\" in Finance. Try the category name as it appears in Finance.")
+                else {
+                    val total = now.sumOf { Ledger.spendAmount(it) }
+                    val (pf, pt) = monthRange(if (last) -2 else -1)
+                    val before = data["expenses"].orEmpty().filter { inRange(it, pf, pt) && pick(it) }.sumOf { Ledger.spendAmount(it) }
+                    reply(
+                        "$who spent ${inr(total)} on $label $period (${now.size} ${if (now.size == 1) "entry" else "entries"})." +
+                            (if (before > 0) " The month before: ${inr(before)}." else "") +
+                            " Taken from your Finance entries."
+                    )
+                }
+            }
             Q_SPEND.containsMatchIn(s) -> reply(
                 "$who spent ${inr(sum.spent)} $period" + (if (sum.income > 0) ", against income of ${inr(sum.income)}" else "") +
                     (if (!mine && env.family.monthlyBudget > 0 && !last) " (budget ${inr(env.family.monthlyBudget)})" else "") +

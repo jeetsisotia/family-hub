@@ -162,14 +162,20 @@ Evidence:
   - Build APK #92 (`7bc061b`): 28 CHECKs PASS, no crash. The planner and recurring CHECKs in #92 failed only because the report share sheet stayed open over the screen; the check script now closes it, and the final run is in the final report.
 - Screenshots in light and dark for every new screen.
 
+Commits: Phase 2 `e71d047`, Phase 3 `bdea772`, Phase 4 `9052934`, fixes and docs `67128f7`, audit fixes (see below). Final emulator run before the audit: Build APK #93 (`67128f7`), 38 CHECKs PASS, no crash; the 2 FAILs were the check, not the app (a button below the fold on the split demo screen; the Google chip visible in the screenshot).
+
+### Audit against the master prompt (27 Nov, 17:40)
+
+Gaps found and fixed in one bundle: spending on one category in the assistant, the notification centre filters, subscription payments from Finance, warranty start and receipt photo for maintenance and vehicles. Unit tests: phase2-test and phase4-test extended (all pass locally). Corrected: Household inventory already exists as Home Vault.
+
 ### Phase 2
 
 | Feature | Status | Evidence |
 |---|---|---|
 | 2.1 Shopping and household lists | **PASS** | Lists (Groceries, Main list, a party list), quantity, category, price, who buys it, "Not in shop", bought history, search, estimate "5 to buy · 1 not available · about ₹690" (#89, #92 CHECKs). Sharing between phones: NEEDS MY PHONE |
-| 2.2 Home and vehicle maintenance | **PASS** | Due in 60 days (service, warranty, insurance, PUC), service history and Log service (#89 screenshots, #92 CHECK) |
+| 2.2 Home and vehicle maintenance | **PASS** | Due in 60 days (service, warranty, insurance, PUC), service history and Log service (#89 screenshots, #92 CHECK). Audit fix: warranty start date and a receipt or bill photo (kept on the phone) added |
 | 2.3 Family Calendar 2.0 | **PASS** | Month, Week and Agenda views; member and category filters; "1 clash: Dentist (Asha) and School PTM" (#92 CHECKs) |
-| 2.4 Subscription manager | **PASS** | ₹649 a month counts active only; paused gym in History; status, provider, payment method. The older blue summary also counted paused subscriptions and now uses the same rule (final bundle) |
+| 2.4 Subscription manager | **PASS** | ₹649 a month counts active only; paused gym in History; status, provider, payment method. The older blue summary also counted paused subscriptions and now uses the same rule (`67128f7`). Audit fix: "Paid recently (from Finance)" lists the real payments for each subscription |
 
 ### Phase 3
 
@@ -185,7 +191,7 @@ Evidence:
 | Feature | Status | Evidence |
 |---|---|---|
 | 4.1 Family planner (schedule, bills, week summary, shopping list from one sentence) | **PASS** (unit), emulator in the final run | phase4-test 26 checks |
-| 4.2 Expense questions (category increase, recurring, pending bills) | **PASS** (unit), emulator in the final run | |
+| 4.2 Expense questions (category increase, recurring, pending bills, spend on one category) | **PASS** | #93 CHECKs. Audit fix: "How much did we spend on groceries this month?" now answers for that category (or payee) with last month alongside; before, it gave only the overall total |
 | 4.3 Smart reminder agent ("Suggest reminders", each confirmed) | **PASS** (unit), emulator in the final run | |
 | 4.4 Email-to-task (Gmail → Find tasks and dates) | **PARTIAL**: built, NEEDS MY PHONE | Needs Google sign-in and a Gemini key |
 | 4.5 Document assistant (attach a PDF or photo → summary, questions, Find tasks and dates) | **PARTIAL**: built, NEEDS MY PHONE | Needs a Gemini key |
@@ -199,12 +205,12 @@ Evidence:
 | Personalised home (reorder or hide More items) | Existing (Arrange), not changed |
 | Family member profiles | Existing (Profile, Family), not changed |
 | Family memories | Existing module (Memories), not changed |
-| Household inventory | PARTIAL: appliances with purchase date, warranty and service history in Maintenance (2.2). No separate inventory |
+| Household inventory | Existing: Home Vault (items, brand, serial number, purchase date, price, warranty, service provider), plus Maintenance (2.2) |
 | Meal planner | Existing module (Meals), not changed |
 | Offline mode | Existing: Firestore keeps data on the phone and syncs later |
 | Data export | Existing (Settings → Data tools) plus the new Finance reports |
-| Notification centre | Existing (All alerts), not changed |
-| Advanced permissions | Existing (Finance editing per member, admins); no per-record permissions. NOT STARTED |
+| Notification centre | Audit fix: Due soon now lists overdue first, with filter chips (All, Overdue, and each section such as Documents or Vehicles) |
+| Advanced permissions | PARTIAL: existing roles (Super Admin, Family Admin, Member), Finance editing per member, and each record can be Family or Only me. No per-module access lists |
 | Savings challenges | NOT STARTED |
 
 ## 10. Release

@@ -52,5 +52,16 @@ fun main() {
     check("shopping: list name and items", sl?.listName == "Tomorrow" && sl.items == listOf("milk", "eggs", "bread"), sl)
     check("shopping: without a name", Planner.shoppingList("make a shopping list with rice, dal")?.let { it.listName == "Shopping" && it.items.size == 2 } == true)
     check("shopping: no items means the assistant asks the AI", Planner.shoppingList("create a shopping list for the party") == null)
+
+    // ---------- spending on one category ----------
+    check("spend: topic from 'How much did we spend on groceries this month?'", Planner.spendTopic("How much did we spend on groceries this month?") == "groceries", Planner.spendTopic("How much did we spend on groceries this month?"))
+    check("spend: topic without a month", Planner.spendTopic("how much have I spent on fuel?") == "fuel")
+    check("spend: no topic for a plain total", Planner.spendTopic("How much did we spend this month?") == null)
+    check("spend: no topic for 'on it'", Planner.spendTopic("how much did we spend on it") == null)
+    val cats = listOf("Groceries", "Dining", "Fuel", "Health & Medical", "Shopping")
+    check("spend: grocery → Groceries", Planner.matchCategory("grocery", cats) == "Groceries")
+    check("spend: groceries → Groceries", Planner.matchCategory("groceries", cats) == "Groceries")
+    check("spend: medical → Health & Medical", Planner.matchCategory("medical", cats) == "Health & Medical")
+    check("spend: unknown → null (then searched as a payee)", Planner.matchCategory("mukul", cats) == null)
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

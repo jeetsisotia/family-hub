@@ -372,8 +372,23 @@ fun SubscriptionsOverview(env: AppEnv) {
                 Text("Renewing in the next 30 days", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
                 soon.take(5).forEach { (s, d) -> Row { Text(s.s("title"), Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis); Text("${fmt.format(Date(d))} · ${inr((s["amountInr"] as? Number)?.toDouble() ?: 0.0)}") } }
             }
+            val paid = remember(env.data) {
+                val ex = env.data["expenses"].orEmpty()
+                subs.filter { it["isDeleted"] != true }.flatMap { s -> Subscriptions.payments(s, ex).take(3).map { s.s("title") to it } }
+                    .sortedByDescending { it.second.l("dateMillis") ?: 0L }
+            }
+            if (paid.isNotEmpty()) {
+                Text("Paid recently (from Finance)", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                paid.take(5).forEach { (name, e) ->
+                    Row {
+                        Text(name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${e.l("dateMillis")?.let { fmt.format(Date(it)) } ?: ""} · ${inr((e["amountInr"] as? Number)?.toDouble() ?: 0.0)}",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
             if (stopped.isNotEmpty()) {
-                Text("History", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
+                Text("History",fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp))
                 stopped.take(5).forEach { s -> Text("${s.s("title")}: ${Subscriptions.status(s).label.lowercase()}" + (s.l("updatedAt")?.let { " (changed ${fmt.format(Date(it))})" } ?: ""), style = MaterialTheme.typography.bodySmall) }
             }
             Text("Totals count active subscriptions only. Nothing is paid or cancelled from here.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
