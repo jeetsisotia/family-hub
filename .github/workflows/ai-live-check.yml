@@ -1,0 +1,19 @@
+name: AI live check
+
+# Calls the Gemini API with the same request shape as the app (tools/ai-live/check.py): a general question,
+# web search with real sources, a follow-up, and an invalid key. Uses the GEMINI_API_KEY secret if one is
+# set; the key is never printed. Run by hand only, so it never spends quota on its own.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Gemini answers, web search and errors
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python3 tools/ai-live/check.py
