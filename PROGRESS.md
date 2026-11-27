@@ -508,7 +508,20 @@ Before this bundle, a new or renamed category never reached past transactions, a
 - Duplicates:
   - SMS, email and a typed entry of one payment are found together
   - a different shop, a transfer against rent, monthly payments, entries by different people, exclusions and deleted entries are handled
-- Build and screens: pending (see `docs/CONTINUATION-REPORT.md`).
+- **Builds:**
+  - APK build #64 (p39, commit `b86ccef`): **passed**, including the emulator smoke test.
+  - Build #65 (p40, commit `d18184c`): **passed**, with the new screenshot list.
+  - Unit tests runs #1 and #2 on GitHub: **passed** (all 8 suites).
+- **Screenshots (build #65, inspected by eye):**
+  - Home and More in light, dark and Reduce transparency
+  - Finance, Transactions (light and dark), Categories and Duplicates (light and dark)
+  - Settings (light and dark), Family safety, Health, Family, Chats, AI settings, Reminders, Insights, Cards and SOS
+- **Defects found in them, fixed in p41:**
+  - the Transactions date chips wrapped ("Cust/om") and pushed the Family chip off screen
+  - Duplicates cut entry names short and said "typed in and sms"
+  - Home's Recent list was empty for entries without a saved-at time
+  - the Insights filter chips wrapped onto three rows
+  - the Family tab opened with a large solid-blue invite banner
 
 ---
 

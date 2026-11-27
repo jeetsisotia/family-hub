@@ -104,7 +104,8 @@ fun DuplicatesScreen(env: AppEnv) {
         ) {
             item {
                 Text(
-                    "Entries with the same amount and direction within a day and a half, plus the same reference, card ending " +
+                    "Pick the entry to keep with the round button; ticked entries are removed. " +
+                        "Entries with the same amount and direction within a day and a half, plus the same reference, card ending " +
                         "or shop. Amount alone is never enough. Check each one: nothing is removed until you confirm, and removed " +
                         "entries go to Recently deleted.",
                     style = MaterialTheme.typography.bodySmall,
@@ -144,7 +145,17 @@ fun DuplicatesScreen(env: AppEnv) {
                         g.records.forEach { r ->
                             val id = r.str("id")
                             val isKeep = id == keepId
-                            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable {
+                                    keepChoice[g.key] = id
+                                    removeChoice[g.key] = g.records.map { it.str("id") }.filter { it != id }.toSet()
+                                }.padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = isKeep, onClick = {
+                                    keepChoice[g.key] = id
+                                    removeChoice[g.key] = g.records.map { it.str("id") }.filter { it != id }.toSet()
+                                })
                                 Column(Modifier.weight(1f)) {
                                     Text(r.str("title").ifBlank { r.str("merchant") }.ifBlank { "Entry" }, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                         fontWeight = if (isKeep) FontWeight.SemiBold else FontWeight.Normal)
@@ -154,18 +165,17 @@ fun DuplicatesScreen(env: AppEnv) {
                                         style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                Text(inr(r.num("amountInr") ?: 0.0), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(end = 6.dp))
-                                if (isKeep) {
-                                    AssistChip(onClick = {}, label = { Text("Keep") }, leadingIcon = { Icon(Icons.Rounded.Check, null) })
-                                } else {
-                                    TextButton(onClick = {
-                                        keepChoice[g.key] = id
-                                        removeChoice[g.key] = g.records.map { it.str("id") }.filter { it != id }.toSet()
-                                    }) { Text("Keep this") }
-                                    Checkbox(checked = id in removeIds, onCheckedChange = { on ->
-                                        removeChoice[g.key] = if (on) removeIds + id else removeIds - id
-                                    })
+                                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(start = 6.dp)) {
+                                    Text(inr(r.num("amountInr") ?: 0.0), fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        if (isKeep) "Keep" else if (id in removeIds) "Remove" else "Leave",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isKeep) Color(0xFF34C759) else if (id in removeIds) Color(0xFFFF3B30) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                    )
                                 }
+                                if (!isKeep) Checkbox(checked = id in removeIds, onCheckedChange = { on ->
+                                    removeChoice[g.key] = if (on) removeIds + id else removeIds - id
+                                })
                             }
                         }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

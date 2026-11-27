@@ -244,8 +244,11 @@ data class RecentItem(val title: String, val kind: String, val at: Long, val amo
 /** The five newest money entries, tasks and events the chosen view shows. Health records are never listed. */
 fun recentActivity(records: Map<String, List<com.familyhub.app.data.remote.Rec>>, include: (com.familyhub.app.data.remote.Rec) -> Boolean): List<RecentItem> {
     val inr = NumberFormat.getCurrencyInstance(Locale("en", "IN")).apply { maximumFractionDigits = 0 }
+    val now = System.currentTimeMillis()
+    // When it was saved; older records without that use their own date, as long as it is not in the future.
     fun at(r: com.familyhub.app.data.remote.Rec): Long? =
         listOf("updatedAt", "createdAt").firstNotNullOfOrNull { (r[it] as? Number)?.toLong() }
+            ?: listOf("dateMillis", "startTimeMillis").firstNotNullOfOrNull { (r[it] as? Number)?.toLong() }?.takeIf { it <= now }
     fun live(r: com.familyhub.app.data.remote.Rec) = r["isDeleted"] != true && include(r)
     val out = ArrayList<RecentItem>()
     records["expenses"].orEmpty().filter { live(it) }.forEach { r ->

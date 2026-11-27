@@ -28,6 +28,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.familyhub.app.data.model.FamilyGroup
 import com.familyhub.app.data.model.FamilyMember
 import com.familyhub.app.data.model.FamilyRole
@@ -215,10 +216,7 @@ fun FamilyScreen(
             )
         }
         item {
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
+            GlassCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -226,26 +224,26 @@ fun FamilyScreen(
                     Text(
                         "Invite code",
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                     Text(
                         family.inviteCode,
-                        style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onPrimary
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 2.sp),
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
                         "Family members install the app, sign in with Google, choose Join Existing Family and enter this code or scan the QR. You approve them below.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = {
                             clipboard.setText(AnnotatedString(family.inviteCode))
                             Toast.makeText(context, "Invite code copied", Toast.LENGTH_SHORT).show()
                         }) {
-                            Icon(Icons.Rounded.ContentCopy, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Icons.Rounded.ContentCopy, contentDescription = null)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Copy", color = MaterialTheme.colorScheme.onPrimary, maxLines = 1, softWrap = false)
+                            Text("Copy", maxLines = 1, softWrap = false)
                         }
                         TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = {
                             val send = Intent(Intent.ACTION_SEND).apply {
@@ -257,14 +255,14 @@ fun FamilyScreen(
                             }
                             context.startActivity(Intent.createChooser(send, "Invite to Family Hub"))
                         }) {
-                            Icon(Icons.Rounded.Share, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Icons.Rounded.Share, contentDescription = null)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Share", color = MaterialTheme.colorScheme.onPrimary, maxLines = 1, softWrap = false)
+                            Text("Share", maxLines = 1, softWrap = false)
                         }
                         TextButton(contentPadding = PaddingValues(horizontal = 8.dp), onClick = { showQr = true }) {
-                            Icon(Icons.Rounded.QrCode2, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Icons.Rounded.QrCode2, contentDescription = null)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("QR", color = MaterialTheme.colorScheme.onPrimary, maxLines = 1, softWrap = false)
+                            Text("QR", maxLines = 1, softWrap = false)
                         }
                     }
                 }

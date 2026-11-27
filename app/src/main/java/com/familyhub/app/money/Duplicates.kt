@@ -95,7 +95,7 @@ object Duplicates {
             if (sameShop) reasons += "Same shop or payee (${s(keep, "merchant").ifBlank { s(keep, "title") }.take(30)})"
             val origins = g.map { origin(it) }.distinct()
             if (origins.size > 1) {
-                reasons += "Saved from " + origins.joinToString(" and ") { it.lowercase(Locale.ROOT) }
+                reasons += "Saved from " + origins.joinToString(" and ") { if (it == "Typed in") "typed in by hand" else it }
                 if (sameShop || (ends.size >= 2 && ends.distinct().size == 1)) high = true
             }
             if (g.all { Ledger.type(it) == "CARD_PAYMENT" }) {

@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.common
 
+import androidx.compose.foundation.horizontalScroll
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -139,7 +141,19 @@ fun TextInput(
 /** A row of tappable chips; exactly one is selected. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ChoiceChips(options: List<String>, selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier) {
+fun ChoiceChips(options: List<String>, selected: String, onSelect: (String) -> Unit, modifier: Modifier = Modifier, scroll: Boolean = false) {
+    if (scroll) {
+        // One line that scrolls sideways, for filter bars at the top of a screen.
+        Row(
+            modifier = modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { o ->
+                FilterChip(selected = o == selected, onClick = { onSelect(if (o == selected) "" else o) }, label = { Text(o, maxLines = 1) })
+            }
+        }
+        return
+    }
     FlowRow(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -168,7 +168,7 @@ fun InsightsScreen(env: AppEnv) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item {
-                ChoiceChips(MODES, mode, { mode = it.ifBlank { "This month" }; categoryFilter = null })
+                ChoiceChips(MODES, mode, { mode = it.ifBlank { "This month" }; categoryFilter = null }, scroll = true)
             }
             if (mode == "Pick month") {
                 item {
@@ -217,7 +217,7 @@ fun InsightsScreen(env: AppEnv) {
                 }
             }
             item {
-                ChoiceChips(listOf("Everyone", "Me"), scope, { scope = it.ifBlank { "Everyone" } })
+                ChoiceChips(listOf("Everyone", "Me"), scope, { scope = it.ifBlank { "Everyone" } }, scroll = true)
             }
 
             // Summary

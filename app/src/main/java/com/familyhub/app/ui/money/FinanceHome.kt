@@ -5,6 +5,7 @@ package com.familyhub.app.ui.money
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -391,12 +392,14 @@ fun TransactionsScreen(env: AppEnv) {
                 })
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FilterChip(selected = custom == null && offset == 0, onClick = { custom = null; offset = 0 }, label = { Text("This month") })
-                    FilterChip(selected = custom == null && offset == -1, onClick = { custom = null; offset = -1 }, label = { Text("Last month") })
-                    FilterChip(selected = custom != null, onClick = { pickRange = true }, label = { Text("Custom") })
-                    Spacer(modifier = Modifier.weight(1f))
-                    FilterChip(selected = familyView, onClick = { familyView = !familyView }, label = { Text("Family") })
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.horizontalScroll(rememberScrollState())
+                ) {
+                    FilterChip(selected = custom == null && offset == 0, onClick = { custom = null; offset = 0 }, label = { Text("This month", maxLines = 1) })
+                    FilterChip(selected = custom == null && offset == -1, onClick = { custom = null; offset = -1 }, label = { Text("Last month", maxLines = 1) })
+                    FilterChip(selected = custom != null, onClick = { pickRange = true }, label = { Text("Dates…", maxLines = 1) })
+                    FilterChip(selected = familyView, onClick = { familyView = !familyView }, label = { Text("Family", maxLines = 1) })
                 }
             }
             if (custom == null) item { MonthBar(offset, { offset = it }, label) }
