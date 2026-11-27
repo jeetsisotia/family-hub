@@ -314,32 +314,6 @@ fun UniversalChatScreen(env: AppEnv) {
     val connected = GeminiClient.isConfigured()
     val messages = current?.messages.orEmpty()
 
-    // Action cards use the same runner and Undo as the FamilyHub actions screen.
-    var cardsRefresh by remember { mutableStateOf(0) }
-    fun addResult(text: String) {
-        val c = current ?: return
-        persist(c.copy(messages = c.messages + UMsg(false, text, local = true), updatedAt = System.currentTimeMillis()))
-    }
-    fun runCard(m: UMsg, a: AiAction) {
-        if (a.state == "saving") return
-        if (a.kind == "open") { a.state = "failed"; a.error = "Open this from FamilyHub actions."; cardsRefresh++; return }
-        a.state = "saving"; cardsRefresh++
-        scope.launch {
-            val ok = runAiAction(env, context, a)
-            if (ok && a.kind == FinanceActions.KIND) {
-                m.actions.forEach { o -> if (o !== a && o.state == "new") o.state = "dismissed" }
-                addResult(FinanceActions.resultText(a))
-            }
-            cardsRefresh++
-        }
-    }
-    fun undoCard(a: AiAction) {
-        scope.launch {
-            if (undoAiAction(env, context, a) && a.kind == FinanceActions.KIND) addResult("Undone: \"${a.title}\" is back in ${a.category}. The server confirmed it.")
-            cardsRefresh++
-        }
-    }
-
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         try {
@@ -440,6 +414,32 @@ fun UniversalChatScreen(env: AppEnv) {
             } finally {
                 if (activeRequest == requestId) { busy = false; job = null; activeRequest = ""; partial = "" }
             }
+        }
+    }
+
+    // Action cards use the same runner and Undo as the FamilyHub actions screen.
+    var cardsRefresh by remember { mutableStateOf(0) }
+    fun addResult(text: String) {
+        val c = current ?: return
+        persist(c.copy(messages = c.messages + UMsg(false, text, local = true), updatedAt = System.currentTimeMillis()))
+    }
+    fun runCard(m: UMsg, a: AiAction) {
+        if (a.state == "saving") return
+        if (a.kind == "open") { a.state = "failed"; a.error = "Open this from FamilyHub actions."; cardsRefresh++; return }
+        a.state = "saving"; cardsRefresh++
+        scope.launch {
+            val ok = runAiAction(env, context, a)
+            if (ok && a.kind == FinanceActions.KIND) {
+                m.actions.forEach { o -> if (o !== a && o.state == "new") o.state = "dismissed" }
+                addResult(FinanceActions.resultText(a))
+            }
+            cardsRefresh++
+        }
+    }
+    fun undoCard(a: AiAction) {
+        scope.launch {
+            if (undoAiAction(env, context, a) && a.kind == FinanceActions.KIND) addResult("Undone: \"${a.title}\" is back in ${a.category}. The server confirmed it.")
+            cardsRefresh++
         }
     }
 
