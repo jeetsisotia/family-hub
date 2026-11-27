@@ -200,7 +200,7 @@ jobs:
           seen 'text="Change"' ai_recat_1 "nothing changed before confirming (Change button waiting)"
           tap_text Change c1; sleep 15
           shot demo_ai_recat_2_changed; screen_text ai_recat_2
-          seen 'Changed ✓' ai_recat_2 "card says Changed only after the save"
+          seen 'Done: ' ai_recat_2 "result shown only after the save (Done message)"
           seen 'The server confirmed it' ai_recat_2 "result read back from the database"
           seen 'Shopping • UPI' ai_recat_2 "Finance row shows Shopping"
           tap_text Undo u1; sleep 15
@@ -217,8 +217,8 @@ jobs:
           # Several matches: every one is listed and the person picks one.
           recat emulator "change_category_of_swiggy_to_shopping" 25
           shot demo_ai_recat_5_choose; screen_text ai_recat_5
-          n=$(grep -o 'text="Change"' shots/ai_recat_5.xml | wc -l)
-          [ "$n" -ge 2 ] && echo "CHECK several matches are listed to choose from ($n Change buttons on screen): PASS" || echo "CHECK several matches are listed to choose from ($n on screen): FAIL"
+          seen 'Which one do you mean' ai_recat_5 "several matches: the question is shown first"
+          grep -q 'text="Change"' shots/ai_recat_5.xml && echo "CHECK several matches: a card to pick is on screen: PASS" || echo "CHECK several matches: a card to pick is on screen: FAIL"
           adb shell am force-stop $PKG
           # Database unreachable: the card must not say Changed.
           recat offline "$ASK" 25; tap_text Change c3; sleep 30
@@ -234,7 +234,7 @@ jobs:
           seen 'matching [^ ]*mukul[^ ]* in Finance' ai_recat_7 "Mukul: searched for mukul only (the word category is not part of the name)"
           tap_text Change c4; sleep 15
           shot demo_ai_recat_8_mukul_changed; screen_text ai_recat_8
-          seen 'Changed ✓' ai_recat_8 "Mukul: changed after confirming, read back from the database"
+          seen 'Done: ' ai_recat_8 "Mukul: changed after confirming, read back from the database"
           tap_text Undo u2; sleep 15; screen_text ai_recat_9
           seen 'is back in Other' ai_recat_9 "Mukul: Undo confirmed"
           adb shell am force-stop $PKG
@@ -273,6 +273,13 @@ jobs:
           # ---- Phase 1: family activity, document expiry, recurring payments (light and dark) ----
           for r in activity recurring documents dark:activity dark:recurring dark:documents; do demo "$r" "" 7 no; done
           demo form:documents "" 7 scroll
+          # Track a recurring payment: confirm dialog, saved to the test database, suggestion gone.
+          adb shell am start -W -n $PKG/.DemoActivity --es route recurring --es store emulator >/dev/null 2>&1; sleep 10
+          tap_text Track r1; sleep 3; shot demo_recurring_confirm; screen_text rec1
+          seen 'Track this payment' rec1 "recurring: Track asks to confirm name, amount and frequency first"
+          tap_text Save r2; sleep 8; shot demo_recurring_saved; screen_text rec2
+          seen 'No new recurring payments found' rec2 "recurring: saved after confirming, suggestion no longer offered"
+          adb shell am force-stop $PKG
           adb shell am start -n $PKG/.MainActivity >/dev/null 2>&1
           sleep 5
           adb logcat -d > shots/logcat.txt
