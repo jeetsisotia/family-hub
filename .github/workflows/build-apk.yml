@@ -269,6 +269,10 @@ jobs:
 
           # ---- Health, Documents and Reminders add forms, light and dark ----
           for r in form:vitals form:medicines form:documents form:reminders dark:form:vitals dark:form:medicines dark:form:documents dark:form:reminders; do demo "$r" "" 7 no; done
+
+          # ---- Phase 1: family activity, document expiry, recurring payments (light and dark) ----
+          for r in activity recurring documents dark:activity dark:recurring dark:documents; do demo "$r" "" 7 no; done
+          demo form:documents "" 7 scroll
           adb shell am start -n $PKG/.MainActivity >/dev/null 2>&1
           sleep 5
           adb logcat -d > shots/logcat.txt
