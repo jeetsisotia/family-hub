@@ -15,12 +15,12 @@ Brief: "FamilyHub — Master development & release prompt" plus the "Final compl
 
 | | |
 |---|---|
-| Latest commit | `6663968` on `main` (bundle p41) |
+| Latest code commit | `ca703ec` on `main` (bundle p42); this report is updated in p43 |
 | APK | GitHub → Actions → **Build APK** → the newest successful run → artifact **family-hub-apk** (`app-debug.apk`, signed with the same key as before, so it installs over the old app) |
-| Builds | **#64** (p39) PASS, **#65** (p40) PASS, **#66** (p41): see the bottom of this report |
-| Unit tests on GitHub | "Unit tests" workflow, runs #1 to #3, all 8 suites PASS |
+| Builds | **#64** (p39), **#65** (p40), **#66** (p41) and **#67** (p42): all **PASS**, each with the emulator smoke test (no crash) |
+| Unit tests on GitHub | "Unit tests" workflow, runs #1 to #4, all 8 suites PASS |
 | Firestore rules | Not changed in this brief, so nothing was republished. The live rules are those of run #7 (79 tests PASS) |
-| Screenshots | `demo-screenshots` branch, named after each screen, in light and dark |
+| Screenshots | `demo-screenshots` branch (from build #67), named after each screen, in light and dark. Inspected by eye. Defects found in build #65 were fixed and checked again in build #67 |
 
 ## Results by task
 
