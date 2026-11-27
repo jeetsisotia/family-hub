@@ -334,6 +334,16 @@ jobs:
           askq "How_much_did_I_spend_on_kitchen_supplies_this_month?" sub; seen 'Household › Kitchen supplies' ask_sub "spend: a subcategory is found"
           askq "How_much_did_we_spend_on_cab_this_month?" amb; seen 'matches more than one category' ask_amb "spend: two real matches → asks which one"
           askq "How_much_did_we_spend_on_zorbing_this_month?" none; seen 'find a category or payee' ask_none "spend: no match said honestly"
+          # P0 (27 Nov 20:33): no Gemini key on this emulator. Money questions must be answered on the phone; others ask for a key.
+          askq "Write_a_short_poem_about_rain" gen; seen 'add your own free Gemini API key' ask_gen "no key: a general question asks for a Gemini key (proves no key is set)"
+          askq "How_much_did_we_apend_on_grocery_this_month" apend; seen 'on Groceries this month' ask_apend "no key: typo 'apend' still answered from Finance"
+          grep -q 'Gemini API key' shots/ask_apend.xml && echo "CHECK no key: money question never asks for a key: FAIL" || echo "CHECK no key: money question never asks for a key: PASS"
+          askq "How_much_did_I_spend_on_transport_this_month?" trans2; seen 'on Transport this month' ask_trans2 "no key: 'I' transport question"
+          askq "grocery_pe_kitna_kharcha_hua_is_mahine?" hing2; seen 'on Groceries this month' ask_hing2 "no key: Hinglish with a question mark"
+          askq "What_is_our_grocery_spending_this_month?" our; seen 'on Groceries this month' ask_our "no key: 'our' question"
+          askq "How_much_did_we_spend_on_grocery_this_week?" wk; seen 'on Groceries this week' ask_wk "no key: weekly question"
+          seen 'Last week:' ask_wk "no key: weekly question compares with last week"
+          askq "How_much_did_we_spend_on_grocery_last_month?" lm; seen 'on Groceries last month' ask_lm "no key: previous-month question"
           grep -q 'The family spent .* this month\. Card bill' shots/ask_groc.xml && echo "CHECK spend: never the overall total for a category: FAIL" || echo "CHECK spend: never the overall total for a category: PASS"
           for r in weekly_brief dark:weekly_brief; do demo "$r" "" 7 no; done
 
