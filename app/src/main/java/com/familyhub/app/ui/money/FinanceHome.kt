@@ -161,7 +161,7 @@ private fun TxLine(r: Rec, items: List<Rec>, selected: Boolean? = null, onLongCl
 
 /** Opens the existing detail sheet (refunds, merchant rules, mark paid) and the shared form for editing. */
 @Composable
-private fun TransactionDetails(env: AppEnv, rec: Rec, all: List<Rec>, onDismiss: () -> Unit, onEdit: (Rec) -> Unit) {
+internal fun TransactionDetails(env: AppEnv, rec: Rec, all: List<Rec>, onDismiss: () -> Unit, onEdit: (Rec) -> Unit) {
     var confirmDelete by remember { mutableStateOf(false) }
     if (confirmDelete) {
         AlertDialog(

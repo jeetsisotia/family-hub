@@ -152,6 +152,21 @@ class DemoActivity : FragmentActivity() {
                             )
                             route == "finance" -> com.familyhub.app.ui.money.FinanceDashboard(env)
                             route == "universal" -> com.familyhub.app.ui.ai.UniversalChatScreen(env)
+                            // Forms and detail sheets, opened directly so the emulator can photograph them.
+                            route == "form_expense" -> Box(Modifier.fillMaxSize()) {
+                                com.familyhub.app.ui.money.TransactionsScreen(env)
+                                com.familyhub.app.ui.money.TransactionForm(env, null, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE) {}
+                            }
+                            route == "form_edit_expense" -> Box(Modifier.fillMaxSize()) {
+                                val r = env.data["expenses"].orEmpty().first { it["type"] == "EXPENSE" }
+                                com.familyhub.app.ui.money.TransactionsScreen(env)
+                                com.familyhub.app.ui.money.TransactionForm(env, r, com.familyhub.app.money.FinanceMonth.Kind.EXPENSE) {}
+                            }
+                            route == "sheet_transaction" -> Box(Modifier.fillMaxSize()) {
+                                val all = env.data["expenses"].orEmpty()
+                                com.familyhub.app.ui.money.TransactionsScreen(env)
+                                com.familyhub.app.ui.money.TransactionDetails(env, all.first { it["type"] == "EXPENSE" }, all, {}) {}
+                            }
                             isExtraRoute(route) -> ExtraRoute(route, env)
                             def != null -> ModuleScreen(
                                 def = def,
