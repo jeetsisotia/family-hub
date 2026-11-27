@@ -65,7 +65,10 @@ fun buildSearchDocs(env: AppEnv): List<SearchIndex.Doc> {
         for (r in recs) {
             val title = r.str(m.titleKey)
             if (title.isBlank()) continue
-            val subtitle = m.subtitleKeys.map { r.str(it) }.filter { it.isNotBlank() && it.length < 80 }.joinToString(" · ")
+            // Stored codes such as EXPENSE read as words ("Expense"); short ones like UPI stay as they are.
+            val subtitle = m.subtitleKeys.map { r.str(it) }.filter { it.isNotBlank() && it.length < 80 }
+                .map { v -> if (v.length > 3 && v.all { it.isUpperCase() || it == '_' }) v.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() } else v }
+                .joinToString(" · ")
             // Words in every short text field (notes, payee, provider…), never photos or long encoded data.
             val text = r.entries.asSequence()
                 .filter { (k, v) -> k !in SKIP_KEYS && v is String && v.length in 1..400 && !k.contains("photo", true) && !v.startsWith("data:") && !v.startsWith("local:") }
