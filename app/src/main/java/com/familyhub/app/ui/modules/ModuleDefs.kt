@@ -619,7 +619,8 @@ val GoalsModule = ModuleDef(
         FieldDef("amountInr", "Target (₹)", FieldType.NUMBER, required = true),
         FieldDef("savedInr", "Saved so far (₹)", FieldType.NUMBER),
         FieldDef("targetMillis", "Target date", FieldType.DATE),
-        FieldDef("notes", "Notes", FieldType.MULTILINE)
+        FieldDef("notes", "Notes", FieldType.MULTILINE),
+        FieldDef("archived", "Archived (hide from the progress card)", FieldType.BOOL)
     ),
     amountKey = "amountInr", doneKey = "done", doneLabel = "Achieved", alertOverdue = false, alertDays = 30,
     dateKeys = listOf(DateKey("targetMillis", "Target")),

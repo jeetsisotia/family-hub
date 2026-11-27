@@ -415,6 +415,12 @@ object DemoData {
                 "serviceLog" to listOf(mapOf("at" to now - 80 * d, "cost" to 600.0, "provider" to "CoolCare", "notes" to "Wet service"))),
             rec("type" to "vehicle", "title" to "Honda City", "category" to "Car", "regNumber" to "HR26 AB 1234", "serviceDueMillis" to now + 20 * d,
                 "insuranceExpiryMillis" to now + 50 * d, "pucExpiryMillis" to now + 120 * d),
+            rec("type" to "goal", "title" to "Goa holiday", "amountInr" to 60000.0, "savedInr" to 42000.0, "targetMillis" to now + 120 * d, "done" to false,
+                "contributions" to listOf(mapOf("at" to now - 40 * d, "by" to "Asha", "amount" to 25000.0, "note" to ""),
+                    mapOf("at" to now - 10 * d, "by" to "Ravi", "amount" to 17000.0, "note" to "Bonus"))),
+            rec("type" to "budget_limit", "category" to "Dining", "amountInr" to 3000.0, "period" to "Monthly"),
+            rec("type" to "budget_limit", "category" to "Groceries", "amountInr" to 96000.0, "period" to "Yearly"),
+            rec("type" to "budget_limit", "category" to "Shopping", "amountInr" to 2000.0, "period" to "Monthly", private = true),
             rec("type" to "subscription", "title" to "Cult gym", "provider" to "Cult.fit", "amountInr" to 3000.0, "cycle" to "Quarterly",
                 "status" to "Paused", "renewalMillis" to now + 15 * d, "updatedAt" to now - 5 * d)
         )

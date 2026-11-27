@@ -41,7 +41,16 @@ Priority Zero and Phase 1: **done**. Latest full emulator run: Build APK #86 (`7
 | 2.3 | Calendar 2.0 (above the calendar list): Month, Week and Agenda views; filters by member and category; clash warnings; whose event and who else is going; end time; birthdays shown | Code + tests | p62 |
 | 2.4 | Subscription manager: provider, status (Active, Paused, Cancelled), payment method; monthly and yearly totals; renewals in the next 30 days; history; paused and cancelled ones have no dues | Code + tests | p62 |
 
-### Phase 3 and Phase 4
+### Phase 3
+
+| # | Item | Status | Evidence / commit |
+|---|---|---|---|
+| 3.1 | Savings goals: progress card above Savings goals, add or take out money with who added it, contribution history, by member, monthly amount needed, archive, notification when reached; shared or Only me as before | Code + phase3-test | p63 |
+| 3.2 | Budget planner (Finance → Budget planner): family budget against spending; category limits (monthly or yearly, family or Only me) planned against actual; remaining; alerts; 6-month trend; this month against last; CSV export | Code + tests | p63 |
+| 3.3 | Money insights (Finance → Money insights): month summary, biggest increases, unusual spends, repeating payments, by member (shared entries only), suggestions marked "not financial advice" | Code + tests | p63 |
+| 3.4 | Reports (Finance → Reports): monthly expenses, categories, members, recurring, goals and budget as CSV; PDF summary; shared through the share sheet | Code + tests | p63 |
+
+### Phase 4
 
 NOT STARTED.
 
@@ -52,6 +61,8 @@ NOT STARTED.
 3. Web search and the Gemini error messages with your key.
 4. Gmail still works.
 5. Family activity with entries made by other members.
+6. Phase 2: a shopping item added on one phone appears on another member's phone; an "Only me" item does not.
+7. Phase 3: share a PDF report to WhatsApp or Gmail and open it; the goal-reached notification.
 
 ### How to resume
 
