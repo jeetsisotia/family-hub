@@ -114,8 +114,11 @@ fun DueSummary(env: AppEnv, alerts: List<AlertItem>, listState: LazyListState?, 
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    "${lines.size} due" + if (payable > 0) " · ${inr(payable)}" else "",
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f), maxLines = 1
+                    // Non-breaking spaces + no soft wrap: the line used to wrap after "·" and hide the total.
+                    ("${lines.size} due" + if (payable > 0) " · ${if (payable >= 100_000) inrShort(payable) else inr(payable)}" else "")
+                        .replace(' ', ' '),
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f),
+                    maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis
                 )
                 if (overdue.isNotEmpty()) {
                     Text(
