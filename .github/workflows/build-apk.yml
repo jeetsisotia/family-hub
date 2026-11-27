@@ -298,7 +298,8 @@ jobs:
           seen 'Category limits' p3b "budget: planned against actual by category"
           seen 'only me' p3b "budget: an Only me limit is shown as such"
           adb shell am force-stop $PKG
-          adb shell am start -W -n $PKG/.DemoActivity --es route money_intel >/dev/null 2>&1; sleep 7; screen_text p3i
+          adb shell am start -W -n $PKG/.DemoActivity --es route money_intel >/dev/null 2>&1; sleep 7
+          for n in 1 2 3; do adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 400; sleep 1; done; screen_text p3i
           seen 'not financial advice' p3i "insights: suggestions are labelled as suggestions, not advice"
           adb shell am force-stop $PKG
           adb shell am start -W -n $PKG/.DemoActivity --es route goals >/dev/null 2>&1; sleep 7; screen_text p3g
@@ -306,11 +307,13 @@ jobs:
           adb shell am force-stop $PKG
           adb shell am start -W -n $PKG/.DemoActivity --es route reports >/dev/null 2>&1; sleep 6
           tap_text Share p3r; sleep 4; shot demo_reports_share; screen_text p3r2
-          grep -qiE 'Share|chooser|Gmail|Drive|Nearby' shots/p3r2.xml && echo "CHECK reports: a CSV opens the share sheet: PASS" || echo "CHECK reports: a CSV opens the share sheet: FAIL"
+          grep -qiE 'Sharing 1 file|monthly-expenses' shots/p3r2.xml && echo "CHECK reports: a CSV opens the share sheet: PASS" || echo "CHECK reports: a CSV opens the share sheet: FAIL"
+          # The share sheet belongs to Android: close it so it does not cover the next screens.
+          adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_BACK; sleep 1; adb shell input keyevent KEYCODE_HOME; sleep 1
           adb shell am force-stop $PKG
 
           # ---- Phase 4: the family planner in the assistant (answered on the phone) and the weekly brief ----
-          askq() { adb shell am start -W -n $PKG/.DemoActivity --es route ask --es ask "$1" >/dev/null 2>&1; sleep 8; shot "demo_ask_$2"; screen_text "ask_$2"; adb shell am force-stop $PKG; }
+          askq() { adb shell cmd statusbar collapse >/dev/null 2>&1; adb shell am start -W -n $PKG/.DemoActivity --es route ask --es ask "$1" >/dev/null 2>&1; sleep 8; shot "demo_ask_$2"; screen_text "ask_$2"; adb shell am force-stop $PKG; }
           askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
           askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
           seen 'Clash' ask_week "planner: the clash is pointed out"
@@ -321,6 +324,7 @@ jobs:
           for r in weekly_brief dark:weekly_brief; do demo "$r" "" 7 no; done
 
           # Track a recurring payment: confirm dialog, saved to the test database, suggestion gone.
+          adb shell cmd statusbar collapse >/dev/null 2>&1
           adb shell am start -W -n $PKG/.DemoActivity --es route recurring --es store emulator >/dev/null 2>&1; sleep 10
           tap_text Track r1; sleep 3; shot demo_recurring_confirm; screen_text rec1
           seen 'Track this payment' rec1 "recurring: Track asks to confirm name, amount and frequency first"
