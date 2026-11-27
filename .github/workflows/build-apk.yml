@@ -309,6 +309,17 @@ jobs:
           grep -qiE 'Share|chooser|Gmail|Drive|Nearby' shots/p3r2.xml && echo "CHECK reports: a CSV opens the share sheet: PASS" || echo "CHECK reports: a CSV opens the share sheet: FAIL"
           adb shell am force-stop $PKG
 
+          # ---- Phase 4: the family planner in the assistant (answered on the phone) and the weekly brief ----
+          askq() { adb shell am start -W -n $PKG/.DemoActivity --es route ask --es ask "$1" >/dev/null 2>&1; sleep 8; shot "demo_ask_$2"; screen_text "ask_$2"; adb shell am force-stop $PKG; }
+          askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
+          askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
+          seen 'Clash' ask_week "planner: the clash is pointed out"
+          askq "Suggest_reminders" rem; seen 'have no reminder yet' ask_rem "planner: reminders to set, each to confirm"
+          askq "Create_a_shopping_list_for_tomorrow:_milk,_eggs_and_bread" shop; seen 'Tomorrow' ask_shop "planner: a named shopping list from one sentence"
+          askq "Which_category_increased_compared_to_last_month?" cat; seen 'last month' ask_cat "planner: category increase from real data"
+          askq "Weekly_family_brief" brief; seen 'Your weekly family brief' ask_brief "planner: weekly brief in the chat"
+          for r in weekly_brief dark:weekly_brief; do demo "$r" "" 7 no; done
+
           # Track a recurring payment: confirm dialog, saved to the test database, suggestion gone.
           adb shell am start -W -n $PKG/.DemoActivity --es route recurring --es store emulator >/dev/null 2>&1; sleep 10
           tap_text Track r1; sleep 3; shot demo_recurring_confirm; screen_text rec1
