@@ -42,8 +42,8 @@ jobs:
           }
           W=$RUNNER_TEMP/w; mkdir -p $W
 
-          (cd tools/ledger-test && cp $A/money/Ledger.kt $A/money/MerchantRules.kt $A/money/FinanceMonth.kt $A/money/Recategorize.kt $A/money/Duplicates.kt $W/ && \
-            kotlinc $W/Ledger.kt $W/MerchantRules.kt $W/FinanceMonth.kt $W/Recategorize.kt $W/Duplicates.kt LedgerTest.kt -include-runtime -d $W/ledger.jar 2>&1 | grep -v warning || true)
+          (cd tools/ledger-test && cp $A/money/Ledger.kt $A/money/MerchantRules.kt $A/money/FinanceMonth.kt $A/money/Recategorize.kt $A/money/Duplicates.kt $A/money/TxnFinder.kt $W/ && \
+            kotlinc $W/Ledger.kt $W/MerchantRules.kt $W/FinanceMonth.kt $W/Recategorize.kt $W/Duplicates.kt $W/TxnFinder.kt LedgerTest.kt -include-runtime -d $W/ledger.jar 2>&1 | grep -v warning || true)
           run "Money engine (ledger-test)" $W/ledger.jar
 
           (cd tools/import-test && \

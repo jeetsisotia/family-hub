@@ -169,6 +169,63 @@ jobs:
           for r in form_expense form_edit_expense sheet_transaction dark:form_expense dark:sheet_transaction; do demo "$r" "" 7 no; done
           for r in home_scrolled dark:home_scrolled; do demo "$r" "" 8 no; done
           demo assistant "Find_duplicate_transactions" 60 up
+
+          # ---- The assistant changes a Finance category: a real save in a local test database (Firestore emulator
+          # on this computer, reached from the phone emulator at 10.0.2.2), read back from it, then Undo. ----
+          tap_text() {
+            for try in 1 2 3; do
+              adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+              adb pull /sdcard/ui.xml "shots/tap-$2-$try.xml" >/dev/null 2>&1
+              B=$(grep -o "text=\"$1\"[^>]*bounds=\"\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]\"" "shots/tap-$2-$try.xml" | grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]' | head -1)
+              if [ -n "$B" ]; then
+                set -- "$1" "$2" $(echo "$B" | sed 's/\]\[/ /; s/[][]//g; s/,/ /g')
+                adb shell input tap $(( ($3 + $5) / 2 )) $(( ($4 + $6) / 2 ))
+                echo "TAPPED: $1"
+                return 0
+              fi
+              # Not in view: scroll the chat back a little and look again.
+              adb shell input swipe $((SW / 2)) $((SH * 3 / 10)) $((SW / 2)) $((SH * 5 / 10)) 400
+              sleep 2
+            done
+            echo "NOT FOUND ON SCREEN: $1"
+            return 1
+          }
+          seen() { grep -q "$1" "shots/$2.xml" && echo "CHECK $3: PASS" || echo "CHECK $3: FAIL"; }
+          ASK="Change_the_category_of_Swiggy_order_from_Meghana_Foods_to_Shopping"
+          recat() { adb shell am start -W -n $PKG/.DemoActivity --es route ai_recat --es store "$1" --es ask "$2" >/dev/null 2>&1; sleep "$3"; }
+          echo "==== AI category change (test database) ===="
+          recat emulator "$ASK" 30
+          shot demo_ai_recat_1_confirm; screen_text ai_recat_1
+          seen 'Category: Dining → Shopping' ai_recat_1 "confirmation card shows the real entry and the new category"
+          seen 'text="Change"' ai_recat_1 "nothing changed before confirming (Change button waiting)"
+          tap_text Change c1; sleep 15
+          shot demo_ai_recat_2_changed; screen_text ai_recat_2
+          seen 'Changed ✓' ai_recat_2 "card says Changed only after the save"
+          seen 'The server confirmed it' ai_recat_2 "result read back from the database"
+          seen 'Shopping • UPI' ai_recat_2 "Finance row shows Shopping"
+          tap_text Undo u1; sleep 15
+          shot demo_ai_recat_3_undone; screen_text ai_recat_3
+          seen 'is back in Dining' ai_recat_3 "Undo confirmed by the database"
+          seen 'Dining • UPI' ai_recat_3 "Finance row back to Dining"
+          adb shell am force-stop $PKG
+          # Change it again, then open the real Finance detail sheet in a new process (data from the test database).
+          recat emulator "$ASK" 30; tap_text Change c2; sleep 15; adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route sheet_transaction --es store emulator >/dev/null 2>&1; sleep 15
+          shot demo_ai_recat_4_finance_details; screen_text ai_recat_4
+          seen 'Shopping' ai_recat_4 "Finance details show the new category after a restart"
+          adb shell am force-stop $PKG
+          # Several matches: every one is listed and the person picks one.
+          recat emulator "change_category_of_swiggy_to_shopping" 25
+          shot demo_ai_recat_5_choose; screen_text ai_recat_5
+          seen 'Which one do you mean' ai_recat_5 "several matches are listed to choose from"
+          adb shell am force-stop $PKG
+          # Database unreachable: the card must not say Changed.
+          recat offline "$ASK" 25; tap_text Change c3; sleep 30
+          shot demo_ai_recat_6_offline; screen_text ai_recat_6
+          seen 'Not confirmed' ai_recat_6 "no success claimed without the database"
+          grep -q 'Changed ✓' shots/ai_recat_6.xml && echo "CHECK offline never says Changed: FAIL" || echo "CHECK offline never says Changed: PASS"
+          adb shell am force-stop $PKG
+          adb logcat -d | grep -E "DemoStore|DemoActivity" | tail -10
           adb shell am start -n $PKG/.MainActivity >/dev/null 2>&1
           sleep 5
           adb logcat -d > shots/logcat.txt
@@ -186,6 +243,16 @@ jobs:
           echo "RESULT: NO CRASH"
           SCRIPT
           chmod +x smoke.sh
+
+      - name: Start a local Firestore emulator (test database for the AI category check, no real data)
+        run: |
+          mkdir -p fsemu && cd fsemu
+          echo '{"emulators":{"firestore":{"host":"0.0.0.0","port":8080}}}' > firebase.json
+          npm install -g firebase-tools@13.29.1 >/dev/null 2>&1
+          java -version 2>&1 | head -1
+          nohup firebase emulators:start --only firestore --project demo-familyhub > ../fsemu.log 2>&1 &
+          for i in $(seq 1 60); do curl -s localhost:8080 >/dev/null && break; sleep 2; done
+          curl -s localhost:8080 >/dev/null && echo "Firestore emulator is up" || (echo "Firestore emulator did not start"; tail -30 ../fsemu.log)
 
       - name: Run app on emulator
         uses: reactivecircus/android-emulator-runner@v2
