@@ -52,7 +52,7 @@ object AiAudit {
 }
 
 /** Kinds of action that change money records: they need Finance editing to be on for the person. */
-private val MONEY_KINDS = setOf("expense", "income", "bill", "merge_refund", "not_expense", "category", "budget")
+private val MONEY_KINDS = setOf("expense", "income", "bill", "merge_refund", "not_expense", "category", "budget", FinanceActions.KIND)
 
 /**
  * Checked again just before an action runs (the card may have been shown minutes earlier): the person must

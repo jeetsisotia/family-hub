@@ -86,6 +86,22 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
         return fam + mine
     }
 
+    /**
+     * One record as the server has it now (not the phone's cache), or null if it does not exist. Used to confirm a
+     * change really reached the database before the app says it is done. Throws if the server cannot be reached.
+     */
+    suspend fun fetchOneFromServer(familyId: String, uid: String, collection: String, rec: Rec): Rec? {
+        val id = rec["id"] as? String ?: return null
+        val private = rec[PRIVATE_FLAG] == true
+        val d = target(familyId, uid, collection, private).document(id).get(com.google.firebase.firestore.Source.SERVER).await()
+        if (!d.exists()) return null
+        val m = HashMap<String, Any?>()
+        d.data?.let { m.putAll(it) }
+        m["id"] = d.id
+        if (private) m[PRIVATE_FLAG] = true
+        return m
+    }
+
     /** Family records plus this person's own "Only me" records of the same kind. */
     fun observeMerged(familyId: String, uid: String, collection: String): Flow<List<Rec>> =
         combine(observeRecords(familyId, collection), observePrivate(uid, collection)) { a, b -> a + b }

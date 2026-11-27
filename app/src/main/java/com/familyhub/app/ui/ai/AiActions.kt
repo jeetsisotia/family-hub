@@ -65,7 +65,9 @@ data class AiAction(
     var state: String = "new", // new, added, dismissed, failed, undone
     var error: String = "",
     /** The (last) new record this action created, for Undo. */
-    var created: com.familyhub.app.data.remote.RecordRepository.Created? = null
+    var created: com.familyhub.app.data.remote.RecordRepository.Created? = null,
+    /** For a category change: the change-log entry, used for Undo. */
+    var undoAt: Long? = null
 )
 
 private val DONE_CLAIM = Regex(
@@ -83,7 +85,7 @@ private fun offerText(acts: List<AiAction>): String {
     }
 }
 
-private val AI_KINDS = setOf("shopping", "task", "event", "reminder", "expense", "income", "bill", "note", "open")
+private val AI_KINDS = setOf("shopping", "task", "event", "reminder", "expense", "income", "bill", "note", "open", FinanceActions.KIND)
 
 fun parseAiDate(s: String): Long? {
     if (s.isBlank()) return null
@@ -109,7 +111,7 @@ fun parseAiReply(text: String): ChatMsg {
             val kind = a.optString("kind").lowercase(Locale.ROOT).trim()
             val service = a.text("service", "app").lowercase(Locale.ROOT)
             if (kind == "open" && service !in SmartLinks.SERVICES) continue
-            val title = a.text("title", "payee", "category").ifBlank { if (kind == "open") SmartLinks.label(service) else "" }
+            val title = a.text("title", "query", "payee", "category").ifBlank { if (kind == "open") SmartLinks.label(service) else "" }
             if (title.isBlank() || kind !in AI_KINDS) continue
             val vis = a.text("visibility").lowercase(Locale.ROOT)
             acts.add(
@@ -127,7 +129,7 @@ fun parseAiReply(text: String): ChatMsg {
                     repeat = a.text("repeat"),
                     private = a.optBoolean("private", false) || vis == "private" || vis == "only me",
                     service = service,
-                    query = a.text("query", "message", "keywords"),
+                    query = a.text("query", "message", "keywords", "transaction"),
                     place = a.text("to", "destination", "place", "location"),
                     origin = a.text("from_place", "origin", "pickup"),
                     phone = a.text("phone"),
@@ -209,7 +211,16 @@ fun actionLabel(a: AiAction): String {
         "category" -> if (a.value.isNotBlank()) "New subcategory in ${a.value}" else "New money category"
         "budget" -> "Family monthly budget"
         "theme" -> "Appearance"
+        FinanceActions.KIND -> "Change category"
         else -> "Note"
+    }
+    if (a.kind == FinanceActions.KIND) {
+        // The real entry from Finance, and what will change.
+        return listOf(
+            "$what: ${a.title}",
+            listOfNotNull(a.amount?.let { inr(it) }, a.dateText.takeIf { it.isNotBlank() }).joinToString(" • "),
+            FinanceActions.changeLine(a)
+        ).filter { it.isNotBlank() }.joinToString("\n")
     }
     val main = when (a.kind) {
         "period", "period_end", "period_log" -> ""
@@ -265,6 +276,7 @@ fun actionIcon(kind: String): ImageVector = when (kind) {
     "not_expense" -> Icons.Rounded.RemoveCircleOutline
     "task_done" -> Icons.Rounded.TaskAlt
     "emergency" -> Icons.Rounded.Phone
+    FinanceActions.KIND -> Icons.Rounded.Category
     else -> Icons.Rounded.StickyNote2
 }
 
@@ -281,6 +293,7 @@ fun actionButton(kind: String): String = when (kind) {
     "emergency" -> "Save"
     "budget" -> "Set"
     "theme" -> "Apply"
+    FinanceActions.KIND -> "Change"
     else -> "Add"
 }
 
@@ -292,6 +305,7 @@ fun actionDone(kind: String): String = when (kind) {
     "not_expense" -> "Marked ✓"
     "task_done" -> "Done ✓"
     "emergency" -> "Saved to My Profile ✓"
+    FinanceActions.KIND -> "Changed ✓"
     else -> "Added ✓"
 }
 
@@ -325,6 +339,8 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
                     "isDeleted" to false, "createdByUid" to env.uid, "createdAt" to now), false)
         }
         "theme" -> com.familyhub.app.core.theme.ThemeChoice.set(context, a.value)
+        // Same path as Finance → Transactions; confirmed by a fresh read from the server before it counts as done.
+        FinanceActions.KIND -> a.undoAt = FinanceActions.apply(env, context, a)
         "budget" -> {
             if (!env.isAdmin) throw IllegalStateException("Only family admins can change the budget.")
             val v = a.amount ?: throw IllegalStateException("No amount.")
@@ -479,4 +495,44 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
         }
         else -> throw IllegalStateException("Not supported.")
     }
+}
+
+/**
+ * Runs a confirmed action for either AI screen and records the real result. The card only shows done after
+ * [applyAction] returned, that is after the save succeeded (for a category change, after the server confirmed it).
+ */
+suspend fun runAiAction(env: AppEnv, context: Context, a: AiAction): Boolean = try {
+    env.repo.lastCreated = null
+    a.error = ""
+    applyAction(env, context, a)
+    a.created = if (a.kind == FinanceActions.KIND) null else env.repo.lastCreated
+    a.state = "added"
+    AiAudit.record(context, a, true)
+    true
+} catch (e: Exception) {
+    a.state = "failed"
+    a.error = e.message ?: "Could not save"
+    AiAudit.record(context, a, false, a.error)
+    false
+}
+
+/** True if a done action can be undone from its card. */
+fun canUndo(a: AiAction) = a.created != null || a.undoAt != null
+
+/** Undo from a card: a category change goes back through the change log; an added record is deleted the normal way. */
+suspend fun undoAiAction(env: AppEnv, context: Context, a: AiAction): Boolean = try {
+    if (a.kind == FinanceActions.KIND) {
+        FinanceActions.undo(env, context, a)
+    } else {
+        val c = a.created ?: throw IllegalStateException("Nothing to undo.")
+        env.repo.deleteScoped(env.familyId, env.uid, c.collection, mapOf("id" to c.id, PRIVATE_FLAG to c.private))
+    }
+    a.state = "undone"
+    a.error = ""
+    AiAudit.record(context, a.copy(title = "Undo: " + a.title), true)
+    true
+} catch (e: Exception) {
+    a.error = "Undo failed: " + (e.message ?: "")
+    AiAudit.record(context, a.copy(title = "Undo: " + a.title), false, a.error)
+    false
 }

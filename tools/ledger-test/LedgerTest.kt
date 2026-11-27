@@ -419,5 +419,43 @@ fun main() {
         check("dups: origin from the source key", D.origin(sms) == "SMS" && D.origin(mail) == "Email" && D.origin(typed) == "Typed in")
     }
 
+    // ---------- assistant: finding the transaction for "change category" ----------
+    run {
+        val F = com.familyhub.app.money.TxnFinder
+        val cats = listOf("Groceries", "Dining", "Shopping", "Transport", "Other", "Pet care")
+        val recs = listOf(
+            mapOf("id" to "s1", "type" to "EXPENSE", "title" to "Swiggy order from Meghana Foods", "amountInr" to 645.0, "category" to "Dining", "dateMillis" to at(2026, 11, 25)),
+            mapOf("id" to "s2", "type" to "EXPENSE", "title" to "SWIGGY", "amountInr" to 645.0, "category" to "Other", "dateMillis" to at(2026, 11, 25) + 3600_000L),
+            mapOf("id" to "s3", "type" to "EXPENSE", "title" to "Swiggy Instamart", "amountInr" to 1210.0, "category" to "Groceries", "dateMillis" to at(2026, 11, 20)),
+            mapOf("id" to "s4", "type" to "EXPENSE", "title" to "Swiggy old", "amountInr" to 300.0, "category" to "Dining", "dateMillis" to at(2026, 11, 1), "isDeleted" to true),
+            mapOf("id" to "s5", "type" to "TRANSFER", "title" to "Swiggy wallet top-up", "amountInr" to 500.0, "dateMillis" to at(2026, 11, 2)),
+            mapOf("id" to "t9", "type" to "EXPENSE", "title" to "Test transaction", "amountInr" to 99.0, "category" to "Other", "dateMillis" to at(2026, 11, 26))
+        )
+        val r1 = F.parse("Change the category of Swiggy order from Meghana Foods to Shopping", cats)
+        check("recat: reads 'change the category of X to Y'", r1?.category == "shopping" && r1.query == "swiggy meghana foods", r1)
+        check("recat: one exact match", F.match(recs, r1!!).map { it["id"] } == listOf("s1"))
+        check("recat: category resolved to the person's name", F.resolveCategory(r1.category, cats) == "Shopping")
+        val r2 = F.parse("please change category of swiggy to shopping", cats)!!
+        check("recat: several matches, newest first; deleted and transfers left out", F.match(recs, r2).map { it["id"] } == listOf("s2", "s1", "s3"))
+        val r3 = F.parse("move swiggy ₹645 to Shopping", cats)!!
+        check("recat: amount narrows it", r3.amount == 645.0 && F.match(recs, r3).map { it["id"] } == listOf("s2", "s1"), r3)
+        val r4 = F.parse("change my last swiggy transaction's category to shopping", cats)!!
+        check("recat: 'last' picks only the newest", r4.latest && F.match(recs, r4).map { it["id"] } == listOf("s2"), r4)
+        check("recat: Hinglish 'X ki category Y kar do'", F.parse("test transaction ki category shopping kar do", cats)?.let { F.match(recs, it).map { r -> r["id"] } } == listOf("t9"))
+        check("recat: Hinglish 'X ko Y mein daal do'", F.parse("swiggy instamart ko groceries mein daal do", cats)?.let { F.match(recs, it).map { r -> r["id"] } } == listOf("s3"))
+        check("recat: 'move the meeting to Friday' is not a category change", F.parse("move the meeting to Friday", cats) == null)
+        check("recat: 'mark the task as done' is not one", F.parse("mark the car service task as done", cats) == null)
+        check("recat: 'put milk in shopping' (shopping list) is not one", F.parse("put milk in shopping", cats) == null)
+        check("recat: 'put X under shopping category' is one", F.parse("put swiggy instamart under shopping category", cats)?.category == "shopping")
+        check("recat: unknown category is kept as typed (the app says it does not exist)", F.parse("change category of swiggy to Gadgets", cats)?.let { F.resolveCategory(it.category, cats) } == null)
+        check("recat: nothing found for an unknown shop", F.match(recs, F.parse("change category of Zomato to Shopping", cats)!!).isEmpty())
+        check("recat: intent seen even when unreadable", F.isIntent("can you fix the category of my expense"))
+        check("recat: a question is not a change", !F.isIntent("how much did I spend on shopping"))
+        check("recat: plural forms resolve", F.resolveCategory("grocery", cats) == "Groceries")
+        val plan = com.familyhub.app.money.Recategorize.forIds(recs, setOf("s1"), "Shopping", 7L)
+        check("recat: the shared plan changes only category and subcategory, Undo keeps the old one",
+            plan.count == 1 && plan.changes[0].fields.keys == setOf("category", "subcategory", "updatedAt") && plan.changes[0].undo["category"] == "Dining")
+    }
+
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

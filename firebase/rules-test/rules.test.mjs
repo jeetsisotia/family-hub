@@ -153,6 +153,25 @@ test('stranger: cannot read or write shared entries', async () => {
   await assertFails(setDoc(doc(as('stranger'), `families/${F}/expenses/e9`), { title: 'x' }));
 });
 
+// The assistant's category change writes exactly these fields (Recategorize plan), and Undo writes them back.
+const CATEGORY_CHANGE = { category: 'Shopping', subcategory: 'None', updatedAt: 2 };
+test('assistant category change: an approved member can change an entry\'s category and change it back', async () => {
+  await assertSucceeds(updateDoc(doc(as('member'), `families/${F}/expenses/e1`), CATEGORY_CHANGE));
+  await assertSucceeds(updateDoc(doc(as('member'), `families/${F}/expenses/e1`), { category: 'Groceries', subcategory: 'None', updatedAt: 3 }));
+});
+test('assistant category change: a pending member, a stranger or someone signed out cannot', async () => {
+  await assertFails(updateDoc(doc(as('pending'), `families/${F}/expenses/e1`), CATEGORY_CHANGE));
+  await assertFails(updateDoc(doc(as('stranger'), `families/${F}/expenses/e1`), CATEGORY_CHANGE));
+  await assertFails(updateDoc(doc(anon(), `families/${F}/expenses/e1`), CATEGORY_CHANGE));
+});
+test('assistant category change: an "Only me" entry can be changed by its owner only', async () => {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), `users/member/expenses/p1`), { title: 'Gift', amountInr: 900, category: 'Other' });
+  });
+  await assertSucceeds(updateDoc(doc(as('member'), `users/member/expenses/p1`), CATEGORY_CHANGE));
+  await assertFails(updateDoc(doc(as('owner'), `users/member/expenses/p1`), CATEGORY_CHANGE));
+});
+
 // ---------- private records ----------
 test('Only me records: nobody else can read them, not even the super admin', async () => {
   await assertSucceeds(getDoc(doc(as('member'), 'users/member')));

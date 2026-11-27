@@ -126,7 +126,8 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                 } else {
                     val system = AiContext.systemPrompt(env, AiContext.build(env))
                     val reply = GeminiClient.generate(system, aiTurns(messages), json = true)
-                    val parsed = parseAiReply(reply)
+                    // A category change the AI suggests is matched to the real entries on the phone.
+                    val parsed = FinanceActions.resolveInReply(env, parseAiReply(reply))
                     messages.add(parsed.copy(aiText = parsed.text))
                 }
             }
@@ -145,17 +146,15 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
     }
 
     fun add(a: AiAction) {
+        if (a.state == "saving") return
+        a.state = "saving"
+        refresh++
         scope.launch {
-            try {
-                env.repo.lastCreated = null
-                applyAction(env, context, a)
-                a.created = env.repo.lastCreated
-                a.state = "added"
-                AiAudit.record(context, a, true)
-            } catch (e: Exception) {
-                a.state = "failed"
-                a.error = e.message ?: "Could not save"
-                AiAudit.record(context, a, false, a.error)
+            val ok = runAiAction(env, context, a)
+            if (ok && a.kind == FinanceActions.KIND) {
+                // The other matches were alternatives: put them away, and say what really changed.
+                messages.firstOrNull { m -> m.actions.any { it === a } }?.actions?.forEach { o -> if (o !== a && o.state == "new") o.state = "dismissed" }
+                messages.add(ChatMsg(false, FinanceActions.resultText(a), aiText = null))
             }
             refresh++
         }
@@ -192,18 +191,12 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
         }
     }
 
-    /** Undo of an added record: the normal delete (shared records go to Recently deleted). */
+    /** Undo from a card (added record deleted the normal way; category put back through the change log). */
     fun undo(a: AiAction) {
-        val c = a.created ?: return
+        if (!canUndo(a)) return
         scope.launch {
-            try {
-                env.repo.deleteScoped(env.familyId, env.uid, c.collection,
-                    mapOf("id" to c.id, com.familyhub.app.data.remote.PRIVATE_FLAG to c.private))
-                a.state = "undone"
-                AiAudit.record(context, a.copy(title = "Undo: " + a.title), true)
-            } catch (e: Exception) {
-                a.error = "Undo failed: " + (e.message ?: "")
-                AiAudit.record(context, a.copy(title = "Undo: " + a.title), false, a.error)
+            if (undoAiAction(env, context, a) && a.kind == FinanceActions.KIND) {
+                messages.add(ChatMsg(false, "Undone: \"${a.title}\" is back in ${a.category}. The server confirmed it.", aiText = null))
             }
             refresh++
         }
@@ -362,7 +355,7 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                                 refresh++
                             }
                         },
-                        onAddAll = { m.actions.filter { it.state == "new" && it.kind != "open" }.forEach { add(it) } },
+                        onAddAll = { m.actions.filter { it.state == "new" && it.kind != "open" && it.kind != FinanceActions.KIND }.forEach { add(it) } },
                         onOpenInApp = { a -> openInApp(a) },
                         onUndo = { a -> undo(a) }
                     )
@@ -417,58 +410,7 @@ private fun MessageBubble(
         if (m.fromUser) UserBubble(m.text) else AssistantBubble(m.text)
         // Action cards sit under the reply, lined up with the bubble rather than the orb.
         val cardStart = if (m.fromUser) 0.dp else 34.dp
-        m.actions.forEach { a ->
-            AnimatedVisibility(visible = a.state != "dismissed") {
-                GlassCard(
-                    modifier = Modifier.padding(top = 6.dp, start = cardStart).fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                    strong = true
-                ) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
-                        Box(
-                            modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(
-                                if (a.local) Brush.linearGradient(listOf(Color(0xFFFF6B8B), Color(0xFFFF2D55)))
-                                else aiFillBrush()
-                            ),
-                            contentAlignment = Alignment.Center
-                        ) { Icon(actionIcon(a.kind), contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(actionLabel(a), style = MaterialTheme.typography.bodyMedium)
-                            if (a.state == "failed" && a.error.isNotBlank()) {
-                                Text(a.error, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF3B30))
-                            }
-                            FlowRow(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.Center) {
-                                when (a.state) {
-                                    "added" -> {
-                                        Text(
-                                            actionDone(a.kind),
-                                            color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold,
-                                            modifier = Modifier.align(Alignment.CenterVertically)
-                                        )
-                                        if (a.created != null) TextButton(onClick = { onUndo(a) }) { Text("Undo") }
-                                    }
-                                    "undone" -> Text("Undone", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                    else -> {
-                                        AiPillButton(
-                                            if (a.state == "failed") "Retry" else actionButton(a.kind),
-                                            onClick = { onAction(a, true) }
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        if (a.kind == "open" && a.service !in setOf("call", "sms", "upi", "ola", "rapido", "zepto")) {
-                                            TextButton(onClick = { onOpenInApp(a) }) { Text("In Family Hub") }
-                                        }
-                                        TextButton(onClick = { onAction(a, false) }) {
-                                            Text("Dismiss", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        m.actions.forEach { a -> AiActionCard(a, cardStart, onAction, onOpenInApp, onUndo) }
         if (m.actions.any { it.kind == "open" && it.state != "dismissed" }) {
             Text(
                 "Open takes you to the official app or site with the details filled in; In Family Hub opens the official site here, " +
@@ -478,7 +420,8 @@ private fun MessageBubble(
                 modifier = Modifier.padding(top = 4.dp, start = cardStart + 4.dp).widthIn(max = 320.dp)
             )
         }
-        val pending = m.actions.count { it.state == "new" && it.kind != "open" }
+        // Category-change cards are alternatives (the person picks one), so they are never done all at once.
+        val pending = m.actions.count { it.state == "new" && it.kind != "open" && it.kind != FinanceActions.KIND }
         if (pending >= 2) {
             val allAdds = m.actions.none { it.kind in TIDY_KINDS }
             Box(modifier = Modifier.padding(top = 8.dp, start = cardStart)) {
@@ -566,4 +509,74 @@ fun AiBriefCard(env: AppEnv, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+
+/**
+ * One action card, shared by both AI screens: what will happen, the button to confirm, and after it the real
+ * result (done only once the save succeeded), any error, and Undo.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AiActionCard(
+    a: AiAction,
+    startPad: androidx.compose.ui.unit.Dp,
+    onAction: (AiAction, Boolean) -> Unit,
+    onOpenInApp: (AiAction) -> Unit = {},
+    onUndo: (AiAction) -> Unit = {}
+) {
+        AnimatedVisibility(visible = a.state != "dismissed") {
+            GlassCard(
+                modifier = Modifier.padding(top = 6.dp, start = startPad).fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                strong = true
+            ) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.Top) {
+                    Box(
+                        modifier = Modifier.size(34.dp).clip(RoundedCornerShape(11.dp)).background(
+                            if (a.local) Brush.linearGradient(listOf(Color(0xFFFF6B8B), Color(0xFFFF2D55)))
+                            else aiFillBrush()
+                        ),
+                        contentAlignment = Alignment.Center
+                    ) { Icon(actionIcon(a.kind), contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(actionLabel(a), style = MaterialTheme.typography.bodyMedium)
+                        if (a.error.isNotBlank()) {
+                            Text(a.error, style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF3B30))
+                        }
+                        FlowRow(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.Center) {
+                            when (a.state) {
+                                "added" -> {
+                                    Text(
+                                        actionDone(a.kind),
+                                        color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold,
+                                        modifier = Modifier.align(Alignment.CenterVertically)
+                                    )
+                                    if (canUndo(a)) TextButton(onClick = { onUndo(a) }) { Text("Undo") }
+                                }
+                                "undone" -> Text("Undone", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                "saving" -> Text(
+                                    "Saving… waiting for the server to confirm",
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), style = MaterialTheme.typography.labelMedium
+                                )
+                                else -> {
+                                    AiPillButton(
+                                        if (a.state == "failed") "Retry" else actionButton(a.kind),
+                                        onClick = { onAction(a, true) }
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    if (a.kind == "open" && a.service !in setOf("call", "sms", "upi", "ola", "rapido", "zepto")) {
+                                        TextButton(onClick = { onOpenInApp(a) }) { Text("In Family Hub") }
+                                    }
+                                    TextButton(onClick = { onAction(a, false) }) {
+                                        Text("Dismiss", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 }

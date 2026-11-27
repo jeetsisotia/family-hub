@@ -49,6 +49,17 @@ class DemoActivity : FragmentActivity() {
     @Inject lateinit var recordRepository: RecordRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Test runs only (debug builds): "store=emulator" points this screen at a local Firestore emulator on the
+        // computer running the test (10.0.2.2), so a change can really be saved, read back and undone without
+        // touching anyone's account. "store=offline" points it at a database that cannot be reached, to check that
+        // nothing is ever shown as done without the server. Must run before Firestore is first used.
+        val store = intent.getStringExtra("store")?.takeIf { BuildConfig.DEBUG }
+        if (store != null) {
+            try {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .useEmulator("10.0.2.2", if (store == "emulator") 8080 else 9)
+            } catch (e: Exception) { android.util.Log.w("DemoActivity", "useEmulator: ${e.message}") }
+        }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // The emulator test names each screen by its real route; "dark:" and "solid:" prefixes are allowed.
@@ -66,7 +77,10 @@ class DemoActivity : FragmentActivity() {
         setContent {
             FamilyHubTheme(darkTheme = if (dark) true else com.familyhub.app.core.theme.themeIsDark()) {
                 val scope = rememberCoroutineScope()
-                val env = androidx.compose.runtime.remember { DemoData.env(recordRepository, familyRepository, scope) }
+                val baseEnv = androidx.compose.runtime.remember { DemoData.env(recordRepository, familyRepository, scope) }
+                // With the test database, Finance entries come live from it (the same listener the app uses).
+                val liveExpenses = if (store == "emulator") DemoStore.liveExpenses(recordRepository, baseEnv) else null
+                val env = if (liveExpenses == null) baseEnv else baseEnv.copy(data = baseEnv.data + ("expenses" to liveExpenses))
                 Column(modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                     Text(
                         "Sample data • test screen",
@@ -164,6 +178,11 @@ class DemoActivity : FragmentActivity() {
                             )
                             route == "finance" -> com.familyhub.app.ui.money.FinanceDashboard(env)
                             route == "universal" -> com.familyhub.app.ui.ai.UniversalChatScreen(env)
+                            // The assistant changing a transaction's category, with the real Finance row for it below.
+                            route == "ai_recat" -> Column(Modifier.fillMaxSize()) {
+                                Box(Modifier.weight(1f)) { AssistantScreen(env, autoAsk = ask) }
+                                DemoStore.FinanceRows(env, store)
+                            }
                             // Forms and detail sheets, opened directly so the emulator can photograph them.
                             route == "form_expense" -> Box(Modifier.fillMaxSize()) {
                                 com.familyhub.app.ui.money.TransactionsScreen(env)
@@ -177,7 +196,9 @@ class DemoActivity : FragmentActivity() {
                             route == "sheet_transaction" -> Box(Modifier.fillMaxSize()) {
                                 val all = env.data["expenses"].orEmpty()
                                 com.familyhub.app.ui.money.TransactionsScreen(env)
-                                com.familyhub.app.ui.money.TransactionDetails(env, all.first { it["type"] == "EXPENSE" }, all, {}) {}
+                                // The Swiggy entry the assistant check changes (live data can come back in any order).
+                                val r = all.firstOrNull { (it["title"] as? String).orEmpty().startsWith("Swiggy order") } ?: all.first { it["type"] == "EXPENSE" }
+                                com.familyhub.app.ui.money.TransactionDetails(env, r, all, {}) {}
                             }
                             isExtraRoute(route) -> ExtraRoute(route, env)
                             def != null -> ModuleScreen(
@@ -380,5 +401,42 @@ object DemoData {
             onBack = {},
             navigate = {}
         )
+    }
+}
+
+
+/** Test database support for the emulator check (debug builds only). */
+object DemoStore {
+    /** Seeds the sample Finance entries into the empty test database once, then follows them live. */
+    @Composable
+    fun liveExpenses(repo: RecordRepository, env: AppEnv): List<Rec> {
+        val start = env.data["expenses"].orEmpty()
+        val state = androidx.compose.runtime.produceState(initialValue = start) {
+            try {
+                if (repo.fetchFromServer(DemoData.FAMILY, DemoData.UID, "expenses").isEmpty()) {
+                    start.forEach { r -> repo.saveScoped(DemoData.FAMILY, DemoData.UID, "expenses", r, r, r[PRIVATE_FLAG] == true) }
+                }
+                repo.observeMerged(DemoData.FAMILY, DemoData.UID, "expenses").collect { if (it.isNotEmpty()) value = it }
+            } catch (e: Exception) {
+                android.util.Log.w("DemoStore", "test database: ${e.message}")
+            }
+        }
+        return state.value
+    }
+
+    /** The Swiggy entries as Finance → Transactions shows them (same row), from the same data the assistant changes. */
+    @Composable
+    fun FinanceRows(env: AppEnv, store: String?) {
+        val rows = env.data["expenses"].orEmpty().filter { (it["title"] as? String).orEmpty().startsWith("Swiggy order") }
+        Column(
+            Modifier.fillMaxWidth().background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            Text(
+                "Finance → Transactions, " + when (store) { "emulator" -> "live from the test database"; "offline" -> "database unreachable"; else -> "sample data" },
+                fontSize = 11.sp, color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            rows.forEach { r -> com.familyhub.app.ui.money.TransactionRow(r, selected = false, selecting = false, onClick = {}, onLongClick = {}) }
+        }
     }
 }
