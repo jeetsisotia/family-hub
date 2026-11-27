@@ -456,6 +456,27 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ---
 
+## Phases 2–4 (27 Nov 2026, afternoon)
+
+**Phase 2**
+- Shopping lists: several lists, quantity, price, who buys it, not available, history, search, estimate.
+- Home and vehicle maintenance with service history.
+- Calendar month, week and agenda views with clash warnings and filters.
+- Subscription manager with status and totals.
+
+**Phase 3**
+- Savings goals with contributions and a notification when reached.
+- Budget planner with category limits, trend and month on month.
+- Money insights with unusual spends and suggestions.
+- Reports as CSV and PDF.
+
+**Phase 4**
+- The assistant answers planner questions on the phone: schedule, bills, week summary, "Suggest reminders", shopping list from one sentence, category increase, recurring, weekly brief.
+- "Find tasks and dates" from Gmail or an attached document.
+- Weekly brief screen.
+
+Evidence: `docs/VERIFICATION-REPORT.md` §9. Every phone test is listed in `docs/CONTINUATION-REPORT.md` and in the final report.
+
 ## Brief 5: Priority Zero and Phase 1 (27 Nov 2026)
 
 You asked for Priority Zero and Phase 1 only; Phases 2–4 wait for your go-ahead.

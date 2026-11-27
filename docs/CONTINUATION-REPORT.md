@@ -36,31 +36,33 @@ Priority Zero and Phase 1: **done**. Latest full emulator run: Build APK #86 (`7
 
 | # | Item | Status | Evidence / commit |
 |---|---|---|---|
-| 2.1 | Shopping lists: several lists, quantity, category, estimated price, who buys it, Pending / Not available / Bought history, search, estimate of what is left, "Only me" items (route `shopping`) | Code + phase2-test | p62 |
-| 2.2 | Home and vehicle maintenance: warranty, last service and provider fields; overview with what is due in 60 days; "Log service" keeps a service history (cost, who, what) and moves the next date for repeating jobs | Code + tests | p62 |
-| 2.3 | Calendar 2.0 (above the calendar list): Month, Week and Agenda views; filters by member and category; clash warnings; whose event and who else is going; end time; birthdays shown | Code + tests | p62 |
-| 2.4 | Subscription manager: provider, status (Active, Paused, Cancelled), payment method; monthly and yearly totals; renewals in the next 30 days; history; paused and cancelled ones have no dues | Code + tests | p62 |
+| 2.1 | Shopping lists: several lists, quantity, category, estimated price, who buys it, Pending / Not available / Bought history, search, estimate of what is left, "Only me" items (route `shopping`) | **PASS** (#89, #92) | p62 `e71d047` |
+| 2.2 | Home and vehicle maintenance: warranty, last service and provider fields; overview with what is due in 60 days; "Log service" keeps a service history (cost, who, what) and moves the next date for repeating jobs | **PASS** (#89, #92) | p62 |
+| 2.3 | Calendar 2.0 (above the calendar list): Month, Week and Agenda views; filters by member and category; clash warnings; whose event and who else is going; end time; birthdays shown | **PASS** (#89, #92) | p62 |
+| 2.4 | Subscription manager: provider, status (Active, Paused, Cancelled), payment method; monthly and yearly totals; renewals in the next 30 days; history; paused and cancelled ones have no dues | **PASS** (#89, #92) | p62 |
 
 ### Phase 3
 
 | # | Item | Status | Evidence / commit |
 |---|---|---|---|
-| 3.1 | Savings goals: progress card above Savings goals, add or take out money with who added it, contribution history, by member, monthly amount needed, archive, notification when reached; shared or Only me as before | Code + phase3-test | p63 |
-| 3.2 | Budget planner (Finance → Budget planner): family budget against spending; category limits (monthly or yearly, family or Only me) planned against actual; remaining; alerts; 6-month trend; this month against last; CSV export | Code + tests | p63 |
-| 3.3 | Money insights (Finance → Money insights): month summary, biggest increases, unusual spends, repeating payments, by member (shared entries only), suggestions marked "not financial advice" | Code + tests | p63 |
-| 3.4 | Reports (Finance → Reports): monthly expenses, categories, members, recurring, goals and budget as CSV; PDF summary; shared through the share sheet | Code + tests | p63 |
+| 3.1 | Savings goals: progress card above Savings goals, add or take out money with who added it, contribution history, by member, monthly amount needed, archive, notification when reached; shared or Only me as before | **PASS** (#92); notification on a phone | p63 `bdea772` |
+| 3.2 | Budget planner (Finance → Budget planner): family budget against spending; category limits (monthly or yearly, family or Only me) planned against actual; remaining; alerts; 6-month trend; this month against last; CSV export | **PASS** (#92) | p63 |
+| 3.3 | Money insights (Finance → Money insights): month summary, biggest increases, unusual spends, repeating payments, by member (shared entries only), suggestions marked "not financial advice" | **PASS** (#92) | p63 |
+| 3.4 | Reports (Finance → Reports): monthly expenses, categories, members, recurring, goals and budget as CSV; PDF summary; shared through the share sheet | **PASS** (#92) | p63 |
 
 ### Phase 4
 
 | # | Item | Status | Evidence / commit |
 |---|---|---|---|
-| 4.1 | Family AI planner (both AI screens, answered on the phone): "What's scheduled this weekend / tomorrow / this week" (with clashes), "Show upcoming bills", "Summarise this week's family activity", "Create a shopping list for tomorrow: milk, eggs" (named list, cards to confirm). "Remind me about…" still goes to the AI and comes back as cards | Code + phase4-test | p64 |
-| 4.2 | Expense questions: "Which category increased", "Show recurring expenses", "How much is pending in upcoming bills" (spend questions were already answered on the phone) | Code + tests | p64 |
-| 4.3 | Smart reminder agent: "Suggest reminders" offers reminders for documents, services, warranties, insurance and PUC, active subscriptions, events and tasks that have none yet; each is confirmed | Code + tests | p64 |
+| 4.1 | Family AI planner (both AI screens, answered on the phone): "What's scheduled this weekend / tomorrow / this week" (with clashes), "Show upcoming bills", "Summarise this week's family activity", "Create a shopping list for tomorrow: milk, eggs" (named list, cards to confirm). "Remind me about…" still goes to the AI and comes back as cards | **PASS** (unit); emulator in the final run | p64 `9052934` |
+| 4.2 | Expense questions: "Which category increased", "Show recurring expenses", "How much is pending in upcoming bills" (spend questions were already answered on the phone) | **PASS** (unit) | p64 |
+| 4.3 | Smart reminder agent: "Suggest reminders" offers reminders for documents, services, warranties, insurance and PUC, active subscriptions, events and tasks that have none yet; each is confirmed | **PASS** (unit) | p64 |
 | 4.4 | Email-to-task: in the Gemini chat, after reading Gmail (Google → Gmail), "Find tasks and dates" turns the emails into task, reminder and event cards; skips ones already in Family Hub; never sends or changes email | Code; **needs a phone** (Google sign-in) | p64 |
 | 4.5 | Document assistant: attach a PDF or photo in the Gemini chat to summarise it or ask about it (already there); "Find tasks and dates" suggests reminders from it | Code; needs a phone and a Gemini key | p64 |
-| 4.6 | Weekly family brief (More → Weekly brief, or "weekly brief" in the chat): events, tasks, bills, documents, maintenance, activity, money; each section can be switched off | Code + tests | p64 |
+| 4.6 | Weekly family brief (More → Weekly brief, or "weekly brief" in the chat): events, tasks, bills, documents, maintenance, activity, money; each section can be switched off | **PASS** (unit) | p64 |
 | 4.7 | AI action security: every AI change goes through the shared runner (permission re-check, a preview card, your confirmation, only the approved action, result checked, audit log in AI settings, Undo where possible). Firestore rules unchanged | Existing + Phase 4 actions use it | p55–p64 |
+
+All four phases are built. Premium features: see VERIFICATION-REPORT §9 (most already existed; savings challenges and per-record permissions are not started).
 
 ### Phone tests to give at the end (collect here)
 

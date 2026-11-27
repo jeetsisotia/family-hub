@@ -642,14 +642,8 @@ private fun ModuleHeader(
             }
         }
         "subscription" -> {
-            val monthly = records.sumOf { r ->
-                val a = r.num("amountInr") ?: 0.0
-                when (r.str("cycle").uppercase()) {
-                    "YEARLY" -> a / 12.0
-                    "QUARTERLY" -> a / 3.0
-                    else -> a
-                }
-            }
+            // Same rule as the subscription manager: only active subscriptions count.
+            val monthly = com.familyhub.app.family.Subscriptions.totals(records).monthly
             if (records.isNotEmpty()) {
                 SummaryCard(listOf("Per month" to money(monthly), "Per year" to money(monthly * 12)))
             }
