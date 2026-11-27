@@ -287,6 +287,10 @@ jobs:
           adb shell am start -W -n $PKG/.DemoActivity --es route subscriptions >/dev/null 2>&1; sleep 7; screen_text p2sub
           seen 'Per month' p2sub "subscriptions: monthly and yearly totals shown"
           seen 'paused' p2sub "subscriptions: paused one counted separately"
+          seen 'Paid recently' p2sub "subscriptions: payments found in Finance are listed"
+          adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route alerts >/dev/null 2>&1; sleep 7; shot demo_alerts_centre; screen_text alc
+          seen 'text="All (' alc "notification centre: filter chips with counts"
           adb shell am force-stop $PKG
           adb shell am start -W -n $PKG/.DemoActivity --es route maintenance >/dev/null 2>&1; sleep 7; screen_text p2m
           seen 'Log service' p2m "maintenance: service history and Log service shown"
@@ -321,6 +325,7 @@ jobs:
           askq "Create_a_shopping_list_for_tomorrow:_milk,_eggs_and_bread" shop; seen 'Tomorrow' ask_shop "planner: a named shopping list from one sentence"
           askq "Which_category_increased_compared_to_last_month?" cat; seen 'last month' ask_cat "planner: category increase from real data"
           askq "Weekly_family_brief" brief; seen 'Your weekly family brief' ask_brief "planner: weekly brief in the chat"
+          askq "How_much_did_we_spend_on_groceries_this_month?" groc; seen 'on Groceries this month' ask_groc "spending on one category from real entries"
           for r in weekly_brief dark:weekly_brief; do demo "$r" "" 7 no; done
 
           # Track a recurring payment: confirm dialog, saved to the test database, suggestion gone.
