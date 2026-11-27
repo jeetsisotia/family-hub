@@ -125,9 +125,12 @@ val CalendarModule = ModuleDef(
     fields = listOf(
         FieldDef("title", "Title", required = true),
         FieldDef("category", "Category", FieldType.CHOICE,
-            listOf("Family", "Birthday", "Anniversary", "Doctor", "School", "Office", "Function", "Festival", "Other")),
+            listOf("Family", "Birthday", "Anniversary", "Appointment", "Doctor", "School", "Office", "Function", "Festival", "Other")),
         FieldDef("startTimeMillis", "Date", FieldType.DATE, required = true),
         FieldDef("time", "Time (leave empty for all day)", FieldType.TIME),
+        FieldDef("endTime", "Ends at (optional)", FieldType.TIME),
+        FieldDef("ownerName", "Whose event", FieldType.MEMBER),
+        FieldDef("participants", "Who else is going (names, comma separated)"),
         FieldDef("alert", "Alert", FieldType.CHOICE, com.familyhub.app.work.ReminderRules.EVENT_ALERTS.map { it.first }),
         FieldDef("recurrence", "Repeats", FieldType.CHOICE, listOf("NONE", "YEARLY", "MONTHLY", "WEEKLY")),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
@@ -225,7 +228,13 @@ val ShoppingModule = ModuleDef(
     titleKey = "title", subtitleKeys = listOf("subtitle"),
     fields = listOf(
         FieldDef("title", "Item", required = true),
-        FieldDef("subtitle", "Quantity or note")
+        FieldDef("qty", "Quantity (for example 2 kg)"),
+        FieldDef("listName", "List (for example Groceries, Party)"),
+        FieldDef("category", "Category", FieldType.CHOICE, com.familyhub.app.family.ShoppingLists.CATEGORIES),
+        FieldDef("estPrice", "Estimated price each (₹)", FieldType.NUMBER),
+        FieldDef("assignedToName", "Who buys it", FieldType.MEMBER),
+        FieldDef("status", "Status", FieldType.CHOICE, listOf("Pending", "Unavailable")),
+        FieldDef("subtitle", "Note")
     ),
     doneKey = "isCompleted", doneLabel = "Bought", alerts = false,
     emptyText = "The shopping list is empty. Add milk, groceries and anything else the family needs.",
@@ -325,12 +334,17 @@ val VehiclesModule = ModuleDef(
         FieldDef("insuranceExpiryMillis", "Insurance expires", FieldType.DATE),
         FieldDef("pucExpiryMillis", "PUC expires", FieldType.DATE),
         FieldDef("serviceDueMillis", "Next service due", FieldType.DATE),
+        FieldDef("lastServiceMillis", "Last service", FieldType.DATE),
+        FieldDef("vendor", "Service centre or mechanic"),
+        FieldDef("phone", "Their phone"),
+        FieldDef("warrantyExpiryMillis", "Warranty or extended warranty ends", FieldType.DATE),
         FieldDef("notes", "RC details, service history, challans", FieldType.MULTILINE)
     ),
     dateKeys = listOf(
         DateKey("insuranceExpiryMillis", "Insurance"),
         DateKey("pucExpiryMillis", "PUC"),
-        DateKey("serviceDueMillis", "Service")
+        DateKey("serviceDueMillis", "Service"),
+        DateKey("warrantyExpiryMillis", "Warranty ends")
     )
 )
 
@@ -357,8 +371,11 @@ val SubscriptionsModule = ModuleDef(
     subtitleKeys = listOf("category", "cycle"),
     fields = listOf(
         FieldDef("title", "Name", required = true),
+        FieldDef("provider", "Provider (for example Netflix, Jio)"),
+        FieldDef("status", "Status", FieldType.CHOICE, listOf("Active", "Paused", "Cancelled")),
         FieldDef("category", "Type", FieldType.CHOICE,
             listOf("OTT", "Music", "Software", "Membership", "Gym", "Insurance", "Utility", "Other")),
+        FieldDef("paymentMethod", "Paid with", FieldType.CHOICE, PAYMENT_METHODS),
         FieldDef("amountInr", "Amount (₹)", FieldType.NUMBER, required = true),
         FieldDef("cycle", "Billing cycle", FieldType.CHOICE, listOf("Monthly", "Quarterly", "Yearly")),
         FieldDef("renewalMillis", "Renews on", FieldType.DATE),
@@ -485,8 +502,11 @@ val MaintenanceModule = ModuleDef(
     fields = listOf(
         FieldDef("title", "What needs doing (for example AC service)", required = true),
         FieldDef("category", "Type", FieldType.CHOICE,
-            listOf("Plumbing", "Electrical", "AC or appliance", "Painting", "Pest control", "Water tank", "Other")),
+            listOf("AC service", "Water purifier", "Appliance", "Plumbing", "Electrical", "Painting", "Pest control", "Water tank", "Other")),
         FieldDef("vendor", "Vendor or technician"),
+        FieldDef("purchaseMillis", "Bought on (appliances)", FieldType.DATE),
+        FieldDef("warrantyExpiryMillis", "Warranty ends", FieldType.DATE),
+        FieldDef("lastServiceMillis", "Last service", FieldType.DATE),
         FieldDef("phone", "Phone"),
         FieldDef("costInr", "Last cost (₹)", FieldType.NUMBER),
         FieldDef("nextDueMillis", "Next due", FieldType.DATE),
@@ -494,7 +514,7 @@ val MaintenanceModule = ModuleDef(
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
     amountKey = "costInr", phoneKey = "phone", repeatKey = "repeat", alertOverdue = true, alertDays = 14,
-    dateKeys = listOf(DateKey("nextDueMillis", "Due"))
+    dateKeys = listOf(DateKey("nextDueMillis", "Due"), DateKey("warrantyExpiryMillis", "Warranty ends"))
 )
 
 val NotesModule = ModuleDef(

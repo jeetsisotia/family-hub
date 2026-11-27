@@ -503,7 +503,7 @@ class MainActivity : FragmentActivity() {
                                 key(moduleDef.route) {
                                     ModuleScreen(
                                         overview = if (moduleDef.kind == "finance") financeOverview
-                                            else if (moduleDef.route == "documents") ({ com.familyhub.app.ui.family.DocExpiryCard(envFor(currentFamily)) }) else null,
+                                            else if (moduleDef.route in com.familyhub.app.ui.family.ModuleOverviewRoutes) ({ com.familyhub.app.ui.family.ModuleOverview(moduleDef.route, envFor(currentFamily)) }) else null,
                                         def = moduleDef,
                                         familyId = activeFamilyId,
                                         uid = uid,

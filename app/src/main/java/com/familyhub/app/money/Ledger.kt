@@ -466,7 +466,8 @@ object Ledger {
             }
         }
 
-        for (sub in items.filter { it.s("type") == "subscription" && live(it) }) {
+        // Paused and cancelled subscriptions have no renewals due.
+        for (sub in items.filter { it.s("type") == "subscription" && live(it) && it.s("status").let { st -> st.isBlank() || st.equals("Active", true) } }) {
             val start = sub.l("renewalMillis") ?: continue
             val every = cycleMonths(sub.s("cycle"))
             var (k, d) = occurrenceAtOrAfter(start, every, from)

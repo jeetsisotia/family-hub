@@ -6,7 +6,9 @@ For picking up the work after a usage limit or a new session. Read this file and
 
 **Brief:** "FamilyHub — Master development prompt" (four phases).
 
-**Your instruction:** finish **Priority Zero and Phase 1 only**, then stop. Phases 2–4 and the premium features wait for your go-ahead.
+**Your instructions:**
+- Before: finish **Priority Zero and Phase 1 only** (done).
+- 27 Nov 15:41: "First complete the phases, then give me the 'needs your phone' tasks in one go at the end." So continue with Phase 2 → 3 → 4, then the premium features if time allows. Collect every phone test and list them only in the final report.
 
 **Rules:**
 - Keep the existing app: package, Firebase project, rules, signing, backup and data.
@@ -30,7 +32,26 @@ Priority Zero and Phase 1: **done**. Latest full emulator run: Build APK #86 (`7
 | 1.2 | Document expiry tracker: Remind me window per document, renewal status and notes, more categories (Warranty, Vehicle PUC), summary card on Documents (expired, due soon, active, next to renew); notifications name documents only generically | **PASS** (#85, phase1-test); expiry notification on a phone: NEEDS MY PHONE | p59 |
 | 1.3 | Recurring payment suggestions (Finance → Recurring payments): weekly, monthly, quarterly and yearly patterns; Track saves a Subscription (or a weekly reminder) after you confirm name, amount and frequency; Dismiss; never creates transactions; no duplicates of what is already tracked | **PASS** (#86 Track check, phase1-test) | p59 |
 
-**Next after this brief (waiting for your go-ahead):** Phase 2 (shopping and household lists, home and vehicle maintenance, calendar 2.0, subscription manager).
+### Phase 2
+
+| # | Item | Status | Evidence / commit |
+|---|---|---|---|
+| 2.1 | Shopping lists: several lists, quantity, category, estimated price, who buys it, Pending / Not available / Bought history, search, estimate of what is left, "Only me" items (route `shopping`) | Code + phase2-test | p62 |
+| 2.2 | Home and vehicle maintenance: warranty, last service and provider fields; overview with what is due in 60 days; "Log service" keeps a service history (cost, who, what) and moves the next date for repeating jobs | Code + tests | p62 |
+| 2.3 | Calendar 2.0 (above the calendar list): Month, Week and Agenda views; filters by member and category; clash warnings; whose event and who else is going; end time; birthdays shown | Code + tests | p62 |
+| 2.4 | Subscription manager: provider, status (Active, Paused, Cancelled), payment method; monthly and yearly totals; renewals in the next 30 days; history; paused and cancelled ones have no dues | Code + tests | p62 |
+
+### Phase 3 and Phase 4
+
+NOT STARTED.
+
+### Phone tests to give at the end (collect here)
+
+1. Mukul-style category change on your own data, in both AI screens.
+2. Document expiry notification wording.
+3. Web search and the Gemini error messages with your key.
+4. Gmail still works.
+5. Family activity with entries made by other members.
 
 ### How to resume
 

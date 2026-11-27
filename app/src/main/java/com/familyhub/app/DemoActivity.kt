@@ -216,7 +216,7 @@ class DemoActivity : FragmentActivity() {
                                 onOpen = {},
                                 onAskAi = {},
                                 overview = if (def.kind == "finance") financeOverview
-                                    else if (def.route == "documents") ({ com.familyhub.app.ui.family.DocExpiryCard(env) }) else null,
+                                    else if (def.route in com.familyhub.app.ui.family.ModuleOverviewRoutes) ({ com.familyhub.app.ui.family.ModuleOverview(def.route, env) }) else null,
                                 preview = env.data[def.collection],
                                 previewState = if (route.startsWith("form:")) "form" else null
                             )
@@ -389,6 +389,35 @@ object DemoData {
             "dateMillis" to now - (5 + 30 * k) * d, "paymentMethod" to "Credit card", "memberName" to "Demo User", "isPaid" to true, "isDeleted" to false))
         for (k in 0..4) expenses.add(rec("type" to "EXPENSE", "title" to "Milkman Ramesh", "category" to "Groceries", "amountInr" to 300.0 + (k % 2) * 10,
             "dateMillis" to now - (1 + 7 * k) * d, "paymentMethod" to "UPI", "memberName" to "Asha", "isPaid" to true, "isDeleted" to false))
+        // Phase 2 sample data: lists with prices, two clashing appointments, a paused subscription, an AC and a car.
+        val p2Shop = listOf(
+            rec("type" to "SHOPPING", "title" to "Tomatoes", "qty" to "1 kg", "listName" to "Groceries", "category" to "Grocery", "estPrice" to 40.0,
+                "assignedToName" to "Ravi", "isCompleted" to false, "status" to "Pending"),
+            rec("type" to "SHOPPING", "title" to "Basmati rice", "qty" to "5 kg", "listName" to "Groceries", "category" to "Grocery", "estPrice" to 110.0,
+                "isCompleted" to false, "status" to "Pending"),
+            rec("type" to "SHOPPING", "title" to "LED bulbs", "qty" to "4", "listName" to "Household", "category" to "Household", "estPrice" to 120.0,
+                "isCompleted" to false, "status" to "Unavailable"),
+            rec("type" to "SHOPPING", "title" to "Balloons", "qty" to "20", "listName" to "Asha's party", "category" to "Other", "estPrice" to 5.0,
+                "assignedToName" to "Asha", "isCompleted" to false, "status" to "Pending"),
+            rec("type" to "SHOPPING", "title" to "Bread", "listName" to "Groceries", "isCompleted" to true, "completedAt" to now - 20 * 3_600_000L, "completedByName" to "Asha")
+        )
+        val p2Events = listOf(
+            rec("title" to "Dentist (Asha)", "category" to "Appointment", "startTimeMillis" to now + 2 * d, "time" to "10:00", "endTime" to "11:00",
+                "ownerName" to "Asha", "recurrence" to "NONE", "isDeleted" to false),
+            rec("title" to "School PTM", "category" to "School", "startTimeMillis" to now + 2 * d, "time" to "10:30", "participants" to "Ravi, Asha",
+                "recurrence" to "NONE", "isDeleted" to false),
+            rec("title" to "Yoga", "category" to "Family", "startTimeMillis" to now - 3 * d, "time" to "07:00", "ownerName" to "Demo User",
+                "recurrence" to "WEEKLY", "isDeleted" to false)
+        )
+        val p2Items = listOf(
+            rec("type" to "maintenance", "title" to "Bedroom AC", "category" to "AC service", "vendor" to "CoolCare", "repeat" to "Quarterly",
+                "nextDueMillis" to now + 10 * d, "warrantyExpiryMillis" to now + 40 * d, "costInr" to 600.0,
+                "serviceLog" to listOf(mapOf("at" to now - 80 * d, "cost" to 600.0, "provider" to "CoolCare", "notes" to "Wet service"))),
+            rec("type" to "vehicle", "title" to "Honda City", "category" to "Car", "regNumber" to "HR26 AB 1234", "serviceDueMillis" to now + 20 * d,
+                "insuranceExpiryMillis" to now + 50 * d, "pucExpiryMillis" to now + 120 * d),
+            rec("type" to "subscription", "title" to "Cult gym", "provider" to "Cult.fit", "amountInr" to 3000.0, "cycle" to "Quarterly",
+                "status" to "Paused", "renewalMillis" to now + 15 * d, "updatedAt" to now - 5 * d)
+        )
         // Sample "who did what" times for the activity timeline (sample data only).
         expenses.forEach { r ->
             val m = r as MutableMap<String, Any?>
@@ -428,7 +457,7 @@ object DemoData {
             members = members,
             memberNames = members.map { it.name },
             isOwner = true,
-            data = mapOf("items" to items + docs, "events" to events, "expenses" to expenses, "tasks" to tasks, "trips" to trips),
+            data = mapOf("items" to items + docs + p2Items, "events" to events + p2Events, "expenses" to expenses, "tasks" to tasks + p2Shop, "trips" to trips),
             repo = repo,
             familyRepository = families,
             scope = scope,
