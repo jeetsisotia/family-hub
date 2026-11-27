@@ -49,6 +49,21 @@ The old shared key in GitHub secrets (`GEMINI_API_KEY`) is no longer put into th
 - It is **off** until turned on in AI settings, and then chosen per question.
 - **Sources** come only from Google's grounding data and are shown as links. Each answer says whether it came from web search or from the model's own knowledge.
 - Per Google's pricing pages, Search grounding is **not available on the free tier for Gemini 3 models**. Paid projects get 5,000 free searches a month across Gemini 3 models, then $14 per 1,000. When the key cannot use it, the app says so.
+- **Checked live on 27 Nov 2026** (GitHub → Actions → "AI live check" run #2, using the older `GEMINI_API_KEY` secret on GitHub, not the key on your phone):
+  - A general question and a follow-up were answered by `gemini-flash-lite-latest`.
+  - Web search was refused with "quota exceeded" (HTTP 429) on both free models.
+  - The older 2.x model names are no longer available.
+  - The app's message for this case was misleading ("your limit is used up", although normal answers still worked). It now says that web search is not available on this key's free quota and to turn web search off. No source is ever shown unless Google's grounding data returned one.
+
+## 4a. Live check
+
+GitHub → Actions → **AI live check** → Run workflow. It sends the app's request format to Gemini:
+- a general question
+- a web-search question, which needs real sources
+- a follow-up
+- an invalid key
+
+It uses the `GEMINI_API_KEY` repository secret if one is set, and the key is never printed. It runs only by hand, so it never spends quota on its own. Your own key stays encrypted on your phone; this check cannot use it.
 
 ## 5. Gmail, Google Drive and Google Calendar (optional, read-only)
 

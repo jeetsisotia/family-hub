@@ -252,8 +252,10 @@ object GeminiClient : AiProvider {
                 Log.w("GeminiClient", "$model -> HTTP $code")
                 val low = msg.lowercase()
                 return when {
-                    webSearch && (code == 400 || code == 403 || code == 429) && ("search" in low || "grounding" in low || "tool" in low) ->
-                        AiException("Web search is not available with this key (Google offers it only on some plans). Turn web search off and ask again.")
+                    // Checked live (AI live check run #2): with the search tool, free keys can get a plain "quota
+                    // exceeded" 429 while normal answers still work, so any search refusal is reported as such.
+                    webSearch && (code == 429 || ((code == 400 || code == 403) && ("search" in low || "grounding" in low || "tool" in low))) ->
+                        AiException("Web search is not available on this key's free quota right now (normal answers still work). Turn web search off and ask again, or try later.")
                     code == 404 || (code == 400 && ("not found" in low || "not supported" in low)) ->
                         ModelUnavailable("Model $model is not available for this key.")
                     code == 429 && "limit: 0" in msg -> ModelUnavailable("Model $model has no free quota on this key.")
