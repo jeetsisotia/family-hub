@@ -522,6 +522,9 @@ Before this bundle, a new or renamed category never reached past transactions, a
   - Home's Recent list was empty for entries without a saved-at time
   - the Insights filter chips wrapped onto three rows
   - the Family tab opened with a large solid-blue invite banner
+- **Forms and sheets (p46 and p47):**
+  - CI now photographs the add and edit transaction form and the transaction details sheet, in light and dark.
+  - The form sheet let the screen behind show through slightly (bottom sheets were about 96% opaque). Sheets, menus and dialogs are now fully opaque in both themes.
 
 ---
 
