@@ -51,12 +51,18 @@ def answer(resp):
     return text, sources
 
 
+# For web search the app also falls back to other free models (GeminiClient.discoverModels).
+WEB_EXTRA = ["gemini-2.5-flash-lite", "gemini-2.5-flash", "gemini-2.0-flash"]
+
+
 def ask(key, turns, web=False):
     last = None
-    for m in MODELS:
+    for m in MODELS + (WEB_EXTRA if web else []):
         code, resp = call(key, m, body(turns, web))
         if code == 200:
             return m, code, resp
+        if web:
+            print(f"  web search on {m}: HTTP {code} {((resp.get('error') or {}).get('message', ''))[:140]}")
         last = (m, code, resp)
     return last
 
