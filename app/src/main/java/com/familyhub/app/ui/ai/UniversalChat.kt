@@ -367,6 +367,9 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
         val localAction = if (asked.isBlank()) null else FinanceActions.handle(asked, env)
             ?: PlannerAnswers.handle(asked, env)
             ?: AppCommands.handle(asked, env, null)?.takeIf { it.actions.isNotEmpty() }
+            // Money questions (spend by category, period, savings, dues…) are answered from Finance on the phone:
+            // exact figures, no Gemini call and no key needed.
+            ?: (if (MoneyAnswers.isMoneyQuestion(asked)) MoneyAnswers.answer(asked, env) else null)
         if (localAction != null) {
             val mine = msgs.dropLast(1) + msgs.last().copy(local = true)
             persist(conv.copy(messages = mine + UMsg(false, localAction.reply, local = true, actions = localAction.actions),

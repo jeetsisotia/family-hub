@@ -32,7 +32,7 @@ object MoneyAnswers {
     }
 
     private val Q_SPEND = Regex("\\b(how much|what).{0,30}\\b(spen[dt]|spending|expenses?)\\b|\\bspent this month\\b|\\btotal spend|" +
-        "\\b(spending|expenses?)\\s+(this|last)\\s+month\\b|\\bkitn[aei]\\b.{0,25}\\b(kharch|kharcha|gaya|gaye|laga|lage|spend)|\\bkharch[ae]?\\b.{0,20}\\bkitn[aei]\\b")
+        "\\b(spending|expenses?)\\s+(this|last)\\s+(month|week)\\b|\\bkitn[aei]\\b.{0,25}\\b(kharch|kharcha|gaya|gaye|laga|lage|spend)|\\bkharch[ae]?\\b.{0,20}\\bkitn[aei]\\b")
     private val Q_TOP = Regex("\\b(top|biggest|most|highest)\\b.{0,25}\\b(categor|spend|expense)|\\bwhere\\b.{0,20}\\b(money|spending) go")
     private val Q_EMI = Regex("\\bemis?\\b|\\bloans?\\b.{0,20}\\b(due|pending|left|outstanding)")
     private val Q_CARD = Regex("\\b(credit )?card\\b.{0,25}\\b(bill|due|outstanding|owe)|\\bnext card\\b")
@@ -46,8 +46,15 @@ object MoneyAnswers {
     private val THEME = Regex("\\b(?:switch|change|set|use|turn on|make)\\b.{0,25}?\\b(dark|light|night|day|system)\\s+(?:mode|theme)\\b|\\b(?:theme|appearance)\\b.{0,12}?\\b(dark|light|system)\\b")
     private val SET_BUDGET = Regex("\\b(set|change|make)\\b.{0,20}\\b(monthly |family )?budget\\b.{0,15}?(?:to\\s+)?(?:rs\\.?|₹|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)\\s*(k|thousand|lakh|l)?\\b")
 
+    /** True when this is a money question answered on the phone (no AI key, no network). */
+    fun isMoneyQuestion(text: String): Boolean {
+        val s = com.familyhub.app.family.Planner.fixTypos(text).trim()
+        return !ADDING.containsMatchIn(s) && listOf(Q_SPEND, Q_TOP, Q_EMI, Q_CARD, Q_SAVE, Q_FAMILY, Q_BALANCE, Q_DUE, Q_UNCAT).any { it.containsMatchIn(s) }
+    }
+
     fun answer(text: String, env: AppEnv): AppCommands.Result? {
-        val s = text.lowercase(Locale.ROOT).trim()
+        // Typing slips ("apend", "expence") are fixed first so a money question never falls through to the AI.
+        val s = com.familyhub.app.family.Planner.fixTypos(text).trim()
         THEME.find(s)?.let { m ->
             val want = (m.groupValues[1].ifBlank { m.groupValues[2] }).let { if (it == "night") "dark" else if (it == "day") "light" else it }
             val label = when (want) { "dark" -> "Dark"; "light" -> "Light"; else -> "the phone's setting" }
@@ -80,11 +87,12 @@ object MoneyAnswers {
         val view = homeViewFilter(!mine, env.uid, env.profile.name)
         val data = env.data.mapValues { (_, l) -> l.filter(view) }
         val all = env.data["expenses"].orEmpty()
-        val last = Regex("\\blast month\\b|\\bpichh?le mahine\\b").containsMatchIn(s)
-        val (from, to) = monthRange(if (last) -1 else 0)
+        val per = com.familyhub.app.family.Planner.spendPeriod(s)
+        val last = per != com.familyhub.app.family.Planner.Period.THIS_MONTH
         val now = System.currentTimeMillis()
+        val (from, to) = com.familyhub.app.family.Planner.periodRange(per, now)
         val who = if (mine) "You" else "The family"
-        val period = if (last) "last month" else "this month"
+        val period = per.label
         val sum = Ledger.summary(data, from, to, now, all)
         return when {
             Q_UNCAT.containsMatchIn(s) -> {
@@ -145,7 +153,7 @@ object MoneyAnswers {
                     .replaceFirstChar { it.uppercase() }
             )
             Q_SPEND.containsMatchIn(s) && com.familyhub.app.family.Planner.spendTopic(s) != null ->
-                spendOn(com.familyhub.app.family.Planner.spendTopic(s)!!, env, view, mine, last, from, to, who, period)
+                spendOn(com.familyhub.app.family.Planner.spendTopic(s)!!, env, view, mine, per, from, to, who, period)
             Q_SPEND.containsMatchIn(s) -> reply(
                 "$who spent ${inr(sum.spent)} $period" + (if (sum.income > 0) ", against income of ${inr(sum.income)}" else "") +
                     (if (!mine && env.family.monthlyBudget > 0 && !last) " (budget ${inr(env.family.monthlyBudget)})" else "") +
@@ -160,7 +168,7 @@ object MoneyAnswers {
      * Synonyms lead only to categories the family really uses or has defined; several matches → ask which one.
      */
     private fun spendOn(
-        topic: String, env: AppEnv, view: (Map<String, Any?>) -> Boolean, mine: Boolean, last: Boolean,
+        topic: String, env: AppEnv, view: (Map<String, Any?>) -> Boolean, mine: Boolean, per: com.familyhub.app.family.Planner.Period,
         from: Long, to: Long, who: String, period: String
     ): AppCommands.Result {
         val P = com.familyhub.app.family.Planner
@@ -181,8 +189,8 @@ object MoneyAnswers {
         val used = hits.filter { h -> all.any(matcher(h)) }
         val chosen = if (used.isNotEmpty()) used else hits
         fun inRange(r: Map<String, Any?>, a: Long, b: Long) = ((r["dateMillis"] as? Number)?.toLong() ?: 0L) in a..b
-        val (pf, pt) = monthRange(if (last) -2 else -1)
-        val prevLabel = if (last) "The month before" else "Last month"
+        val (pf, pt) = P.periodRange(per, System.currentTimeMillis(), back = 1)
+        val prevLabel = per.previousLabel
         // Everything this person may see: shared entries plus their own "Only me" ones (others' private entries never load).
         val visible = if (mine) all.filter(view) else all
         if (chosen.size > 1) {

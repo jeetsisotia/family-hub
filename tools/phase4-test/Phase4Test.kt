@@ -99,5 +99,29 @@ fun main() {
     check("category: two real matches → ask which one", one("grocery", listOf(C("Groceries"), S("Grocery", "Food"))).size == 2)
     check("category: 'cab' with Transport and Cab both used → ask", one("cab", listOf(C("Transport"), C("Cab"))).size == 2)
     check("category: 'Grocery & Household' found from either word", one("household", listOf(C("Grocery & Household"))) == listOf("Grocery & Household"))
+
+    // ---------- P0 (27 Nov 20:33): typing slips and periods; money questions must never need the AI ----------
+    check("typo: 'apend' → spend", Planner.fixTypos("how much did we apend on grocery this month") == "how much did we spend on grocery this month", Planner.fixTypos("how much did we apend on grocery this month"))
+    check("typo: topic found despite 'apend'", Planner.spendTopic("How much did we apend on grocery this month?") == "grocery")
+    listOf("spnd", "sepnd", "spemd", "soend").forEach { w -> check("typo: '$w' → spend", Planner.fixTypos("how much did i $w on transport") == "how much did i spend on transport", Planner.fixTypos("how much did i $w on transport")) }
+    check("typo: 'expence' → expense", Planner.fixTypos("grocery expence this month").startsWith("grocery expense"))
+    check("typo: 'grocey' → grocery, 'mnth' → month", Planner.spendTopic("how much did we spend on grocey this mnth") == "grocery", Planner.spendTopic("how much did we spend on grocey this mnth"))
+    check("typo: real words are left alone (send, speed, attend, append)", Planner.fixTypos("send speed attend append") == "send speed attend append")
+    check("topic: 'How much did I spend on transport this month?'", Planner.spendTopic("How much did I spend on transport this month?") == "transport")
+    check("topic: 'grocery pe kitna kharcha hua is mahine?'", Planner.spendTopic("grocery pe kitna kharcha hua is mahine?") == "grocery")
+    check("topic: weekly question", Planner.spendTopic("how much did we spend on grocery this week") == "grocery")
+    check("topic: Hinglish weekly question", Planner.spendTopic("grocery pe kitna kharcha hua is hafte") == "grocery", Planner.spendTopic("grocery pe kitna kharcha hua is hafte"))
+    check("period: this month by default", Planner.spendPeriod("how much did we spend on grocery") == Planner.Period.THIS_MONTH)
+    check("period: last month / pichle mahine", Planner.spendPeriod("grocery last month") == Planner.Period.LAST_MONTH && Planner.spendPeriod("pichle mahine grocery") == Planner.Period.LAST_MONTH)
+    check("period: this week / is hafte", Planner.spendPeriod("spend this week") == Planner.Period.THIS_WEEK && Planner.spendPeriod("is hafte kitna") == Planner.Period.THIS_WEEK)
+    check("period: last week", Planner.spendPeriod("how much last week") == Planner.Period.LAST_WEEK)
+    val friNov = at(2026, 11, 27)
+    val wkR = Planner.periodRange(Planner.Period.THIS_WEEK, friNov)
+    check("range: this week is Monday 23 Nov to Sunday 29 Nov", wkR.first == at(2026, 11, 23, 0) && wkR.second == at(2026, 11, 30, 0) - 1, wkR)
+    check("range: last week", Planner.periodRange(Planner.Period.LAST_WEEK, friNov).first == at(2026, 11, 16, 0))
+    check("range: this month and the month before", Planner.periodRange(Planner.Period.THIS_MONTH, friNov).first == at(2026, 11, 1, 0) &&
+        Planner.periodRange(Planner.Period.THIS_MONTH, friNov, back = 1).first == at(2026, 10, 1, 0) && Planner.periodRange(Planner.Period.LAST_MONTH, friNov, back = 1).first == at(2026, 9, 1, 0))
+    check("range: a Sunday belongs to the week that started on Monday", Planner.periodRange(Planner.Period.THIS_WEEK, at(2026, 11, 29)).first == at(2026, 11, 23, 0))
+    check("planner: spend questions are not schedule questions", Planner.classify("how much did we spend this week") == null && Planner.classify("How much did we apend on grocery this month") == null)
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

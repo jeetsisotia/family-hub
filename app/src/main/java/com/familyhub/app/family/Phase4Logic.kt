@@ -53,7 +53,7 @@ object Planner {
 
     private val SPEND_ON = Regex(
         "\\b(?:spen[dt]|spending|expenses?|kharcha|kharch)\\s+(?:on|for|in|par|pe)\\s+" +
-            "([\\p{L}][\\p{L} &-]{1,30}?)(?=\\s+(?:this|last|is|so|pichle|pichhle|in)\\b|\\s+(?:mahine|month|week)\\b|\\s*[?.!,]|\\s*$)"
+            "([\\p{L}][\\p{L} &-]{1,30}?)(?=\\s+(?:this|last|is|iss|so|pichle|pichhle|in|previous)\\b|\\s+(?:mahine|month|week|hafte)\\b|\\s*[?.!,]|\\s*$)"
     )
     // Hinglish: "grocery pe kitna kharcha hua", "transport mein kitne gaye"
     private val TOPIC_KITNA = Regex("(?:^|\\b)([\\p{L}][\\p{L} ]{1,30}?)\\s+(?:pe|par|mein|me|ke liye|ka|ki)\\s+(?:kitna|kitne|kitni)\\b")
@@ -62,7 +62,7 @@ object Planner {
     private val NOT_TOPIC = setOf("it", "that", "this", "things", "stuff", "everything", "all", "average", "total", "overall", "monthly",
         "family", "household", "money", "maine", "humne", "hum", "aaj", "kal", "did", "have", "has", "had", "we", "i", "you", "much", "how", "how much")
     private val LEAD = Regex("^(?:how much |how much did |did |have |has |the |our |my |total |family |humara |hamara |mera |meri |mere |maine |humne |" +
-        "is mahine |iss mahine |pichle mahine |pichhle mahine |this month |last month |aaj |is |iss )+")
+        "is mahine |iss mahine |pichle mahine |pichhle mahine |is hafte |pichle hafte |this month |last month |this week |last week |aaj |is |iss )+")
 
     private fun cleanTopic(raw: String?): String? {
         var t = raw?.trim()?.replace(Regex("\\s+"), " ") ?: return null
@@ -72,9 +72,70 @@ object Planner {
         return t.takeIf { it.length >= 3 && it !in NOT_TOPIC && it.split(' ').none { w -> w in setOf("did", "have", "spend", "spent") } }
     }
 
+    // ---------- money questions: typing slips and the period asked about ----------
+
+    private val KEEP = setOf("send", "sent", "speed", "sped", "spell", "spelt", "spena", "spade", "spark", "spare", "agenda", "attend", "append", "spinach",
+        "maine", "humne", "mera", "meri", "mere", "mujhe", "hamara", "humara", "hamari", "apna", "apne", "mahina", "monthly", "mouth", "spender")
+
+    private fun edits(a: String, b: String): Int {
+        // Damerau-Levenshtein (swapped neighbours count as one slip), enough for short words.
+        val d = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in 0..a.length) d[i][0] = i
+        for (j in 0..b.length) d[0][j] = j
+        for (i in 1..a.length) for (j in 1..b.length) {
+            val c = if (a[i - 1] == b[j - 1]) 0 else 1
+            d[i][j] = minOf(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c)
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) d[i][j] = minOf(d[i][j], d[i - 2][j - 2] + 1)
+        }
+        return d[a.length][b.length]
+    }
+
+    private val TARGETS = listOf("spend", "spent", "spending", "expense", "expenses", "kharcha", "groceries", "grocery", "transport", "month", "mahine")
+
+    /** Common typing slips in money questions fixed word by word: "apend" → "spend", "expence" → "expense", "grocey" → "grocery". */
+    fun fixTypos(text: String): String = text.lowercase(Locale.ROOT).split(" ").joinToString(" ") { w ->
+        val core = w.trim { !it.isLetter() }
+        if (core.length < 4 || core in KEEP || core in TARGETS) return@joinToString w
+        val best = TARGETS.filter { kotlin.math.abs(it.length - core.length) <= 1 }.minByOrNull { edits(core, it) }
+        if (best != null && edits(core, best) == 1 && core[0].let { c -> c == best[0] || core.length >= 5 }) w.replace(core, best) else w
+    }
+
+    enum class Period(val label: String, val previousLabel: String) {
+        THIS_MONTH("this month", "Last month"), LAST_MONTH("last month", "The month before"),
+        THIS_WEEK("this week", "Last week"), LAST_WEEK("last week", "The week before")
+    }
+
+    /** The period a money question asks about (this month unless it says otherwise; English and Hinglish). */
+    fun spendPeriod(text: String): Period {
+        val s = text.lowercase(Locale.ROOT)
+        return when {
+            Regex("\\blast week\\b|\\bpichh?le (hafte|haftey|week)\\b|\\bprevious week\\b").containsMatchIn(s) -> Period.LAST_WEEK
+            Regex("\\bthis week\\b|\\bis (hafte|haftey|week)\\b|\\biss (hafte|week)\\b|\\bweekly\\b").containsMatchIn(s) -> Period.THIS_WEEK
+            Regex("\\blast month\\b|\\bpichh?le mahine\\b|\\bprevious month\\b").containsMatchIn(s) -> Period.LAST_MONTH
+            else -> Period.THIS_MONTH
+        }
+    }
+
+    /** Start and end of a period (weeks start on Monday); back = 1 gives the period before it. */
+    fun periodRange(p: Period, now: Long, back: Int = 0, c: Calendar = Calendar.getInstance()): Pair<Long, Long> {
+        c.timeInMillis = now
+        c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0)
+        return when (p) {
+            Period.THIS_MONTH, Period.LAST_MONTH -> {
+                c.set(Calendar.DAY_OF_MONTH, 1); c.add(Calendar.MONTH, -(back + if (p == Period.LAST_MONTH) 1 else 0))
+                val from = c.timeInMillis; c.add(Calendar.MONTH, 1); from to c.timeInMillis - 1
+            }
+            Period.THIS_WEEK, Period.LAST_WEEK -> {
+                val dow = (c.get(Calendar.DAY_OF_WEEK) + 5) % 7 // Monday = 0
+                c.add(Calendar.DAY_OF_MONTH, -dow - 7 * (back + if (p == Period.LAST_WEEK) 1 else 0))
+                val from = c.timeInMillis; c.add(Calendar.DAY_OF_MONTH, 7); from to c.timeInMillis - 1
+            }
+        }
+    }
+
     /** The thing a spending question is about: "how much did we spend on groceries this month?" → "groceries". */
     fun spendTopic(text: String): String? {
-        val s = text.lowercase(Locale.ROOT)
+        val s = fixTypos(text)
         return cleanTopic(SPEND_ON.find(s)?.groupValues?.get(1))
             ?: cleanTopic(TOPIC_KITNA.find(s)?.groupValues?.get(1))
             ?: cleanTopic(TOPIC_FIRST.find(s)?.groupValues?.get(1))
