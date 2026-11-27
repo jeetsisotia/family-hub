@@ -28,7 +28,8 @@ fun main() {
         "events" to listOf(mapOf("id" to "ev1", "title" to "PTM", "startTimeMillis" to t0)) // no known time: left out
     )
     val names = mapOf("a" to "Asha", "r" to "Ravi")
-    val tl = Timeline.build(data, names)
+    val tl = Timeline.build(data, names, now = t0 + 86_400_000L)
+    check("timeline: future times are never shown", Timeline.build(mapOf("expenses" to listOf(mapOf("id" to "f", "type" to "EXPENSE", "title" to "Bill", "createdAt" to t0 + 9 * DAY))), names, now = t0).isEmpty())
     check("timeline: newest first", tl.zipWithNext().all { (x, y) -> x.atMillis >= y.atMillis })
     check("timeline: Only me and private entries never shown", tl.none { it.title == "Secret gift" || it.title == "Private task" })
     check("timeline: health records never shown", tl.none { it.title == "Thyroxine" })

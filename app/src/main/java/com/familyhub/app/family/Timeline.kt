@@ -66,7 +66,7 @@ object Timeline {
      * All entries, newest first. [data] is keyed by collection (expenses, tasks, events, items); [names] maps uid to
      * name for records that only carry a uid. Entries without a known time are left out (never guessed).
      */
-    fun build(data: Map<String, List<Map<String, Any?>>>, names: Map<String, String>, limit: Int = 300): List<Entry> {
+    fun build(data: Map<String, List<Map<String, Any?>>>, names: Map<String, String>, limit: Int = 300, now: Long = System.currentTimeMillis()): List<Entry> {
         val out = ArrayList<Entry>()
         for ((collection, recs) in data) {
             for (r in recs) {
@@ -98,7 +98,8 @@ object Timeline {
                 }
             }
         }
-        return out.sortedByDescending { it.atMillis }.take(limit)
+        // A time in the future is a date typed into the record, not when someone did something: never shown.
+        return out.filter { it.atMillis <= now + 5 * 60_000L }.sortedByDescending { it.atMillis }.take(limit)
     }
 
     /** Filters by kind (null = all) and member name (null = everyone). */

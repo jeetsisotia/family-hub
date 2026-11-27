@@ -640,7 +640,7 @@ val RemindersModule = ModuleDef(
         FieldDef("everyDays", "Repeat every how many days", FieldType.NUMBER,
             showIf = { it["repeat"] == com.familyhub.app.work.ReminderRules.EVERY_FEW_DAYS }),
         FieldDef("earlyAlert", "Early alert", FieldType.CHOICE, com.familyhub.app.work.ReminderRules.EARLY_ALERTS.map { it.first }),
-        FieldDef("memberName", "For (on a shared reminder, only their phone rings)", FieldType.MEMBER),
+        FieldDef("memberName", "Whose phone rings", FieldType.MEMBER),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
     dateKeys = listOf(DateKey("dateMillis", "Remind")), repeatKey = "repeat",

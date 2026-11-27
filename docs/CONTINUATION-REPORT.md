@@ -18,15 +18,17 @@ For picking up the work after a usage limit or a new session. Read this file and
 
 | # | Item | Status | Evidence / commit |
 |---|---|---|---|
-| P0-A | AI matching: "Change the category of Mukul to Shopping" and 13 other phrasings (English and Hinglish), the AI's own wording cleaned, closest matches offered when nothing matches exactly | Code + 175 ledger checks | p58 |
-| P0-B | AI screen: the chips above the message box (Web search, FamilyHub data, Google) no longer wrap; checked at 1.3× text and 360dp width | Code; emulator check added | p58 |
-| P0-C | Due Summary: tap to fold and open checked on the emulator (the rest was checked before) | Emulator check added | p58 |
-| P0-D | Health (vitals, medicines), Documents and Reminders add forms, light and dark | Demo routes `form:<module>` added | p58 |
-| P0-E | Gemini errors: invalid key, key refused, API not enabled, rate limit, daily quota, web search quota and network problems each get their own message (`GeminiErrors`, 11 tests) | Code + tests | p58 |
-| P0-F | Regression table | To do after the build | |
-| 1.1 | Family activity timeline (More → Family activity): built from records already loaded; filters by type and member; "Only me", private, health and ID records never shown; documents show name and type only; saves now record who last updated and who completed | Code + tests (phase1-test) | p59 |
-| 1.2 | Document expiry tracker: Remind me window per document, renewal status and notes, more categories (Warranty, Vehicle PUC), summary card on Documents (expired, due soon, active, next to renew); notifications name documents only generically | Code + tests | p59 |
-| 1.3 | Recurring payment suggestions (Finance → Recurring payments): weekly, monthly, quarterly and yearly patterns; Track saves a Subscription (or a weekly reminder) after you confirm name, amount and frequency; Dismiss; never creates transactions; no duplicates of what is already tracked | Code + tests | p59 |
+| P0-A | AI matching: "Change the category of Mukul to Shopping" and 13 other phrasings (English and Hinglish), the AI's own wording cleaned, closest matches offered when nothing matches exactly | **PASS** (emulator #83, ledger 175) | p58 `31649aa`; p60 scroll fix |
+| P0-B | AI screen: the chips above the message box (Web search, FamilyHub data, Google) no longer wrap; checked at 1.3× text and 360dp width | **PARTIAL**: labels shortened in p60, to confirm in the final run | p58, p60 |
+| P0-C | Due Summary: tap to fold and open checked on the emulator (the rest was checked before) | **PASS** (emulator #83) | p58 |
+| P0-D | Health (vitals, medicines), Documents and Reminders add forms, light and dark | **PASS** (#83 screenshots; Reminders label fixed in p60) | p58, p60 |
+| P0-E | Gemini errors: invalid key, key refused, API not enabled, rate limit, daily quota, web search quota and network problems each get their own message (`GeminiErrors`, 11 tests) | **PASS** (unit); live on your key: NEEDS MY PHONE | p58 |
+| P0-F | Regression table | **Done**: VERIFICATION-REPORT §8 | p60 |
+| 1.1 | Family activity timeline (More → Family activity): built from records already loaded; filters by type and member; "Only me", private, health and ID records never shown; documents show name and type only; saves now record who last updated and who completed | **PASS** (#85 screenshots, phase1-test) | p59 `9847982`, p60 |
+| 1.2 | Document expiry tracker: Remind me window per document, renewal status and notes, more categories (Warranty, Vehicle PUC), summary card on Documents (expired, due soon, active, next to renew); notifications name documents only generically | **PASS** (#85, phase1-test); expiry notification on a phone: NEEDS MY PHONE | p59 |
+| 1.3 | Recurring payment suggestions (Finance → Recurring payments): weekly, monthly, quarterly and yearly patterns; Track saves a Subscription (or a weekly reminder) after you confirm name, amount and frequency; Dismiss; never creates transactions; no duplicates of what is already tracked | **PARTIAL**: the Track check is in the final run | p59 |
+
+**Next after this brief (waiting for your go-ahead):** Phase 2 (shopping and household lists, home and vehicle maintenance, calendar 2.0, subscription manager).
 
 ### How to resume
 

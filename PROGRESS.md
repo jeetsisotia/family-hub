@@ -456,6 +456,24 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ---
 
+## Brief 5: Priority Zero and Phase 1 (27 Nov 2026)
+
+You asked for Priority Zero and Phase 1 only; Phases 2–4 wait for your go-ahead.
+
+**Priority Zero**
+- **AI matching:** "Change the category of Mukul to Shopping" works in 14 English and Hinglish forms. Words the AI copies from the request are removed from the search. When nothing matches exactly, the closest entries are offered as cards. With several matches the chat now shows the question first.
+- **AI screen:** the chips no longer wrap; labels are shorter; checked at 1.3× text and 360dp width.
+- **Due Summary:** tap to fold and open, checked on the emulator.
+- **Forms:** Health, Documents and Reminders forms checked in light and dark; one label shortened.
+- **Gemini errors:** each kind of failure has its own plain message.
+
+**Phase 1**
+- **Family activity** (More): who added, changed or finished what, filtered by type and person. Never shows "Only me", health or ID records.
+- **Document expiry tracker:** a "Remind me" window per document, renewal status and notes, and a summary card on Documents. Notifications say only "A document".
+- **Recurring payments** (Finance): suggestions from your transactions. Track saves a Subscription or a weekly reminder after you confirm. Nothing is paid and no transactions are created.
+
+Evidence: `docs/VERIFICATION-REPORT.md` §8.
+
 ## AI Finance action fix (27 Nov 2026, 11:09 brief)
 
 Your phone test showed that the AI could add a task but could not change a transaction's category.

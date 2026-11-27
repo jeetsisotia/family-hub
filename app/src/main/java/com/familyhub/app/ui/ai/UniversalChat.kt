@@ -569,10 +569,14 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically
                 ) {
-                    FilterChip(selected = web, enabled = AiSession.webSearchAllowed, onClick = { web = !web },
-                        label = { Text(if (AiSession.webSearchAllowed) "Web search" else "Web search (off in settings)", maxLines = 1, softWrap = false) },
+                    // Short labels so all three fit on a 360dp phone; when web search is off in settings, tapping says so.
+                    FilterChip(selected = web && AiSession.webSearchAllowed, onClick = {
+                            if (AiSession.webSearchAllowed) web = !web
+                            else Toast.makeText(context, "Web search is turned off in AI settings.", Toast.LENGTH_SHORT).show()
+                        },
+                        label = { Text("Web search", maxLines = 1, softWrap = false) },
                         leadingIcon = { Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(16.dp)) })
-                    FilterChip(selected = useFamily, onClick = { useFamily = !useFamily }, label = { Text("FamilyHub data", maxLines = 1, softWrap = false) })
+                    FilterChip(selected = useFamily, onClick = { useFamily = !useFamily }, label = { Text("Family data", maxLines = 1, softWrap = false) })
                     AssistChip(onClick = { googleDialog = true },
                         label = { Text(googleBusy ?: "Google", maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(max = 180.dp)) },

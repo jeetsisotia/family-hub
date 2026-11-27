@@ -288,8 +288,14 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
 
     LaunchedEffect(messages.size, busy) {
         if (messages.isNotEmpty()) {
-            val last = listState.layoutInfo.totalItemsCount - 1
-            if (last >= 0) listState.animateScrollToItem(last)
+            val total = listState.layoutInfo.totalItemsCount
+            val last = total - 1
+            val newest = messages.last()
+            if (!newest.fromUser && newest.actions.size >= 2 && total > 0) {
+                // Several cards (for example "which one do you mean?"): show the question and the first card, not the last card.
+                val lead = total - messages.size - (if (busy) 1 else 0) - 1
+                listState.animateScrollToItem((lead + messages.size - 1).coerceIn(0, last))
+            } else if (last >= 0) listState.animateScrollToItem(last)
         }
     }
 

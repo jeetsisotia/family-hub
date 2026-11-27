@@ -118,6 +118,41 @@ Your phone:
   1. In **FamilyHub actions**, type "change the category of <shop> to Shopping", check the card, tap **Change**, check Finance, then tap **Undo**.
   2. In the **Gemini chat**, do the same.
 
-## 8. Release
+## 8. Brief 5: Priority Zero and Phase 1 (27 Nov 2026, 12:38)
+
+Statuses: **PASS** (tested, with evidence), **PARTIAL** (built, testing incomplete), **BLOCKED**, **NOT STARTED**, **NEEDS MY PHONE**.
+
+The emulator evidence below comes from these runs:
+- Build APK #83 (`b566838`): Priority Zero checks.
+- Build APK #85 (`5a6f156`): Phase 1 screenshots.
+- The final run after p60 is recorded in `CONTINUATION-REPORT.md`.
+
+Real writes and Undo were tested against a local Firestore emulator (test data only).
+
+### Priority Zero
+
+| Item | Status | Evidence |
+|---|---|---|
+| A. "Change the category of Mukul to Shopping" (and 13 other English and Hinglish phrasings) | **PASS** | ledger-test 175 checks (14 Mukul phrasings, the AI's copied request words cleaned, closest matches when nothing matches exactly). Emulator #83: found the UPI payment to Mukul, Other → Shopping; changed only after confirming; read back from the database; Undo confirmed. 4/4 CHECKs |
+| A. Several matches: pick one, never all | **PASS** after fix | "Do all" never offered. #83 showed the chat scrolled to the *last* card, hiding the question. Fixed in p60: it now scrolls to the question and the first card |
+| B. AI screen: Google chip wrapping, spacing, widths and font sizes | **PARTIAL**, fix in p60 | #83: the chips no longer wrap at 1.3× text or 360dp, but the long "Web search (off in settings)" label pushed Google off screen (CHECK FAIL). p60 shortens the labels (Web search, Family data, Google); tapping Web search when it is off explains why |
+| C. Due Summary: fold and open on tap | **PASS** | #83: both tap CHECKs pass; screenshots `demo_due_tapped_fold`, `demo_due_tapped_open` |
+| D. Health (vitals, medicines), Documents and Reminders add forms, light and dark | **PASS** after one fix | #83: 8 screenshots checked; the Reminders "For (on a shared reminder…)" label wrapped into the field outline and is now "Whose phone rings" |
+| E. Gemini errors: invalid key, key refused, API not enabled, rate limit (with Google's wait time), daily quota, web search quota, network | **PASS** (unit) | `GeminiErrors` + 11 tests (Unit tests run #27). No paid fallback: only free models are tried. Live wording on your key: **NEEDS MY PHONE** |
+| E. General answers, follow-up, web search on your key; Gmail still working | **NEEDS MY PHONE** | General answers and follow-ups passed earlier on the repository key; web search was refused by that key's free quota. The Gmail code is unchanged |
+| F. Regression (unit) | **PASS** | Unit tests #27–#29 (all suites, incl. ledger 175, ai 28, Gemini errors 11, Phase 1 30); rules tests #8; emulator "NO CRASH" |
+| F. Notifications, backup and restore, sign-in and permissions | **NOT RETESTED** | No code change, except that document notifications now name only "A document". Backup, sign-in and rules are unchanged |
+
+### Phase 1
+
+| Feature | Status | Evidence |
+|---|---|---|
+| 1.1 Family activity timeline (More → Family activity) | **PASS** | phase1-test (timeline 12 checks: newest first; Only me, private and health never shown; documents name and type only; names from uid; completions; filters; future times never shown). Screenshots light and dark (#85) |
+| 1.2 Document expiry tracker | **PASS** (app) | phase1-test (8 checks); Documents summary card (expired, due soon, active; next to renew) in light and dark (#85). **NEEDS MY PHONE:** a real expiry notification on your phone |
+| 1.3 Recurring payment suggestions (Finance → Recurring payments) | **PARTIAL** until the final run | phase1-test (10 checks: weekly, monthly, yearly; irregular and deleted ignored; already tracked and dismissed not offered). Screenshots light and dark (#85): Milkman weekly suggested; Netflix not suggested because it is already a subscription. The Track → confirm → save check is in the final run |
+
+Phase 2–4 and the premium features: **NOT STARTED**, as you asked.
+
+## 9. Release
 
 See `CONTINUATION-REPORT.md` → State for the final commit, build number and artifact (`family-hub-apk`).
