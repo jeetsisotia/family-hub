@@ -347,7 +347,9 @@ suspend fun applyAction(env: AppEnv, context: Context, a: AiAction) {
             repo.updateBudget(env.familyId, v)
         }
         "shopping" -> repo.saveScoped(env.familyId, env.uid, "tasks", null,
-            mapOf("type" to "SHOPPING", "title" to a.title, "isCompleted" to false, "createdAt" to now), a.private)
+            mapOf("type" to "SHOPPING", "title" to a.title, "isCompleted" to false, "status" to "Pending", "createdAt" to now,
+                "listName" to a.value.ifBlank { com.familyhub.app.family.ShoppingLists.DEFAULT_LIST },
+                "createdByUid" to env.uid, "createdByName" to env.profile.name), a.private)
         "task" -> repo.saveScoped(env.familyId, env.uid, "tasks", null,
             mapOf("type" to "TASK", "title" to a.title, "isCompleted" to false, "assignedToName" to a.member,
                 "dueDateMillis" to a.dateMillis, "createdAt" to now), a.private)

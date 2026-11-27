@@ -45,6 +45,8 @@ object AppCommands {
         val s = text.lowercase(Locale.ROOT)
         // "Change the category of … to …": the real entries are found on the phone (works without the AI and web search).
         FinanceActions.handle(text, env)?.let { return it }
+        // Planner and expense questions (schedule, bills, week summary, reminders to set…), answered on the phone.
+        PlannerAnswers.handle(text, env)?.let { return it }
         return when {
             EMERGENCY.containsMatchIn(s) && CHANGE.containsMatchIn(s) -> emergency(text, env)
             REFUND.containsMatchIn(s) -> refunds(env)

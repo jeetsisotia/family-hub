@@ -52,7 +52,15 @@ Priority Zero and Phase 1: **done**. Latest full emulator run: Build APK #86 (`7
 
 ### Phase 4
 
-NOT STARTED.
+| # | Item | Status | Evidence / commit |
+|---|---|---|---|
+| 4.1 | Family AI planner (both AI screens, answered on the phone): "What's scheduled this weekend / tomorrow / this week" (with clashes), "Show upcoming bills", "Summarise this week's family activity", "Create a shopping list for tomorrow: milk, eggs" (named list, cards to confirm). "Remind me about…" still goes to the AI and comes back as cards | Code + phase4-test | p64 |
+| 4.2 | Expense questions: "Which category increased", "Show recurring expenses", "How much is pending in upcoming bills" (spend questions were already answered on the phone) | Code + tests | p64 |
+| 4.3 | Smart reminder agent: "Suggest reminders" offers reminders for documents, services, warranties, insurance and PUC, active subscriptions, events and tasks that have none yet; each is confirmed | Code + tests | p64 |
+| 4.4 | Email-to-task: in the Gemini chat, after reading Gmail (Google → Gmail), "Find tasks and dates" turns the emails into task, reminder and event cards; skips ones already in Family Hub; never sends or changes email | Code; **needs a phone** (Google sign-in) | p64 |
+| 4.5 | Document assistant: attach a PDF or photo in the Gemini chat to summarise it or ask about it (already there); "Find tasks and dates" suggests reminders from it | Code; needs a phone and a Gemini key | p64 |
+| 4.6 | Weekly family brief (More → Weekly brief, or "weekly brief" in the chat): events, tasks, bills, documents, maintenance, activity, money; each section can be switched off | Code + tests | p64 |
+| 4.7 | AI action security: every AI change goes through the shared runner (permission re-check, a preview card, your confirmation, only the approved action, result checked, audit log in AI settings, Undo where possible). Firestore rules unchanged | Existing + Phase 4 actions use it | p55–p64 |
 
 ### Phone tests to give at the end (collect here)
 
@@ -63,6 +71,7 @@ NOT STARTED.
 5. Family activity with entries made by other members.
 6. Phase 2: a shopping item added on one phone appears on another member's phone; an "Only me" item does not.
 7. Phase 3: share a PDF report to WhatsApp or Gmail and open it; the goal-reached notification.
+8. Phase 4: Gmail → "Find tasks and dates" on a real email; attach a PDF (for example an insurance policy) and use "Find tasks and dates".
 
 ### How to resume
 

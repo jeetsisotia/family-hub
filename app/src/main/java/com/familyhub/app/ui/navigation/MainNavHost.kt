@@ -45,6 +45,7 @@ val MoreDestinations: List<SecondaryDestination> =
         SecondaryDestination("safety", "Family safety", Icons.Rounded.Shield, "SOS, live location, check-ins, emergency card"),
         SecondaryDestination("calendar", "Calendar", Icons.Rounded.CalendarMonth, "Events and birthdays"),
         SecondaryDestination("activity", "Family activity", Icons.Rounded.History, "Who added, changed or finished what"),
+        SecondaryDestination("weekly_brief", "Weekly brief", Icons.Rounded.Summarize, "The week ahead in one place"),
         SecondaryDestination(Hubs.reminders.route, Hubs.reminders.title, Hubs.reminders.icon, Hubs.reminders.subtitle),
         SecondaryDestination(Hubs.home.route, Hubs.home.title, Hubs.home.icon, Hubs.home.subtitle),
         SecondaryDestination(Hubs.life.route, Hubs.life.title, Hubs.life.icon, Hubs.life.subtitle)
@@ -63,7 +64,7 @@ val MoreDestinations: List<SecondaryDestination> =
 /** Which group each More row belongs to. */
 private fun moreSection(route: String): String = when (route) {
     "assistant", "safety" -> "Assistant and safety"
-    "calendar", "activity", Hubs.reminders.route -> "Plan"
+    "calendar", "activity", "weekly_brief", Hubs.reminders.route -> "Plan"
     "settings" -> "Settings"
     else -> "Home and family"
 }

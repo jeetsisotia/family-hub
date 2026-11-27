@@ -142,6 +142,8 @@ class DemoActivity : FragmentActivity() {
                             route == "chat_list" -> com.familyhub.app.ui.chat.ChatListScreen(env) { }
                             route.startsWith("chat:") -> com.familyhub.app.ui.chat.ChatScreen(env, route.removePrefix("chat:"), onBack = {})
                             route == "assistant_new" -> AssistantScreen(env)
+                            // One question only, for the planner checks.
+                            route == "ask" -> AssistantScreen(env, autoAsk = ask)
                             route == "assistant_tidy" -> AssistantScreen(
                                 env,
                                 autoAsks = listOf(

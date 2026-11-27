@@ -262,6 +262,8 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
     var useFamily by remember { mutableStateOf(false) }
     var showHistory by remember { mutableStateOf(false) }
     var attachment by remember { mutableStateOf<Triple<String, String, String>?>(null) } // name, mime, base64
+    // The last email or document sent, kept in memory only, for "Find tasks and dates".
+    var lastAttachment by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     val listState = rememberLazyListState()
     var googleDialog by remember { mutableStateOf(false) }
     var googleBusy by remember { mutableStateOf<String?>(null) }
@@ -352,6 +354,7 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
             if (q.isEmpty() && attachment == null) return
             msgs = msgs + UMsg(true, q.ifEmpty { "Please look at the attached file." }, attachment?.first.orEmpty())
             sendAttachment = attachment
+            if (attachment != null) lastAttachment = attachment
             input = ""
             attachment = null
         }
@@ -362,6 +365,7 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
         // They do not need web search, and nothing from Finance is sent to the model for them.
         val asked = msgs.lastOrNull()?.takeIf { it.fromUser && !regenerate && sendAttachment == null }?.text.orEmpty()
         val localAction = if (asked.isBlank()) null else FinanceActions.handle(asked, env)
+            ?: PlannerAnswers.handle(asked, env)
             ?: AppCommands.handle(asked, env, null)?.takeIf { it.actions.isNotEmpty() }
         if (localAction != null) {
             val mine = msgs.dropLast(1) + msgs.last().copy(local = true)
@@ -534,9 +538,21 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
                                             }
                                         }
                                     }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         if (!m.error) TextButton(onClick = { clipboard.setText(AnnotatedString(m.text)); Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show() },
                                             contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Copy") }
+                                        val la = lastAttachment
+                                        if (idx == messages.size - 1 && !busy && !m.local && !m.error && la != null) TextButton(onClick = {
+                                            busy = true
+                                            scope.launch {
+                                                try {
+                                                    val r = FamilyActionsAi.fromAttachment(env, la.second, la.third)
+                                                    current?.let { c -> persist(c.copy(messages = c.messages + UMsg(false, r.text, local = true, actions = r.actions), updatedAt = System.currentTimeMillis())) }
+                                                } catch (e: Exception) {
+                                                    current?.let { c -> persist(c.copy(messages = c.messages + UMsg(false, e.message ?: "Could not read it.", error = true, local = true))) }
+                                                } finally { busy = false }
+                                            }
+                                        }, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Find tasks and dates") }
                                         if (idx == messages.size - 1 && !busy) TextButton(onClick = { ask(regenerate = true) },
                                             contentPadding = PaddingValues(horizontal = 8.dp)) { Text(if (m.error) "Try again" else "Regenerate") }
                                     }
