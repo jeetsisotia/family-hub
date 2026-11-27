@@ -273,6 +273,25 @@ jobs:
           # ---- Phase 1: family activity, document expiry, recurring payments (light and dark) ----
           for r in activity recurring documents dark:activity dark:recurring dark:documents; do demo "$r" "" 7 no; done
           demo form:documents "" 7 scroll
+          # ---- Phase 2: shopping lists, calendar 2.0, subscriptions, maintenance and vehicles (light and dark) ----
+          for r in shopping calendar subscriptions maintenance vehicles dark:shopping dark:calendar dark:subscriptions dark:maintenance; do demo "$r" "" 7 no; done
+          adb shell am start -W -n $PKG/.DemoActivity --es route calendar >/dev/null 2>&1; sleep 7; screen_text p2cal
+          seen '1 clash' p2cal "calendar: the dentist and PTM clash is flagged"
+          tap_text Agenda p2a; sleep 2; shot demo_calendar_agenda; screen_text p2cal2
+          seen 'School PTM' p2cal2 "calendar: agenda view lists the next 30 days"
+          adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route shopping >/dev/null 2>&1; sleep 7; screen_text p2shop
+          seen 'to buy' p2shop "shopping: pending count and estimate shown"
+          seen 'Not in shop' p2shop "shopping: an item can be marked not available"
+          adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route subscriptions >/dev/null 2>&1; sleep 7; screen_text p2sub
+          seen 'Per month' p2sub "subscriptions: monthly and yearly totals shown"
+          seen 'paused' p2sub "subscriptions: paused one counted separately"
+          adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route maintenance >/dev/null 2>&1; sleep 7; screen_text p2m
+          seen 'Log service' p2m "maintenance: service history and Log service shown"
+          adb shell am force-stop $PKG
+
           # Track a recurring payment: confirm dialog, saved to the test database, suggestion gone.
           adb shell am start -W -n $PKG/.DemoActivity --es route recurring --es store emulator >/dev/null 2>&1; sleep 10
           tap_text Track r1; sleep 3; shot demo_recurring_confirm; screen_text rec1
