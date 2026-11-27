@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.ai
 
+import com.familyhub.app.family.Planner.CatRef
 import com.familyhub.app.money.Ledger
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.hub.homeViewFilter
@@ -30,7 +31,8 @@ object MoneyAnswers {
         return from to c.timeInMillis - 1
     }
 
-    private val Q_SPEND = Regex("\\b(how much|what).{0,30}\\b(spen[dt]|spending|expenses?)\\b|\\bspent this month\\b|\\btotal spend")
+    private val Q_SPEND = Regex("\\b(how much|what).{0,30}\\b(spen[dt]|spending|expenses?)\\b|\\bspent this month\\b|\\btotal spend|" +
+        "\\b(spending|expenses?)\\s+(this|last)\\s+month\\b|\\bkitn[aei]\\b.{0,25}\\b(kharch|kharcha|gaya|gaye|laga|lage|spend)|\\bkharch[ae]?\\b.{0,20}\\bkitn[aei]\\b")
     private val Q_TOP = Regex("\\b(top|biggest|most|highest)\\b.{0,25}\\b(categor|spend|expense)|\\bwhere\\b.{0,20}\\b(money|spending) go")
     private val Q_EMI = Regex("\\bemis?\\b|\\bloans?\\b.{0,20}\\b(due|pending|left|outstanding)")
     private val Q_CARD = Regex("\\b(credit )?card\\b.{0,25}\\b(bill|due|outstanding|owe)|\\bnext card\\b")
@@ -74,11 +76,11 @@ object MoneyAnswers {
         }
         // Requests to add or log something go to the assistant, not to these answers.
         if (ADDING.containsMatchIn(s)) return null
-        val mine = Regex("\\b(i|my|me|mine)\\b").containsMatchIn(s) && !Regex("\\b(we|our|us|family)\\b").containsMatchIn(s)
+        val mine = Regex("\\b(i|my|me|mine|maine|mera|meri|mere|mujhe)\\b").containsMatchIn(s) && !Regex("\\b(we|our|us|family|humne|hamara|humara|hum|ghar)\\b").containsMatchIn(s)
         val view = homeViewFilter(!mine, env.uid, env.profile.name)
         val data = env.data.mapValues { (_, l) -> l.filter(view) }
         val all = env.data["expenses"].orEmpty()
-        val last = Regex("\\blast month\\b").containsMatchIn(s)
+        val last = Regex("\\blast month\\b|\\bpichh?le mahine\\b").containsMatchIn(s)
         val (from, to) = monthRange(if (last) -1 else 0)
         val now = System.currentTimeMillis()
         val who = if (mine) "You" else "The family"
@@ -142,28 +144,8 @@ object MoneyAnswers {
                 else "$period: income ${inr(sum.income)}, spent ${inr(sum.spent)}, saved ${inr(sum.savings)} (${sum.savingsPct}%)."
                     .replaceFirstChar { it.uppercase() }
             )
-            Q_SPEND.containsMatchIn(s) && com.familyhub.app.family.Planner.spendTopic(s) != null -> {
-                // "How much did we spend on groceries this month?": one category (or payee) from the real entries.
-                val topic = com.familyhub.app.family.Planner.spendTopic(s)!!
-                fun inRange(r: Map<String, Any?>, a: Long, b: Long) = Ledger.isSpend(r) && ((r["dateMillis"] as? Number)?.toLong() ?: 0L) in a..b
-                val allSpends = data["expenses"].orEmpty().filter { Ledger.isSpend(it) }
-                val cat = com.familyhub.app.family.Planner.matchCategory(topic, allSpends.map { it.str("category").ifBlank { "Other" } }.distinct())
-                val pick: (Map<String, Any?>) -> Boolean = if (cat != null) { r -> r.str("category").ifBlank { "Other" } == cat }
-                    else { r -> r.str("title").lowercase(Locale.ROOT).contains(topic) }
-                val label = cat ?: "\"$topic\""
-                val now = data["expenses"].orEmpty().filter { inRange(it, from, to) && pick(it) }
-                if (cat == null && allSpends.none(pick)) reply("I couldn't find any spending on \"$topic\" in Finance. Try the category name as it appears in Finance.")
-                else {
-                    val total = now.sumOf { Ledger.spendAmount(it) }
-                    val (pf, pt) = monthRange(if (last) -2 else -1)
-                    val before = data["expenses"].orEmpty().filter { inRange(it, pf, pt) && pick(it) }.sumOf { Ledger.spendAmount(it) }
-                    reply(
-                        "$who spent ${inr(total)} on $label $period (${now.size} ${if (now.size == 1) "entry" else "entries"})." +
-                            (if (before > 0) " The month before: ${inr(before)}." else "") +
-                            " Taken from your Finance entries."
-                    )
-                }
-            }
+            Q_SPEND.containsMatchIn(s) && com.familyhub.app.family.Planner.spendTopic(s) != null ->
+                spendOn(com.familyhub.app.family.Planner.spendTopic(s)!!, env, view, mine, last, from, to, who, period)
             Q_SPEND.containsMatchIn(s) -> reply(
                 "$who spent ${inr(sum.spent)} $period" + (if (sum.income > 0) ", against income of ${inr(sum.income)}" else "") +
                     (if (!mine && env.family.monthlyBudget > 0 && !last) " (budget ${inr(env.family.monthlyBudget)})" else "") +
@@ -171,6 +153,67 @@ object MoneyAnswers {
             )
             else -> null
         }
+    }
+
+    /**
+     * "How much did we spend on grocery this month?": one stored category or subcategory (never the overall total).
+     * Synonyms lead only to categories the family really uses or has defined; several matches → ask which one.
+     */
+    private fun spendOn(
+        topic: String, env: AppEnv, view: (Map<String, Any?>) -> Boolean, mine: Boolean, last: Boolean,
+        from: Long, to: Long, who: String, period: String
+    ): AppCommands.Result {
+        val P = com.familyhub.app.family.Planner
+        val all = env.data["expenses"].orEmpty().filter { Ledger.isSpend(it) && it["isDeleted"] != true }
+        fun cat(r: Map<String, Any?>) = r.str("category").ifBlank { "Other" }
+        fun sub(r: Map<String, Any?>) = r.str("subcategory").takeIf { it.isNotBlank() && it != "None" }
+        val refs = LinkedHashSet<CatRef>()
+        all.forEach { r -> refs.add(CatRef("category", cat(r))); sub(r)?.let { refs.add(CatRef("subcategory", it, cat(r))) } }
+        env.data["items"].orEmpty().filter { it.str("type") == "category" && it["isDeleted"] != true }.forEach { r ->
+            val t = r.str("title").trim()
+            val parent = r.str("parent").trim().takeIf { it.isNotBlank() && it != "None" }
+            if (t.isNotBlank()) refs.add(if (parent == null) CatRef("category", t) else CatRef("subcategory", t, parent))
+        }
+        fun matcher(ref: CatRef): (Map<String, Any?>) -> Boolean =
+            if (ref.field == "category") { r -> cat(r).equals(ref.name, true) }
+            else { r -> sub(r).equals(ref.name, true) && cat(r).equals(ref.parent, true) }
+        val hits = P.findCategories(topic, refs)
+        val used = hits.filter { h -> all.any(matcher(h)) }
+        val chosen = if (used.isNotEmpty()) used else hits
+        fun inRange(r: Map<String, Any?>, a: Long, b: Long) = ((r["dateMillis"] as? Number)?.toLong() ?: 0L) in a..b
+        val (pf, pt) = monthRange(if (last) -2 else -1)
+        val prevLabel = if (last) "The month before" else "Last month"
+        // Everything this person may see: shared entries plus their own "Only me" ones (others' private entries never load).
+        val visible = if (mine) all.filter(view) else all
+        if (chosen.size > 1) {
+            return reply(
+                "\"$topic\" matches more than one category $period: " +
+                    chosen.joinToString("; ") { c -> val m = matcher(c); val l = visible.filter { inRange(it, from, to) && m(it) }; "${c.label} ${inr(l.sumOf { Ledger.spendAmount(it) })} (${l.size})" } +
+                    ". Which one did you mean? Ask again with that name, for example \"How much did we spend on ${chosen.first().name} $period?\""
+            )
+        }
+        val pick: (Map<String, Any?>) -> Boolean
+        val label: String
+        if (chosen.size == 1) { pick = matcher(chosen.first()); label = chosen.first().label }
+        else {
+            val key = topic.lowercase(Locale.ROOT)
+            val payee: (Map<String, Any?>) -> Boolean = { r -> (r.str("title") + " " + r.str("merchant")).lowercase(Locale.ROOT).contains(key) }
+            if (all.none(payee)) {
+                val top = all.groupBy { cat(it) }.entries.sortedByDescending { it.value.size }.take(8).joinToString(", ") { it.key }
+                return reply("I couldn't find a category or payee called \"$topic\" in Finance." + (if (top.isNotBlank()) " Your categories: $top." else ""))
+            }
+            pick = payee; label = "\"$topic\" (payee)"
+        }
+        val now = visible.filter { inRange(it, from, to) && pick(it) }
+        val total = now.sumOf { Ledger.spendAmount(it) }
+        val before = visible.filter { inRange(it, pf, pt) && pick(it) }.sumOf { Ledger.spendAmount(it) }
+        val ownPrivate = now.filter { it[com.familyhub.app.data.remote.PRIVATE_FLAG] == true }.sumOf { Ledger.spendAmount(it) }
+        return reply(
+            "$who spent ${inr(total)} on $label $period (${now.size} ${if (now.size == 1) "entry" else "entries"}). " +
+                "$prevLabel: ${if (before > 0) inr(before) else "nothing"}." +
+                (if (ownPrivate > 0 && !mine) " This includes ${inr(ownPrivate)} from your own Only me entries." else "") +
+                " Taken from your Finance entries."
+        )
     }
 
     private fun reply(text: String) = AppCommands.Result(text, emptyList())

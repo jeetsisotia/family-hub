@@ -52,33 +52,99 @@ object Planner {
     data class Suggestion(val title: String, val dateMillis: Long, val why: String)
 
     private val SPEND_ON = Regex(
-        "\\b(?:spen[dt]|spending|expenses?|kharcha|kharch)\\s+(?:on|for|in|par)\\s+(?:the\\s+|our\\s+|my\\s+)?" +
-            "([\\p{L}][\\p{L} &-]{1,30}?)(?=\\s+(?:this|last|is|so)\\b|\\s+(?:mahine|month)\\b|\\s*[?.!,]|\\s*$)"
+        "\\b(?:spen[dt]|spending|expenses?|kharcha|kharch)\\s+(?:on|for|in|par|pe)\\s+" +
+            "([\\p{L}][\\p{L} &-]{1,30}?)(?=\\s+(?:this|last|is|so|pichle|pichhle|in)\\b|\\s+(?:mahine|month|week)\\b|\\s*[?.!,]|\\s*$)"
     )
-    private val NOT_TOPIC = setOf("it", "that", "this", "things", "stuff", "everything", "all", "average")
+    // Hinglish: "grocery pe kitna kharcha hua", "transport mein kitne gaye"
+    private val TOPIC_KITNA = Regex("(?:^|\\b)([\\p{L}][\\p{L} ]{1,30}?)\\s+(?:pe|par|mein|me|ke liye|ka|ki)\\s+(?:kitna|kitne|kitni)\\b")
+    // "grocery spending this month", "transport expenses last month"
+    private val TOPIC_FIRST = Regex("(?:^|\\b)([\\p{L}]{3,20}(?: [\\p{L}]{3,20})?)\\s+(?:spending|spend|expenses?|kharcha)\\s+(?:this|last|is|pichle|pichhle)\\b")
+    private val NOT_TOPIC = setOf("it", "that", "this", "things", "stuff", "everything", "all", "average", "total", "overall", "monthly",
+        "family", "household", "money", "maine", "humne", "hum", "aaj", "kal", "did", "have", "has", "had", "we", "i", "you", "much", "how", "how much")
+    private val LEAD = Regex("^(?:how much |how much did |did |have |has |the |our |my |total |family |humara |hamara |mera |meri |mere |maine |humne |" +
+        "is mahine |iss mahine |pichle mahine |pichhle mahine |this month |last month |aaj |is |iss )+")
+
+    private fun cleanTopic(raw: String?): String? {
+        var t = raw?.trim()?.replace(Regex("\\s+"), " ") ?: return null
+        var prev: String
+        do { prev = t; t = t.replace(LEAD, "").trim() } while (t != prev)
+        t = t.removeSuffix(" ka").removeSuffix(" ki").removeSuffix(" ke").trim()
+        return t.takeIf { it.length >= 3 && it !in NOT_TOPIC && it.split(' ').none { w -> w in setOf("did", "have", "spend", "spent") } }
+    }
 
     /** The thing a spending question is about: "how much did we spend on groceries this month?" → "groceries". */
-    fun spendTopic(text: String): String? =
-        SPEND_ON.find(text.lowercase(Locale.ROOT))?.groupValues?.get(1)?.trim()?.takeIf { it.length >= 3 && it !in NOT_TOPIC }
+    fun spendTopic(text: String): String? {
+        val s = text.lowercase(Locale.ROOT)
+        return cleanTopic(SPEND_ON.find(s)?.groupValues?.get(1))
+            ?: cleanTopic(TOPIC_KITNA.find(s)?.groupValues?.get(1))
+            ?: cleanTopic(TOPIC_FIRST.find(s)?.groupValues?.get(1))
+    }
 
     private fun stem(w: String): String {
         val n = norm(w)
         return when {
             n.endsWith("ies") && n.length > 4 -> n.dropLast(3) + "y"
             n.endsWith("es") && n.length > 4 && (n.endsWith("ches") || n.endsWith("shes") || n.endsWith("xes")) -> n.dropLast(2)
-            n.endsWith("s") && n.length > 3 -> n.dropLast(1)
+            n.endsWith("s") && n.length > 3 && !n.endsWith("ss") -> n.dropLast(1)
             else -> n
         }
     }
 
-    /** The category the person meant, from the categories that exist ("grocery" → "Groceries"), or null. */
-    fun matchCategory(topic: String, categories: Collection<String>): String? {
-        val t = stem(topic)
-        if (t.length < 3) return null
-        return categories.firstOrNull { stem(it) == t }
-            ?: categories.firstOrNull { c -> val s = stem(c); s.length >= 4 && t.length >= 4 && (s.startsWith(t) || t.startsWith(s)) }
-            ?: categories.firstOrNull { c -> c.split(' ', '&', '/', '-').any { p -> p.isNotBlank() && stem(p) == t } }
+    /** A phrase reduced word by word ("Food Shopping" → "foodshopping", "groceries" → "grocery"). */
+    private fun stemPhrase(p: String): String = p.lowercase(Locale.ROOT).split(Regex("[^\\p{L}0-9]+")).filter { it.isNotBlank() }.joinToString("") { stem(it) }
+
+    /**
+     * Everyday words for the built-in categories. A word leads to its category only when that category is really
+     * used or defined by the family; nothing new is made up, and unrelated categories are never joined.
+     */
+    val SYNONYMS: Map<String, List<String>> = mapOf(
+        "Groceries" to listOf("grocery", "groceries", "grocery shopping", "food shopping", "supermarket", "super market", "kirana", "ration",
+            "sabzi", "sabji", "vegetables", "fruits and vegetables", "provisions", "daily needs"),
+        "Transport" to listOf("transport", "transportation", "commute", "commuting", "cab", "taxi", "auto", "metro", "bus", "local travel"),
+        "Fuel" to listOf("fuel", "petrol", "diesel", "cng"),
+        "Dining" to listOf("dining", "eating out", "restaurant", "food delivery", "takeaway", "dine out"),
+        "Health" to listOf("health", "medical", "medicine", "doctor", "pharmacy", "dawai", "hospital"),
+        "Utilities" to listOf("utilities", "utility", "electricity", "bijli", "water bill", "gas bill", "internet", "broadband", "wifi",
+            "recharge", "mobile bill", "phone bill"),
+        "Rent" to listOf("rent", "kiraya", "house rent"),
+        "Education" to listOf("education", "school fees", "tuition", "college fees"),
+        "Entertainment" to listOf("entertainment", "movie", "ott"),
+        "Shopping" to listOf("shopping", "clothes", "clothing", "online shopping"),
+        "Insurance" to listOf("insurance", "premium"),
+        "EMI" to listOf("emi", "loan emi"),
+        "Travel" to listOf("travel", "trip", "holiday", "vacation", "flight", "hotel")
+    )
+
+    /** A category or subcategory as stored on Finance entries. */
+    data class CatRef(val field: String, val name: String, val parent: String = "") {
+        val label get() = if (field == "subcategory" && parent.isNotBlank()) "$parent › $name" else name
     }
+
+    /**
+     * The stored categories (or subcategories) the person meant. One hit: use it. Several: ask which one. None: say so.
+     * "grocery", "Food shopping" and "supermarket" all lead to "Groceries" (or a "Grocery" subcategory) when the family has one.
+     */
+    fun findCategories(topic: String, stored: Collection<CatRef>): List<CatRef> {
+        val t = stemPhrase(topic)
+        if (t.length < 3) return emptyList()
+        val canon = SYNONYMS.filter { (_, words) -> words.any { stemPhrase(it) == t } }.keys.map { stemPhrase(it) }
+        val wanted = (setOf(t) + canon).toSet()
+        val refs = stored.distinct()
+        fun parts(n: String) = n.split(Regex("\\s*(?:&|/|,|-|\\band\\b)\\s*")).map { it.trim() }.filter { it.isNotBlank() }
+        val exact = refs.filter { stemPhrase(it.name) in wanted }
+        val partHits = refs.filter { r -> r !in exact && parts(r.name).size > 1 && parts(r.name).any { stemPhrase(it) in wanted } }
+        val hits = (exact + partHits).ifEmpty {
+            refs.filter { r -> val n = stemPhrase(r.name); n.length >= 4 && t.length >= 4 && (n.startsWith(t) || t.startsWith(n)) }
+        }
+        // A subcategory inside a category that already matched adds nothing (its entries are counted there).
+        val cats = hits.filter { it.field == "category" }.map { stemPhrase(it.name) }.toSet()
+        return hits.filterNot { it.field == "subcategory" && stemPhrase(it.parent) in cats }
+            .distinctBy { it.field + "|" + stemPhrase(it.parent) + "|" + stemPhrase(it.name) }
+    }
+
+    /** Kept for older callers: the single category name, or null when none or several match. */
+    fun matchCategory(topic: String, categories: Collection<String>): String? =
+        findCategories(topic, categories.map { CatRef("category", it) }).singleOrNull()?.name
 
     private fun norm(t: String) = t.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
 

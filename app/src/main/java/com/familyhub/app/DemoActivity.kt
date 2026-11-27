@@ -391,6 +391,13 @@ object DemoData {
             "dateMillis" to now - (5 + 30 * k) * d, "paymentMethod" to "Credit card", "memberName" to "Demo User", "isPaid" to true, "isDeleted" to false))
         for (k in 0..4) expenses.add(rec("type" to "EXPENSE", "title" to "Milkman Ramesh", "category" to "Groceries", "amountInr" to 300.0 + (k % 2) * 10,
             "dateMillis" to now - (1 + 7 * k) * d, "paymentMethod" to "UPI", "memberName" to "Asha", "isPaid" to true, "isDeleted" to false))
+        // AI spending checks: an "Only me" grocery entry, a second category that also means transport, and a subcategory.
+        expenses.add(rec("type" to "EXPENSE", "title" to "DMart", "category" to "Groceries", "amountInr" to 1250.0, "dateMillis" to now - 2 * d,
+            "paymentMethod" to "UPI", "memberName" to "Demo User", "createdByUid" to UID, "isPaid" to true, "isDeleted" to false, private = true))
+        expenses.add(rec("type" to "EXPENSE", "title" to "Uber", "category" to "Cab", "amountInr" to 220.0, "dateMillis" to now - 2 * d,
+            "paymentMethod" to "UPI", "memberName" to "Demo User", "isPaid" to true, "isDeleted" to false))
+        expenses.add(rec("type" to "EXPENSE", "title" to "Steel utensils", "category" to "Household", "subcategory" to "Kitchen supplies",
+            "amountInr" to 640.0, "dateMillis" to now - 3 * d, "paymentMethod" to "UPI", "memberName" to "Demo User", "isPaid" to true, "isDeleted" to false))
         // Phase 2 sample data: lists with prices, two clashing appointments, a paused subscription, an AC and a car.
         val p2Shop = listOf(
             rec("type" to "SHOPPING", "title" to "Tomatoes", "qty" to "1 kg", "listName" to "Groceries", "category" to "Grocery", "estPrice" to 40.0,

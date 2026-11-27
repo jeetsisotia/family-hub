@@ -74,6 +74,10 @@ All four phases are built. Premium features: see VERIFICATION-REPORT §9 (most a
 | Maintenance had no warranty start or receipt | Warranty starts; receipt or bill photo (stays on the phone) for maintenance and vehicles | Build |
 | Docs had no commit SHAs for Phases 2–4; Household inventory marked PARTIAL though Home Vault exists | VERIFICATION §9 corrected | Done |
 
+### AI audit brief (27 Nov 19:02, bundle p67)
+
+Phone report: "How much did we spend on grocery this month?" → "couldn't find". Causes in code: (1) "we" questions used the family view, which drops your own Only me entries (the Transport question said "I", which keeps them); (2) only the main category was searched, never subcategories; (3) no synonyms. Fix: `Planner.spendTopic` (English and Hinglish), `Planner.findCategories` (stored categories and subcategories only, synonyms such as food shopping / supermarket / kirana → Groceries, several real matches → ask), `MoneyAnswers.spendOn` (total, count, last month, Only me share named). phase4-test +31 checks; 9 emulator checks. Other AI areas were checked earlier (VERIFICATION §4, §7–§9) and not repeated. Backup: any local photo in any field (receipt photos included) goes into the backup file (`DataToolsScreen.backupJson`) and is restored (`LocalPhotos.import`); restore on a phone not tested.
+
 ### Phone tests to give at the end (collect here)
 
 1. Mukul-style category change on your own data, in both AI screens.

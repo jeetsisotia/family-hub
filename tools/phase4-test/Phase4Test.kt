@@ -63,5 +63,41 @@ fun main() {
     check("spend: groceries → Groceries", Planner.matchCategory("groceries", cats) == "Groceries")
     check("spend: medical → Health & Medical", Planner.matchCategory("medical", cats) == "Health & Medical")
     check("spend: unknown → null (then searched as a payee)", Planner.matchCategory("mukul", cats) == null)
+
+    // ---------- AI spending by category: real matching rules (27 Nov phone report: "grocery" was not found) ----------
+    val topics = mapOf(
+        "How much did we spend on grocery this month?" to "grocery",
+        "How much i spend on transport this month?" to "transport",
+        "How much did we spend on food shopping last month?" to "food shopping",
+        "grocery pe kitna kharcha hua is mahine" to "grocery",
+        "is mahine grocery pe kitna kharcha hua" to "grocery",
+        "maine petrol par kitna kharch kiya" to "petrol",
+        "grocery spending this month" to "grocery",
+        "how much did we spend on supermarket in november" to "supermarket"
+    )
+    topics.forEach { (q, t) -> check("topic: '$q'", Planner.spendTopic(q) == t, Planner.spendTopic(q)) }
+    listOf("How much did we spend this month?", "what are our total expenses this month", "how much have I spent this month", "kitna kharcha hua is mahine")
+        .forEach { q -> check("topic: none in '$q' (overall total is right)", Planner.spendTopic(q) == null, Planner.spendTopic(q)) }
+
+    fun C(n: String) = Planner.CatRef("category", n)
+    fun S(n: String, p: String) = Planner.CatRef("subcategory", n, p)
+    val stored = listOf(C("Groceries"), C("Transport"), C("Shopping"), C("Dining"), C("Travel"), C("Fuel"))
+    fun one(t: String, refs: List<Planner.CatRef>) = Planner.findCategories(t, refs).map { it.label }
+    listOf("grocery", "groceries", "Grocery", "food shopping", "supermarket", "kirana", "sabzi").forEach { t ->
+        check("category: '$t' → Groceries", one(t, stored) == listOf("Groceries"), one(t, stored))
+    }
+    check("category: transport unchanged", one("transport", stored) == listOf("Transport"))
+    check("category: 'cab' → Transport", one("cab", stored) == listOf("Transport"))
+    check("category: 'shopping' is Shopping, not Groceries", one("shopping", stored) == listOf("Shopping"))
+    check("category: 'travel' is Travel, not Transport", one("travel", stored) == listOf("Travel"))
+    check("category: 'petrol' → Fuel", one("petrol", stored) == listOf("Fuel"))
+    check("category: 'food' joins nothing (Dining and Groceries stay apart)", one("food", stored).isEmpty(), one("food", stored))
+    check("category: synonyms never invent a category the family does not use", one("supermarket", listOf(C("Transport"), C("Dining"))).isEmpty())
+    val withSub = listOf(C("Food"), S("Grocery", "Food"), C("Transport"))
+    check("category: a subcategory is found (Food › Grocery)", one("groceries", withSub) == listOf("Food › Grocery"), one("groceries", withSub))
+    check("category: subcategory inside a matching category is not counted twice", one("groceries", listOf(C("Groceries"), S("Grocery", "Groceries"))) == listOf("Groceries"))
+    check("category: two real matches → ask which one", one("grocery", listOf(C("Groceries"), S("Grocery", "Food"))).size == 2)
+    check("category: 'cab' with Transport and Cab both used → ask", one("cab", listOf(C("Transport"), C("Cab"))).size == 2)
+    check("category: 'Grocery & Household' found from either word", one("household", listOf(C("Grocery & Household"))) == listOf("Grocery & Household"))
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }
