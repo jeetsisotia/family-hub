@@ -217,7 +217,8 @@ jobs:
           # Several matches: every one is listed and the person picks one.
           recat emulator "change_category_of_swiggy_to_shopping" 25
           shot demo_ai_recat_5_choose; screen_text ai_recat_5
-          seen 'Which one do you mean' ai_recat_5 "several matches are listed to choose from"
+          n=$(grep -o 'text="Change"' shots/ai_recat_5.xml | wc -l)
+          [ "$n" -ge 2 ] && echo "CHECK several matches are listed to choose from ($n Change buttons on screen): PASS" || echo "CHECK several matches are listed to choose from ($n on screen): FAIL"
           adb shell am force-stop $PKG
           # Database unreachable: the card must not say Changed.
           recat offline "$ASK" 25; tap_text Change c3; sleep 30
