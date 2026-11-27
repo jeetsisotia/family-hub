@@ -325,7 +325,16 @@ jobs:
           askq "Create_a_shopping_list_for_tomorrow:_milk,_eggs_and_bread" shop; seen 'Tomorrow' ask_shop "planner: a named shopping list from one sentence"
           askq "Which_category_increased_compared_to_last_month?" cat; seen 'last month' ask_cat "planner: category increase from real data"
           askq "Weekly_family_brief" brief; seen 'Your weekly family brief' ask_brief "planner: weekly brief in the chat"
-          askq "How_much_did_we_spend_on_groceries_this_month?" groc; seen 'on Groceries this month' ask_groc "spending on one category from real entries"
+          askq "How_much_did_we_spend_on_grocery_this_month?" groc; seen 'on Groceries this month' ask_groc "spend: 'grocery' (singular) finds Groceries"
+          seen 'from your own Only me entries' ask_groc "spend: a 'we' question includes my own Only me grocery entry"
+          seen 'Last month:' ask_groc "spend: previous month shown"
+          askq "How_much_i_spend_on_transport_this_month?" trans; seen 'on Transport this month' ask_trans "spend: Transport still works"
+          askq "grocery_pe_kitna_kharcha_hua_is_mahine" hing; seen 'on Groceries this month' ask_hing "spend: Hinglish question"
+          askq "How_much_did_we_spend_on_food_shopping_this_month?" food; seen 'on Groceries this month' ask_food "spend: 'food shopping' means Groceries"
+          askq "How_much_did_I_spend_on_kitchen_supplies_this_month?" sub; seen 'Household › Kitchen supplies' ask_sub "spend: a subcategory is found"
+          askq "How_much_did_we_spend_on_cab_this_month?" amb; seen 'matches more than one category' ask_amb "spend: two real matches → asks which one"
+          askq "How_much_did_we_spend_on_zorbing_this_month?" none; seen 'find a category or payee' ask_none "spend: no match said honestly"
+          grep -q 'The family spent .* this month\. Card bill' shots/ask_groc.xml && echo "CHECK spend: never the overall total for a category: FAIL" || echo "CHECK spend: never the overall total for a category: PASS"
           for r in weekly_brief dark:weekly_brief; do demo "$r" "" 7 no; done
 
           # Track a recurring payment: confirm dialog, saved to the test database, suggestion gone.
