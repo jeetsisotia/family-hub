@@ -456,6 +456,19 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ---
 
+## AI Finance action fix (27 Nov 2026, 11:09 brief)
+
+Your phone test showed that the AI could add a task but could not change a transaction's category.
+- **Why:** there was no "change category" action at all. The Gemini chat was told it cannot change data, and the model only sees a 10-day summary without record ids.
+- **Now:**
+  - Both AI screens use one shared path.
+  - The request is read on the phone and the real transaction is found in Finance. Several matches are listed to pick from.
+  - The card shows the real entry and the new category. Nothing changes until you tap **Change**.
+  - The write goes through the same code as Finance, and the card says **Changed ✓** only after the server confirms it.
+  - **Undo** puts it back, also confirmed by the server.
+  - None of this needs web search or the AI.
+- **Evidence:** emulator check with a real local database (Build APK #80): 10 of 11 logged checks PASS, and the 11th is shown by its screenshot. Also 157 money checks and the rules tests. Details in `docs/VERIFICATION-REPORT.md` §7 and `docs/AI-SETUP.md` §6a.
+
 ## Brief 4: phone feedback, Due Summary, AI checks (27 Nov 2026)
 
 **Your phone tests (confirmed by you, 27 Nov):**

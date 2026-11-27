@@ -36,7 +36,9 @@
 ### AI
 - **Code changes:** the assistant can make previewed, confirmable changes to settings (categories, the family budget, the theme), plus everyday entries. It cannot change the app's code or run database commands. Your brief asked for that limit. Bigger changes are made in the repository and shipped as a new APK.
 - **Privacy on the free Gemini tier:** Google may use what is sent to improve its products. Family Hub sends only the question and the non-sensitive context needed to answer it: never health data, ID numbers or notes. Money questions the app recognises (spend, top category, EMIs, card bills, dues, balances, savings) are answered on the phone and not sent at all. A paid Gemini key removes this use.
-- **Key in the APK:** the Gemini key is built into the APK in encoded form. Someone who takes the APK apart could pull it out. Restricting the key to this app in Google Cloud limits what they could do with it.
+- **AI keys:** no key is built into the APK. Each person adds their own Gemini key, which is kept encrypted on the phone (see AI-SETUP.md).
+- **AI action cards in the Gemini chat** are kept while the app is open. After a restart the chat text remains but the Change/Undo buttons do not. A category change made by the AI can still be undone from Finance → Categories → Recent changes.
+- **Finding a transaction by words:** the assistant matches the words you give against the entry's title, notes, payee, account and card. If the name in Finance is different (for example an SMS "VPA 98xxxx@ybl"), add the amount ("change category of ₹645 to Shopping").
 
 ### Family and access
 - **Older app versions:** members on an app version older than this release get "Could not delete" when deleting shared entries, because the new rules move shared deletes to Recently deleted. Updating the app fixes it.

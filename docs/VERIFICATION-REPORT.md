@@ -81,6 +81,43 @@ All PASS (code review of the diffs):
 - No change to Firestore rules, the backup format, the package name, the signing setup or the Firebase project.
 - No paid services and no keys in the repo or APK.
 
-## 7. Release
+## 7. AI Finance action fix (phone test of 27 Nov, 11:09)
+
+Your phone test:
+- **PASS:** task creation (confirm card, saved, Undo).
+- **FAIL:** changing a Finance category. The Gemini chat said it can't, and another screen couldn't find the test transaction.
+
+Root causes and the fix are in `AI-SETUP.md` §6a.
+
+Emulator evidence: Build APK #80 (`26d8046`, run https://github.com/jeetsisotia/family-hub/actions/runs/45949389483). It used a real local Firestore emulator as the database (no real data) and tapped the real buttons.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Confirmation card shows the real entry and "Dining → Shopping" before anything changes | **PASS** | `demo_ai_recat_1_confirm`, logged CHECK |
+| Nothing written before Change | **PASS** | Change button still waiting; Finance row still Dining |
+| After Change, the card says "Changed ✓" only after the save | **PASS** | `demo_ai_recat_2_changed` |
+| Result read back from the database ("The server confirmed it") | **PASS** | same |
+| Finance row (same component as Finance → Transactions) shows Shopping | **PASS** | same, live from the database |
+| Undo restores Dining, confirmed by the database | **PASS** | `demo_ai_recat_3_undone` |
+| Finance detail sheet shows the new category after an app restart | **PASS** | `demo_ai_recat_4_finance_details` |
+| Several matches: each listed, person picks one | **PASS** (screenshot) | `demo_ai_recat_5_choose`. The logged check looked for text that had scrolled off screen, so it is fixed to count the Change buttons; see the next build |
+| Database unreachable: never says Changed, shows "Not confirmed" | **PASS** | `demo_ai_recat_6_offline`, two logged CHECKs |
+| No crash | **PASS** | RESULT: NO CRASH |
+
+Automated tests:
+
+| Suite | Result |
+|---|---|
+| ledger-test | **PASS** 157 checks (19 new: reading requests in English and Hinglish, matching, several matches, "last", unknown shop or category, "put milk in shopping" is not a category change, the write touches only category, subcategory and updatedAt) |
+| Unit tests workflow | **PASS** (runs #22, #23) |
+| Firestore rules tests | **PASS** (run #8; 3 new tests for this write). Rules unchanged |
+| ai-test | **PASS** 28 |
+
+Your phone:
+- **NEEDS MY PHONE:** the same request on your own data in both AI screens:
+  1. In **FamilyHub actions**, type "change the category of <shop> to Shopping", check the card, tap **Change**, check Finance, then tap **Undo**.
+  2. In the **Gemini chat**, do the same.
+
+## 8. Release
 
 See `CONTINUATION-REPORT.md` → State for the final commit, build number and artifact (`family-hub-apk`).

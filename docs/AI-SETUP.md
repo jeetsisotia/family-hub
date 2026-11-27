@@ -89,3 +89,24 @@ It uses the `GEMINI_API_KEY` repository secret if one is set, and the key is nev
 - Shared records follow the family's Firestore rules, and an admin-only action (the budget) is refused for others.
 - Only the signed-in person's active family is used.
 - With **FamilyHub data** turned on in the chat, the assistant gets a summary of family money, dues, events, tasks and shared reminders. It never includes health records, medicines, the food diary, ID numbers, private notes, "Only me" reminders or the emergency card.
+
+### 6a. Changing a transaction's category (both AI screens)
+
+Phone test of 27 Nov 2026: adding a task worked, but asking the AI to change a Finance category failed. Root causes:
+1. **No such action existed.** The action list could only *add* records (expense, task, reminder…), so Gemini had nothing to offer for "change the category".
+2. **The Gemini chat was read-only.** Its instructions told the model it "cannot change Family Hub data" and to send the user to FamilyHub actions. That is the redirect seen on the phone. It also had no action cards at all.
+3. **The model could not see the transaction.** It only gets a 10-day spending summary without record ids, so it could not find a test transaction.
+
+How it works now, in **both** AI screens (FamilyHub actions and the Gemini chat), through one shared path (`FinanceActions`, `runAiAction`, `undoAiAction`, `AiActionCard`):
+- "Change the category of Swiggy ₹645 to Shopping" (also "move X to Y", "X ki category Y kar do", "X ko Y mein daal do") is read **on the phone**. No AI call and no web search are needed, and nothing from Finance is sent to the model for it.
+- The transaction is looked up among the entries the person can see in Finance. Deleted entries, transfers and card payments are never offered. The model never supplies a record or an id.
+- If nothing matches, the assistant says so and that nothing was changed. If several match, each is shown as a card (date, amount, method, card, member, current category) and the person taps **Change** on the right one. "Do all" is never offered for these.
+- The card shows the real entry and "Category: Dining → Shopping". Nothing is written until **Change** is tapped.
+- On **Change**:
+  - Finance permission and the entry are checked again; if its category changed in the meantime, nothing is written.
+  - The write uses the same code as Finance → Transactions: one update of `category`, `subcategory` and `updatedAt`, with the change logged for Undo. It appears in Finance → Categories → Recent changes too.
+  - **"Changed ✓" appears only after the server accepted the write and a fresh read from the server shows the new category.** Offline, the card says "Not confirmed" instead.
+- **Undo** puts the old category back through the same log, only if nobody changed it again since, and is confirmed the same way.
+- If Gemini itself suggests a category change (kind `recategorize`), the app replaces it with cards for the real entries found on the phone.
+- In the Gemini chat, "add …" requests use the same action format, with only today's date and the family members' names sent to the model.
+- Firestore rules are unchanged; new rules tests cover this exact write (an approved member may; pending members, strangers and signed-out users may not; "Only me" entries only by their owner).

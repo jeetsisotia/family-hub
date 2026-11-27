@@ -11,7 +11,7 @@ For picking up the work after a usage limit or a new session. Read this file and
 | | |
 |---|---|
 | Starting commit | `4b53592` (build #71) |
-| Bundles | p48 Due Summary (`f147faf`), p49–p50 AI live check, p51 web-search quota message (`04ce4c0`), p52 Due Summary header total (`0225e5d`), p53 docs |
+| Bundles | p48 Due Summary (`f147faf`), p49–p50 AI live check, p51 web-search quota message (`04ce4c0`), p52 Due Summary header total (`0225e5d`), p53 docs, p54 header short total (`27bc0c7`), p55–p56 AI Finance action (`7805873`, `26d8046`), p57 docs |
 | How code reaches GitHub | Bundles through the upload page and `apply-bundle.yml`. Never include `.github/` in a bundle (p50 deleted a workflow that way). Workflow files are changed on the upload page itself |
 | Artifact | `family-hub-apk` on the Build APK run for the latest commit |
 
@@ -24,6 +24,7 @@ For picking up the work after a usage limit or a new session. Read this file and
 | 3 | Gemini live checks | Invalid key, general answer and follow-up **pass** on the repo key; web search **fails** on that key's free quota (429). Your key: needs your phone |
 | 4 | Agent actions live | Needs your phone |
 | 5 | Docs | VERIFICATION-REPORT, AI-SETUP, LIMITATIONS, PROGRESS, this file: **done** |
+| 6 | AI Finance action (change a transaction's category from both AI screens) | **Done**, p55 `7805873` + p56 `26d8046`. Emulator check with a real local database passed (Build APK #80). Your phone: still to check |
 
 ## Next exact step
 
