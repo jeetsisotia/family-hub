@@ -456,6 +456,30 @@ No saved dates were changed. Only the next dates worked out from them are now ri
 
 ---
 
+## Brief 4: phone feedback, Due Summary, AI checks (27 Nov 2026)
+
+**Your phone tests (confirmed by you, 27 Nov):**
+1. The newest APK installed over the old app: **done**.
+2. Bulk category change and Undo: **passed**.
+3. Removing a suggested duplicate and Undo: **passed**.
+4. Home and More checked in light and dark: **done**.
+5. Gemini key added in AI settings: **done**.
+
+Live AI answer quality, web search and agent actions are **not** marked as passed until there is test evidence or your confirmation.
+
+### Home: Due Summary (bundle p48)
+
+- **Before:** a "Due soon" strip sat fixed above Home and never scrolled away, and Home's "To pay" list repeated the same card bills further down.
+- **Now:** one compact **Due Summary** at the top of Home.
+  - It shows how many things are due, the total to pay and how many are overdue.
+  - It opens near the top of Home and folds away as you scroll down. A gap between the two limits stops it flickering.
+  - Tap it to open or fold it yourself; the automatic choice resumes the next time Home reaches or leaves the top.
+  - When folded, overdue items (up to two) stay visible.
+  - Each money due opens the same pay sheet as before (Mark paid, Snooze, Reschedule and so on). Other alerts open their screens.
+  - **All alerts** and **Due calendar** are one tap away.
+- **No repeats:** bills, card bills, EMIs, renewals and premiums come from the same ledger as before. Other alerts (documents, birthdays, medicines, period) are added only when they are not money alerts, so a card bill appears once.
+- **Unchanged:** reminders, notifications and the data behind them.
+
 ## Brief 3: completeness, Finance categories and duplicates (bundle p38)
 
 Brief of 27 Nov 2026 (master development and release prompt plus the completeness requirement). The inventory came first: `docs/INVENTORY.md` lists every module, screen, route and integration, where each one lives, and what is missing or duplicated. It is checked against the code, not against earlier reports. Ongoing status: `docs/CONTINUATION-REPORT.md`.

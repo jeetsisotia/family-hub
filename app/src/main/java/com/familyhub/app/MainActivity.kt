@@ -522,13 +522,17 @@ class MainActivity : FragmentActivity() {
                             } else {
                                 when (shownTab) {
                                     PrimaryTab.HOME -> Column(modifier = Modifier.fillMaxSize()) {
-                                        AlertsStrip(
+                                        // One compact Due Summary (bills and alerts, no repeats) that folds as Home scrolls.
+                                        val homeList = androidx.compose.foundation.lazy.rememberLazyListState()
+                                        com.familyhub.app.ui.money.DueSummary(
+                                            env = envFor(currentFamily),
                                             alerts = alerts,
-                                            onSeeAll = { subRoute = "alerts" },
-                                            onOpen = navigate
+                                            listState = homeList,
+                                            onSeeAll = { subRoute = "alerts" }
                                         )
                                         Box(modifier = Modifier.weight(1f)) {
                                             HomeDashboardScreen(
+                                                listState = homeList,
                                                 family = currentFamily,
                                                 currentUser = profile,
                                                 currentMember = currentMember,
@@ -547,7 +551,8 @@ class MainActivity : FragmentActivity() {
                                                 records = recordData,
                                                 homeOrder = userDoc.stringList("homeOrder"),
                                                 homeHidden = userDoc.stringList("homeHidden").toSet(),
-                                                duesCard = { com.familyhub.app.ui.money.HomeDues(envFor(currentFamily)) },
+                                                // Dues now live in the Due Summary above, so they are not listed twice.
+                                                duesCard = null,
                                                 todayCard = { com.familyhub.app.ui.screens.TodayCard(envFor(currentFamily)) },
                                                 glanceCard = { fv ->
                                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

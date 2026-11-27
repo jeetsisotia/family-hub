@@ -94,23 +94,35 @@ class DemoActivity : FragmentActivity() {
                                 )
                             )
                             route == "import" -> com.familyhub.app.ui.money.ImportScreen(env, demoTexts = DemoData.SAMPLE_SMS)
-                            route == "home" -> com.familyhub.app.ui.screens.HomeDashboardScreen(
-                                family = env.family,
-                                currentUser = env.profile,
-                                currentMember = env.members.first(),
-                                members = env.members,
-                                events = emptyList(),
-                                transactions = emptyList(),
-                                documents = emptyList(),
-                                tasks = emptyList(),
-                                trips = emptyList(),
-                                onQuickNavigate = {},
-                                aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) },
-                                records = env.data,
-                                duesCard = { com.familyhub.app.ui.money.HomeDues(env) },
-                                glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(env, fv) },
-                                todayCard = { com.familyhub.app.ui.screens.TodayCard(env) }
-                            )
+                            route == "home" || route == "home_scrolled" -> Column(Modifier.fillMaxSize()) {
+                                val homeList = androidx.compose.foundation.lazy.rememberLazyListState()
+                                val alerts = androidx.compose.runtime.remember(env.data) {
+                                    (com.familyhub.app.ui.modules.allAlerts(env.data)).sortedBy { it.dateMillis }
+                                }
+                                // "home_scrolled" starts part-way down, to photograph the folded Due Summary.
+                                if (route == "home_scrolled") androidx.compose.runtime.LaunchedEffect(Unit) { kotlinx.coroutines.delay(1500); homeList.scrollToItem(4) }
+                                com.familyhub.app.ui.money.DueSummary(env, alerts, homeList) {}
+                                Box(Modifier.weight(1f)) {
+                                    com.familyhub.app.ui.screens.HomeDashboardScreen(
+                                        family = env.family,
+                                        currentUser = env.profile,
+                                        currentMember = env.members.first(),
+                                        members = env.members,
+                                        events = emptyList(),
+                                        transactions = emptyList(),
+                                        documents = emptyList(),
+                                        tasks = emptyList(),
+                                        trips = emptyList(),
+                                        onQuickNavigate = {},
+                                        aiCard = { com.familyhub.app.ui.ai.AiBriefCard(env) },
+                                        records = env.data,
+                                        duesCard = null,
+                                        glanceCard = { fv -> com.familyhub.app.ui.money.HomeGlance(env, fv) },
+                                        todayCard = { com.familyhub.app.ui.screens.TodayCard(env) },
+                                        listState = homeList
+                                    )
+                                }
+                            }
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
                             route == "chat_list" -> com.familyhub.app.ui.chat.ChatListScreen(env) { }
                             route.startsWith("chat:") -> com.familyhub.app.ui.chat.ChatScreen(env, route.removePrefix("chat:"), onBack = {})

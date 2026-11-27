@@ -51,13 +51,16 @@ fun HomeDashboardScreen(
     /** Money and health at a glance for the chosen view (true = Family View). */
     glanceCard: (@Composable (Boolean) -> Unit)? = null,
     /** Today: reminders and events with times, safety status and SOS, missed calls. */
-    todayCard: (@Composable () -> Unit)? = null
+    todayCard: (@Composable () -> Unit)? = null,
+    /** Shared with the Due Summary above Home, so it can fold as the list scrolls. */
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState()
 ) {
     var familyWideView by remember { mutableStateOf(true) }
     var profileMenu by remember { mutableStateOf(false) }
     val todayLabel = remember { SimpleDateFormat("EEEE, dd MMM yyyy", Locale.getDefault()).format(Date()) }
 
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
