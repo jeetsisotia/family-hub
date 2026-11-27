@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.family
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassInputField
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -253,13 +255,13 @@ fun RecurringScreen(env: AppEnv) {
         var amount by remember(s) { mutableStateOf("%.0f".format(s.amount)) }
         var freq by remember(s) { mutableStateOf(s.frequency.label) }
         var saving by remember(s) { mutableStateOf(false) }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { if (!saving) confirm = null },
             title = { Text("Track this payment?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(name, { name = it.take(60) }, label = { Text("Name") }, singleLine = true)
-                    OutlinedTextField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' }.take(9) }, label = { Text("Amount (₹)") },
+                    GlassInputField(name, { name = it.take(60) }, label = { Text("Name") }, singleLine = true)
+                    GlassInputField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' }.take(9) }, label = { Text("Amount (₹)") },
                         singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     ChoiceChips(RecurringFinder.Frequency.values().map { it.label }, freq, { if (it.isNotBlank()) freq = it }, scroll = true)
                     Text(if (freq == "Weekly") "Saves a weekly reminder. Nothing is paid or added to Finance."

@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.settings
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassInputField
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -207,7 +209,7 @@ fun DataToolsScreen(env: AppEnv) {
         val missing = b.data.mapValues { (c, l) -> l.filter { (it["id"] as? String) !in present[c].orEmpty() } }
         val shared = missing.values.sumOf { l -> l.count { it[PRIVATE_FLAG] != true } }
         val mine = missing.values.sumOf { l -> l.count { it[PRIVATE_FLAG] == true } }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { restoreFile = null },
             title = { Text("Restore from backup?") },
             text = {
@@ -262,7 +264,7 @@ fun DataToolsScreen(env: AppEnv) {
             .map { it to ofKind(it).size }
             .filter { (d, n) -> n > 0 && d.collection != "expenses" }
             .sortedBy { it.first.title }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { pickKind = false },
             title = { Text("Reset which kind?") },
             text = {
@@ -291,14 +293,14 @@ fun DataToolsScreen(env: AppEnv) {
             else -> "everything shared in ${env.family.name} (your Only me records stay)"
         }
         val n = recordsToReset(kind).values.sumOf { it.size }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { askReset = null; typed = "" },
             title = { Text("Reset ${plural(n, "entry", "entries")}?") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("This deletes $what for good, for everyone in the family. First you save a backup file; the reset runs only after it is saved.")
                     Text("Type RESET to continue.", fontWeight = FontWeight.SemiBold)
-                    OutlinedTextField(typed, { typed = it }, singleLine = true)
+                    GlassInputField(typed, { typed = it }, singleLine = true)
                 }
             },
             confirmButton = {
@@ -313,7 +315,7 @@ fun DataToolsScreen(env: AppEnv) {
         )
     }
     confirmPurge?.let { (c, r) ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmPurge = null },
             title = { Text("Delete for good?") },
             text = { Text("\"${r.str("title").ifBlank { r.str("name") }.ifBlank { "This entry" }}\" will be removed for everyone and cannot be brought back.") },
@@ -329,7 +331,7 @@ fun DataToolsScreen(env: AppEnv) {
         )
     }
     if (confirmEmpty) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmEmpty = false },
             title = { Text("Empty Recently deleted?") },
             text = { Text("${plural(deleted.size, "entry", "entries")} will be removed for everyone and cannot be brought back. Back up first if you might need them.") },

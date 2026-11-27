@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassInputField
 import android.app.DatePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -198,12 +199,12 @@ fun FoundAlertRow(
             }
             if (open) {
                 Column(modifier = Modifier.padding(start = 12.dp, top = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
+                    GlassInputField(
                         value = title, onValueChange = { title = it }, label = { Text("Name") }, singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (a.kind !in setOf("card", "account", "action")) {
-                        OutlinedTextField(
+                        GlassInputField(
                             value = amount, onValueChange = { s -> amount = s.filter { it.isDigit() || it == '.' } },
                             label = { Text("Amount (₹)") }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

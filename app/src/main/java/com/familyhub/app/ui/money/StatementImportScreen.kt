@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassFilterChip
+import com.familyhub.app.core.theme.GlassInputField
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -182,9 +184,9 @@ fun StatementImportScreen(env: AppEnv) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Whose statement is this?", style = MaterialTheme.typography.labelLarge)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                FilterChip(target == null, { target = null }, { Text("Not linked") })
+                                GlassFilterChip(target == null, { target = null }, { Text("Not linked") })
                                 targets.forEach { a ->
-                                    FilterChip(target?.get("id") == a["id"], { target = a }, { Text(a.str("title") + if (a.str("type") == "card") " (card)" else "") })
+                                    GlassFilterChip(target?.get("id") == a["id"], { target = a }, { Text(a.str("title") + if (a.str("type") == "card") " (card)" else "") })
                                 }
                             }
                             Text("Columns (tap to change)", style = MaterialTheme.typography.labelLarge)
@@ -240,7 +242,7 @@ fun StatementImportScreen(env: AppEnv) {
 private fun ColumnPicker(label: String, value: String, options: List<String>, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
-        OutlinedTextField(
+        GlassInputField(
             value = value, onValueChange = {}, readOnly = true, label = { Text(label) }, singleLine = true,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
             modifier = Modifier.menuAnchor().fillMaxWidth()

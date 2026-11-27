@@ -865,3 +865,8 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - **Reminders (Needs my phone):** follow the Phase 7 phone checklist.
 - **Safety (Needs my phone):** follow the Phase 6 phone checklist. Use only a willing family member's number for SMS tests.
 - **Calls (Needs my phone):** with the app open on both phones, call voice and video on the same Wi-Fi, on two different Wi-Fi networks, and with one phone on mobile data. Try mute, speaker, Bluetooth, camera switch, and leaving the app during a video call.
+
+**Liquid Glass and universal search (27 Nov, 22:38)**
+- One set of glass pieces now covers dialogs (with a real blur behind on Android 12+), bottom sheets, menus, filter chips, text fields and the add button on every screen.
+- Search on Home finds anything in FamilyHub: payments, bills, documents, events, people, shopping and more. It suggests as you type, remembers recent searches, can listen to your voice, and filters by section.
+- Dark mode is a deep charcoal instead of pure black.

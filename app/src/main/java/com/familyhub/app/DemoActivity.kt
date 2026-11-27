@@ -144,6 +144,8 @@ class DemoActivity : FragmentActivity() {
                             route == "assistant_new" -> AssistantScreen(env)
                             // One question only, for the planner checks.
                             route == "ask" -> AssistantScreen(env, autoAsk = ask)
+                            // Universal search with a query typed in, for the search checks.
+                            route == "search_q" -> com.familyhub.app.ui.search.UniversalSearchScreen(env, initialQuery = ask.orEmpty())
                             route == "assistant_tidy" -> AssistantScreen(
                                 env,
                                 autoAsks = listOf(

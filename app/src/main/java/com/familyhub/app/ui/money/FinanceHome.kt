@@ -2,6 +2,10 @@
 
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassBottomSheet
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFilterChip
+import com.familyhub.app.core.theme.GlassInputField
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -164,7 +168,7 @@ private fun TxLine(r: Rec, items: List<Rec>, selected: Boolean? = null, onLongCl
 internal fun TransactionDetails(env: AppEnv, rec: Rec, all: List<Rec>, onDismiss: () -> Unit, onEdit: (Rec) -> Unit) {
     var confirmDelete by remember { mutableStateOf(false) }
     if (confirmDelete) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this entry?") },
             text = { Text("It moves to Recently deleted (Settings → Data & backup), where it can be restored.") },
@@ -341,7 +345,7 @@ fun TransactionsScreen(env: AppEnv) {
     var offset by rememberSaveable { mutableIntStateOf(0) }
     var custom by remember { mutableStateOf<FinanceMonth.Range?>(null) }
     var pickRange by remember { mutableStateOf(false) }
-    var query by rememberSaveable { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf(com.familyhub.app.core.search.SearchSeed.take("transactions")) }
     var category by rememberSaveable { mutableStateOf("") }
     var showBreakdown by rememberSaveable { mutableStateOf(true) }
     var open by remember { mutableStateOf<Rec?>(null) }
@@ -396,10 +400,10 @@ fun TransactionsScreen(env: AppEnv) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.horizontalScroll(rememberScrollState())
                 ) {
-                    FilterChip(selected = custom == null && offset == 0, onClick = { custom = null; offset = 0 }, label = { Text("This month", maxLines = 1) })
-                    FilterChip(selected = custom == null && offset == -1, onClick = { custom = null; offset = -1 }, label = { Text("Last month", maxLines = 1) })
-                    FilterChip(selected = custom != null, onClick = { pickRange = true }, label = { Text("Dates…", maxLines = 1) })
-                    FilterChip(selected = familyView, onClick = { familyView = !familyView }, label = { Text("Family", maxLines = 1) })
+                    GlassFilterChip(selected = custom == null && offset == 0, onClick = { custom = null; offset = 0 }, label = { Text("This month", maxLines = 1) })
+                    GlassFilterChip(selected = custom == null && offset == -1, onClick = { custom = null; offset = -1 }, label = { Text("Last month", maxLines = 1) })
+                    GlassFilterChip(selected = custom != null, onClick = { pickRange = true }, label = { Text("Dates…", maxLines = 1) })
+                    GlassFilterChip(selected = familyView, onClick = { familyView = !familyView }, label = { Text("Family", maxLines = 1) })
                 }
             }
             if (custom == null) item { MonthBar(offset, { offset = it }, label) }
@@ -418,7 +422,7 @@ fun TransactionsScreen(env: AppEnv) {
                 }
             }
             item {
-                OutlinedTextField(
+                GlassInputField(
                     value = query, onValueChange = { query = it }, singleLine = true,
                     placeholder = { Text("Search name, shop, amount") },
                     leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
@@ -428,8 +432,8 @@ fun TransactionsScreen(env: AppEnv) {
             }
             if (sources.size > 1 || source.isNotBlank()) item {
                 androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    item { FilterChip(selected = source.isBlank(), onClick = { source = "" }, label = { Text("All accounts") }) }
-                    items(sources) { a -> FilterChip(selected = source.equals(a, true), onClick = { source = if (source.equals(a, true)) "" else a }, label = { Text(a, maxLines = 1) }) }
+                    item { GlassFilterChip(selected = source.isBlank(), onClick = { source = "" }, label = { Text("All accounts") }) }
+                    items(sources) { a -> GlassFilterChip(selected = source.equals(a, true), onClick = { source = if (source.equals(a, true)) "" else a }, label = { Text(a, maxLines = 1) }) }
                 }
             }
             lastChange?.let { at ->
@@ -641,7 +645,7 @@ fun TransactionForm(env: AppEnv, existing: Rec?, initialKind: FinanceMonth.Kind,
         }
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+    GlassBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -654,7 +658,7 @@ fun TransactionForm(env: AppEnv, existing: Rec?, initialKind: FinanceMonth.Kind,
             } else {
                 Text("Type: " + (oldType ?: "").lowercase().replace('_', ' ') + " (kept)", style = MaterialTheme.typography.bodySmall)
             }
-            OutlinedTextField(
+            GlassInputField(
                 value = amount, onValueChange = { s -> amount = s.filter { it.isDigit() || it == '.' || it == ',' } },
                 label = { Text("Amount (₹)") }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -664,14 +668,14 @@ fun TransactionForm(env: AppEnv, existing: Rec?, initialKind: FinanceMonth.Kind,
             Text("Category", style = MaterialTheme.typography.labelMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 (cats + listOfNotNull(category.takeIf { it.isNotBlank() && cats.none { c -> c.equals(it, true) } })).forEach { c ->
-                    FilterChip(
+                    GlassFilterChip(
                         selected = category.equals(c, true), onClick = { category = c },
                         leadingIcon = { CategoryBadge(c, items, 22) }, label = { Text(c) }
                     )
                 }
                 AssistChip(onClick = { newCategory = true }, label = { Text("New") }, leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null) })
             }
-            OutlinedTextField(
+            GlassInputField(
                 value = title, onValueChange = { title = it.take(120) }, label = { Text("Description (optional)") },
                 singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()
             )
@@ -688,7 +692,7 @@ fun TransactionForm(env: AppEnv, existing: Rec?, initialKind: FinanceMonth.Kind,
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(source.substringAfter(":").ifBlank { if (kind == FinanceMonth.Kind.INCOME) "Received in: not set" else "Paid from: not set" }, maxLines = 1)
                 }
-                DropdownMenu(expanded = pickSource, onDismissRequest = { pickSource = false }) {
+                com.familyhub.app.core.theme.GlassDropdownMenu(expanded = pickSource, onDismissRequest = { pickSource = false }) {
                     DropdownMenuItem(text = { Text("Not set") }, onClick = { source = ""; pickSource = false })
                     accounts.forEach { a ->
                         DropdownMenuItem(text = { Text(a.str("title")) }, leadingIcon = { Icon(Icons.Rounded.AccountBalance, contentDescription = null) },
@@ -765,7 +769,7 @@ fun CategoryDialog(env: AppEnv, existing: CustomCategory?, defaultKind: String, 
     val dup = FinanceMonth.isDuplicateCategory(name, kind, others, spendingCategories, incomeCategories, ignoreName = existing?.name.orEmpty())
     val newId = remember { UUID.randomUUID().toString().replace("-", "").take(20) }
     val appContext = androidx.compose.ui.platform.LocalContext.current.applicationContext
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (existing == null) "New category" else "Edit category") },
         text = {
@@ -780,7 +784,7 @@ fun CategoryDialog(env: AppEnv, existing: CustomCategory?, defaultKind: String, 
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(name.ifBlank { "Category name" }, fontWeight = FontWeight.SemiBold)
                 }
-                OutlinedTextField(value = name, onValueChange = { name = it.take(30) }, label = { Text("Name") }, singleLine = true,
+                GlassInputField(value = name, onValueChange = { name = it.take(30) }, label = { Text("Name") }, singleLine = true,
                     isError = dup, supportingText = if (dup) ({ Text("Already exists for this type") }) else null,
                     shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
                 SegmentedControl(listOf("Spending", "Income", "Both"), kind, { kind = it })
@@ -795,7 +799,7 @@ fun CategoryDialog(env: AppEnv, existing: CustomCategory?, defaultKind: String, 
                         ) { Text(e, fontSize = 18.sp) }
                     }
                 }
-                OutlinedTextField(value = emoji, onValueChange = { emoji = it.take(8) }, label = { Text("Or type any emoji") }, singleLine = true,
+                GlassInputField(value = emoji, onValueChange = { emoji = it.take(8) }, label = { Text("Or type any emoji") }, singleLine = true,
                     shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = Red) }
             }
@@ -929,7 +933,7 @@ fun CategoriesScreen(env: AppEnv) {
     }
     renamed?.let { (old, new) ->
         val p = remember(old, new, expenses) { com.familyhub.app.money.Recategorize.rename(expenses, old, new) }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { renamed = null },
             title = { Text("Rename on past transactions too?") },
             text = { Text("${p.count} ${if (p.count == 1) "transaction uses" else "transactions use"} \"$old\". Rename them to \"$new\" as well? Only the category changes, and you can undo it from Recent changes.") },
@@ -944,7 +948,7 @@ fun CategoriesScreen(env: AppEnv) {
     }
     deleting?.let { c ->
         val n = com.familyhub.app.money.Recategorize.usage(expenses, c.name)
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { deleting = null },
             title = { Text("Delete \"${c.name}\"?") },
             text = {

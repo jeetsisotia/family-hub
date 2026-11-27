@@ -1,5 +1,9 @@
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassBottomSheet
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFilterChip
+import com.familyhub.app.core.theme.GlassInputField
 import android.app.DatePickerDialog
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -91,10 +95,12 @@ fun FinanceOverview(env: AppEnv) {
             .filter { it.status != "PAID" && (it.sourceCollection != "expenses" || data["expenses"].orEmpty().any { e -> e.str("id") == it.sourceId }) }
     }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SegmentedButton(selected = !familyView, onClick = { familyView = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Mine") }
-            SegmentedButton(selected = familyView, onClick = { familyView = true }, shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Family (shared)") }
-        }
+        com.familyhub.app.core.theme.SegmentedControl(
+            options = listOf("Mine", "Family (shared)"),
+            selected = if (familyView) "Family (shared)" else "Mine",
+            onSelect = { familyView = it != "Mine" },
+            modifier = Modifier.fillMaxWidth()
+        )
         GlassCard(modifier = Modifier.fillMaxWidth(), strong = true) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Available in bank", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
@@ -255,7 +261,7 @@ fun DueSheet(env: AppEnv, d: Ledger.Due, onDismiss: () -> Unit) {
         }
     }
     if (confirmDelete) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text(if (d.sourceCollection == "expenses") "Delete this due?" else "Skip this one?") },
             text = { Text(if (d.sourceCollection == "expenses") "${d.title} will be removed." else "Only ${formatDate(d.dueMillis)} is skipped; later dues stay.") },
@@ -263,12 +269,12 @@ fun DueSheet(env: AppEnv, d: Ledger.Due, onDismiss: () -> Unit) {
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )
     }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    GlassBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(d.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text("Due ${formatDate(d.dueMillis)} • ${inr(d.amount)}" + (d.minAmount?.let { " • minimum ${inr(it)}" } ?: ""), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f))
             if (d.status != "PAID") {
-                OutlinedTextField(
+                GlassInputField(
                     value = amount, onValueChange = { s -> amount = s.filter { it.isDigit() || it == '.' } }, label = { Text("Amount paid (₹)") },
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth()
                 )
@@ -281,7 +287,7 @@ fun DueSheet(env: AppEnv, d: Ledger.Due, onDismiss: () -> Unit) {
                 if (accounts.isNotEmpty()) {
                     Text("Paid from", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        accounts.forEach { a -> FilterChip(selected = account == a, onClick = { account = a }, label = { Text(a) }) }
+                        accounts.forEach { a -> GlassFilterChip(selected = account == a, onClick = { account = a }, label = { Text(a) }) }
                     }
                 } else Text("Add a bank account in Accounts to track which account paid.", style = MaterialTheme.typography.labelSmall)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -465,13 +471,13 @@ fun AccountDetailScreen(env: AppEnv, accountId: String) {
     var reconcile by remember { mutableStateOf(false) }
     var stmt by remember { mutableStateOf("") }
     if (reconcile) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { reconcile = false },
             title = { Text("Match statement balance") },
             text = {
                 Column {
                     Text("Family Hub shows ${inr(b.balance)}. Enter the balance on your bank statement or app; the difference is saved as an adjustment, not spending.")
-                    OutlinedTextField(stmt, { s -> stmt = s.filter { it.isDigit() || it == '.' || it == '-' } }, label = { Text("Statement balance (₹)") }, singleLine = true,
+                    GlassInputField(stmt, { s -> stmt = s.filter { it.isDigit() || it == '.' || it == '-' } }, label = { Text("Statement balance (₹)") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 }
             },
@@ -730,14 +736,14 @@ fun TransferScreen(env: AppEnv) {
                 return@Column
             }
             Text("From", style = MaterialTheme.typography.labelLarge)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { accounts.forEach { a -> FilterChip(from == a, { from = a }, { Text(a) }) } }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) { accounts.forEach { a -> GlassFilterChip(from == a, { from = a }, { Text(a) }) } }
             Text("To", style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                accounts.filter { it != from }.forEach { a -> FilterChip(to == a, { to = a }, { Text(a) }, leadingIcon = { Icon(Icons.Rounded.AccountBalance, null, Modifier.size(16.dp)) }) }
-                cards.forEach { c -> FilterChip(to == "card:$c", { to = "card:$c" }, { Text(c) }, leadingIcon = { Icon(Icons.Rounded.CreditCard, null, Modifier.size(16.dp)) }) }
+                accounts.filter { it != from }.forEach { a -> GlassFilterChip(to == a, { to = a }, { Text(a) }, leadingIcon = { Icon(Icons.Rounded.AccountBalance, null, Modifier.size(16.dp)) }) }
+                cards.forEach { c -> GlassFilterChip(to == "card:$c", { to = "card:$c" }, { Text(c) }, leadingIcon = { Icon(Icons.Rounded.CreditCard, null, Modifier.size(16.dp)) }) }
             }
-            OutlinedTextField(amount, { s -> amount = s.filter { it.isDigit() || it == '.' } }, label = { Text("Amount (₹)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(note, { note = it }, label = { Text("Note (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            GlassInputField(amount, { s -> amount = s.filter { it.isDigit() || it == '.' } }, label = { Text("Amount (₹)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.fillMaxWidth())
+            GlassInputField(note, { note = it }, label = { Text("Note (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedButton(onClick = {
                 val c = Calendar.getInstance().apply { timeInMillis = at }
                 DatePickerDialog(context, { _, y, m, d -> at = Calendar.getInstance().apply { clear(); set(y, m, d, 12, 0, 0) }.timeInMillis }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()

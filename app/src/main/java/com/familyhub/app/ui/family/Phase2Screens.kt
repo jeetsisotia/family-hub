@@ -2,6 +2,9 @@
 
 package com.familyhub.app.ui.family
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFloatingActionButton
+import com.familyhub.app.core.theme.GlassInputField
 import android.widget.Toast
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -80,7 +83,7 @@ fun ShoppingListsScreen(env: AppEnv) {
     val all = remember(env.data) { env.data["tasks"].orEmpty().filter { it["type"] == "SHOPPING" && it["isDeleted"] != true } }
     val lists = remember(all) { ShoppingLists.summaries(all) }
     var list by rememberSaveable { mutableStateOf("") }
-    var query by rememberSaveable { mutableStateOf("") }
+    var query by rememberSaveable { mutableStateOf(com.familyhub.app.core.search.SearchSeed.take("shopping")) }
     var showBought by rememberSaveable { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Rec?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -106,7 +109,7 @@ fun ShoppingListsScreen(env: AppEnv) {
         Column(Modifier.fillMaxSize()) {
             ScreenTopBar(title = "Shopping lists", onBack = env.onBack)
             if (lists.size > 1) ChoiceChips(lists.map { it.name }, list, { list = it }, Modifier.padding(horizontal = 16.dp), scroll = true)
-            OutlinedTextField(query, { query = it }, placeholder = { Text("Search items, lists or people") }, singleLine = true,
+            GlassInputField(query, { query = it }, placeholder = { Text("Search items, lists or people") }, singleLine = true,
                 leadingIcon = { Icon(Icons.Rounded.Search, null) }, shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp))
             if (all.isEmpty()) {
@@ -134,7 +137,7 @@ fun ShoppingListsScreen(env: AppEnv) {
                 if (showBought) items(bought.take(60), key = { "b" + it.s("id") + it[PRIVATE_FLAG] }) { r -> ShopRow(r, list.isBlank(), { toggle(r, it) }, { editing = r }, null) }
             }
         }
-        FloatingActionButton(onClick = { adding = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)) { Icon(Icons.Rounded.Add, "Add item") }
+        GlassFloatingActionButton(onClick = { adding = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)) { Icon(Icons.Rounded.Add, "Add item") }
     }
     if (adding || editing != null) ShopItemDialog(env, editing, list.ifBlank { lists.firstOrNull()?.name ?: ShoppingLists.DEFAULT_LIST }, lists.map { it.name }) { adding = false; editing = null }
 }
@@ -173,17 +176,17 @@ private fun ShopItemDialog(env: AppEnv, existing: Rec?, defaultList: String, lis
     var who by remember { mutableStateOf(existing?.s("assignedToName").orEmpty()) }
     var onlyMe by remember { mutableStateOf(existing?.get(PRIVATE_FLAG) == true) }
     var saving by remember { mutableStateOf(false) }
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = { if (!saving) onClose() },
         title = { Text(if (existing == null) "Add to shopping" else "Edit item") },
         text = {
             Column(Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(title, { title = it.take(80) }, label = { Text("Item") }, singleLine = true)
-                OutlinedTextField(qty, { qty = it.take(30) }, label = { Text("Quantity (for example 2 kg)") }, singleLine = true)
-                OutlinedTextField(listName, { listName = it.take(30) }, label = { Text("List") }, singleLine = true)
+                GlassInputField(title, { title = it.take(80) }, label = { Text("Item") }, singleLine = true)
+                GlassInputField(qty, { qty = it.take(30) }, label = { Text("Quantity (for example 2 kg)") }, singleLine = true)
+                GlassInputField(listName, { listName = it.take(30) }, label = { Text("List") }, singleLine = true)
                 if (lists.size > 1) ChoiceChips(lists, listName, { if (it.isNotBlank()) listName = it }, scroll = true)
                 ChoiceChips(ShoppingLists.CATEGORIES, category, { category = it }, scroll = true)
-                OutlinedTextField(price, { price = it.filter { c -> c.isDigit() || c == '.' }.take(8) }, label = { Text("Estimated price each (₹, optional)") },
+                GlassInputField(price, { price = it.filter { c -> c.isDigit() || c == '.' }.take(8) }, label = { Text("Estimated price each (₹, optional)") },
                     singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 if (env.memberNames.isNotEmpty()) { Text("Who buys it", style = MaterialTheme.typography.labelMedium); ChoiceChips(env.memberNames, who, { who = it }, scroll = true) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -257,11 +260,12 @@ fun CalendarOverview(env: AppEnv) {
 
     GlassCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).animateContentSize(), shape = CARD_SHAPE) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                listOf("Month", "Week", "Agenda").forEachIndexed { i, v ->
-                    SegmentedButton(selected = view == v, onClick = { view = v; monthOffset = 0; picked = null }, shape = SegmentedButtonDefaults.itemShape(i, 3)) { Text(v, maxLines = 1) }
-                }
-            }
+            com.familyhub.app.core.theme.SegmentedControl(
+                options = listOf("Month", "Week", "Agenda"),
+                selected = view,
+                onSelect = { v -> view = v; monthOffset = 0; picked = null },
+                modifier = Modifier.fillMaxWidth()
+            )
             if (view != "Agenda") Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { monthOffset--; picked = null }) { Icon(Icons.Rounded.ChevronLeft, "Previous") }
                 Text(if (view == "Month") SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(from)) else dayFmt.format(Date(from)) + " – " + dayFmt.format(Date(to)),
@@ -450,15 +454,15 @@ fun ServiceOverview(env: AppEnv, route: String) {
         var provider by remember(a) { mutableStateOf(a.s("vendor")) }
         var notes by remember(a) { mutableStateOf("") }
         var saving by remember(a) { mutableStateOf(false) }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { if (!saving) logFor = null },
             title = { Text("Log service: ${a.s("title")}") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(cost, { cost = it.filter { c -> c.isDigit() || c == '.' }.take(8) }, label = { Text("Cost (₹)") }, singleLine = true,
+                    GlassInputField(cost, { cost = it.filter { c -> c.isDigit() || c == '.' }.take(8) }, label = { Text("Cost (₹)") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    OutlinedTextField(provider, { provider = it.take(60) }, label = { Text("Done by") }, singleLine = true)
-                    OutlinedTextField(notes, { notes = it.take(200) }, label = { Text("What was done") })
+                    GlassInputField(provider, { provider = it.take(60) }, label = { Text("Done by") }, singleLine = true)
+                    GlassInputField(notes, { notes = it.take(200) }, label = { Text("What was done") })
                     val rep = a.s("repeat")
                     Text(if (type == "vehicle") "Saved as today's service. The next service date stays as it is; change it in the vehicle if needed."
                         else if (Maintenance.everyMonths(rep) != null) "Saved as today's service; the next one moves to ${fmt.format(Date(Maintenance.nextAfter(System.currentTimeMillis(), rep)!!))} ($rep)."

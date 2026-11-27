@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassDialog
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -425,7 +426,7 @@ private fun BudgetSettingsDialog(
             budgets.forEach { (k, v) -> m[k] = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString() }
         }
     }
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text("Month and budgets") },
         text = {

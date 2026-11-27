@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.health
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassInputField
 import android.Manifest
 import android.os.Build
 import android.widget.Toast
@@ -724,12 +726,12 @@ private fun GoalDialog(
     var text by remember { mutableStateOf(value.toString()) }
     val n = text.toIntOrNull()
     val ok = n != null && n in range
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(
+                GlassInputField(
                     value = text,
                     onValueChange = { s -> text = s.filter { it.isDigit() }.take(6) },
                     label = { Text(unit.replaceFirstChar { it.uppercaseChar() }) },

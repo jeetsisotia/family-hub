@@ -2,6 +2,10 @@
 
 package com.familyhub.app.ui.ai
 
+import com.familyhub.app.core.theme.GlassBottomSheet
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFilterChip
+import com.familyhub.app.core.theme.GlassInputField
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -589,13 +593,13 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Short labels so all three fit on a 360dp phone; when web search is off in settings, tapping says so.
-                    FilterChip(selected = web && AiSession.webSearchAllowed, onClick = {
+                    GlassFilterChip(selected = web && AiSession.webSearchAllowed, onClick = {
                             if (AiSession.webSearchAllowed) web = !web
                             else Toast.makeText(context, "Web search is turned off in AI settings.", Toast.LENGTH_SHORT).show()
                         },
                         label = { Text("Web search", maxLines = 1, softWrap = false) },
                         leadingIcon = { Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(16.dp)) })
-                    FilterChip(selected = useFamily, onClick = { useFamily = !useFamily }, label = { Text("Family data", maxLines = 1, softWrap = false) })
+                    GlassFilterChip(selected = useFamily, onClick = { useFamily = !useFamily }, label = { Text("Family data", maxLines = 1, softWrap = false) })
                     AssistChip(onClick = { googleDialog = true },
                         label = { Text(googleBusy ?: "Google", maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.widthIn(max = 180.dp)) },
@@ -605,7 +609,7 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
                     IconButton(onClick = { pick.launch(arrayOf("image/*", "application/pdf", "text/plain")) }) {
                         Icon(Icons.Rounded.AttachFile, contentDescription = "Attach image or document")
                     }
-                    OutlinedTextField(value = input, onValueChange = { input = it }, placeholder = { Text("Message") },
+                    GlassInputField(value = input, onValueChange = { input = it }, placeholder = { Text("Message") },
                         maxLines = 6, shape = RoundedCornerShape(20.dp), modifier = Modifier.weight(1f))
                     if (busy) IconButton(onClick = {
                         // Stop at once; the network call ends in the background and its answer is dropped.
@@ -633,23 +637,23 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
         var service by remember { mutableStateOf(GoogleLinks.Service.GMAIL) }
         var q by remember { mutableStateOf("") }
         var days by remember { mutableIntStateOf(1) }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { googleDialog = false },
             title = { Text("Use your Google data") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         GoogleLinks.Service.values().forEach { sv ->
-                            FilterChip(selected = service == sv, onClick = { service = sv }, label = { Text(sv.label.removePrefix("Google "), maxLines = 1, softWrap = false) })
+                            GlassFilterChip(selected = service == sv, onClick = { service = sv }, label = { Text(sv.label.removePrefix("Google "), maxLines = 1, softWrap = false) })
                         }
                     }
                     when (service) {
                         GoogleLinks.Service.CALENDAR -> FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            FilterChip(selected = days == 1, onClick = { days = 1 }, label = { Text("Today") })
-                            FilterChip(selected = days == 7, onClick = { days = 7 }, label = { Text("Next 7 days") })
-                            FilterChip(selected = days == 30, onClick = { days = 30 }, label = { Text("30 days") })
+                            GlassFilterChip(selected = days == 1, onClick = { days = 1 }, label = { Text("Today") })
+                            GlassFilterChip(selected = days == 7, onClick = { days = 7 }, label = { Text("Next 7 days") })
+                            GlassFilterChip(selected = days == 30, onClick = { days = 30 }, label = { Text("30 days") })
                         }
-                        else -> OutlinedTextField(value = q, onValueChange = { q = it.take(120) }, singleLine = true,
+                        else -> GlassInputField(value = q, onValueChange = { q = it.take(120) }, singleLine = true,
                             label = { Text(if (service == GoogleLinks.Service.GMAIL) "Search Gmail (e.g. from:school newer_than:7d)" else "Search Drive (words in the file)") },
                             modifier = Modifier.fillMaxWidth())
                     }
@@ -682,7 +686,7 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
     }
 
     if (showHistory) {
-        ModalBottomSheet(onDismissRequest = { showHistory = false }) {
+        GlassBottomSheet(onDismissRequest = { showHistory = false }) {
             var keep by remember { mutableStateOf(ChatStore.keepHistory(context, env.uid)) }
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Conversations", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -751,7 +755,7 @@ fun AiSettingsScreen(env: AppEnv) {
                         if (connected) "Your key: connected (" + KeyVault.masked(AiSession.key) + ")" else "Your key: not connected",
                         color = if (connected) Color(0xFF34C759) else Color(0xFFFF453A), fontWeight = FontWeight.SemiBold
                     )
-                    OutlinedTextField(value = keyInput, onValueChange = { keyInput = it.trim() },
+                    GlassInputField(value = keyInput, onValueChange = { keyInput = it.trim() },
                         label = { Text(if (connected) "New key (to update)" else "Paste your Gemini API key") }, singleLine = true,
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                         shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
@@ -809,7 +813,7 @@ fun AiSettingsScreen(env: AppEnv) {
                         style = MaterialTheme.typography.bodySmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         (listOf("") + models).forEach { m ->
-                            FilterChip(selected = model == m, onClick = { model = m; AiSession.model = m }, label = { Text(m.ifBlank { "Automatic" }) })
+                            GlassFilterChip(selected = model == m, onClick = { model = m; AiSession.model = m }, label = { Text(m.ifBlank { "Automatic" }) })
                         }
                     }
                     if (models.isEmpty()) Text("Model list not loaded (no connection?).", style = MaterialTheme.typography.bodySmall)
@@ -833,9 +837,9 @@ fun AiSettingsScreen(env: AppEnv) {
                     Text("Today: ${usage.today} requests, ${usage.tokensToday} tokens", style = MaterialTheme.typography.bodySmall)
                     Text("This month: ${usage.month} requests, ${usage.tokensMonth} tokens, ${usage.searchesMonth} with web search", style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = daily, onValueChange = { daily = it.filter(Char::isDigit).take(4) }, label = { Text("Daily limit") },
+                        GlassInputField(value = daily, onValueChange = { daily = it.filter(Char::isDigit).take(4) }, label = { Text("Daily limit") },
                             singleLine = true, modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = monthly, onValueChange = { monthly = it.filter(Char::isDigit).take(6) }, label = { Text("Monthly limit") },
+                        GlassInputField(value = monthly, onValueChange = { monthly = it.filter(Char::isDigit).take(6) }, label = { Text("Monthly limit") },
                             singleLine = true, modifier = Modifier.weight(1f))
                     }
                     TextButton(onClick = {

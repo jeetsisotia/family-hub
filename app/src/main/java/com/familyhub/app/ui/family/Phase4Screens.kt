@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.family
 
+import com.familyhub.app.core.theme.GlassFilterChip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,7 +33,7 @@ fun WeeklyBriefScreen(env: AppEnv) {
             Text("Show in the brief", style = MaterialTheme.typography.labelLarge)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Planner.BRIEF_SECTIONS.forEach { sct ->
-                    FilterChip(selected = sct in on, onClick = {
+                    GlassFilterChip(selected = sct in on, onClick = {
                         on = if (sct in on) on - sct else on + sct
                         PlannerAnswers.briefPrefs(ctx).edit().putStringSet("sections", on).apply()
                     }, label = { Text(sct, maxLines = 1) })

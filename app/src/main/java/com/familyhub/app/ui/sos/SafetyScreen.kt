@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.sos
 
+import com.familyhub.app.core.theme.GlassDialog
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -590,7 +591,7 @@ fun SafetyScreen(env: AppEnv) {
     }
 
     if (askCheckIn) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { askCheckIn = false },
             title = { Text("Ask someone to check in") },
             text = {
@@ -659,7 +660,7 @@ private fun ContactDialog(
     var low by remember { mutableStateOf(contact.lowBattery) }
     var arrival by remember { mutableStateOf(contact.arrival) }
     val cleaned = SafetyLogic.cleanPhone(phone)
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (isNew) "Add emergency contact" else "Edit contact") },
         text = {
@@ -702,7 +703,7 @@ private fun ShareDialog(
 ) {
     var chosen by remember { mutableStateOf(emptySet<String>()) }
     var duration by remember { mutableStateOf(SafetyLogic.SHARE_DURATIONS[1].first) }
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text("Share live location") },
         text = {

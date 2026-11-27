@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.common
 
+import com.familyhub.app.core.theme.GlassFilterChip
+import com.familyhub.app.core.theme.GlassInputField
 import androidx.compose.foundation.horizontalScroll
 
 import androidx.compose.foundation.background
@@ -124,7 +126,7 @@ fun TextInput(
     secret: Boolean = false,
     supporting: String? = null
 ) {
-    OutlinedTextField(
+    GlassInputField(
         value = value,
         onValueChange = onChange,
         label = { Text(label) },
@@ -149,7 +151,7 @@ fun ChoiceChips(options: List<String>, selected: String, onSelect: (String) -> U
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             options.forEach { o ->
-                FilterChip(selected = o == selected, onClick = { onSelect(if (o == selected) "" else o) }, label = { Text(o, maxLines = 1) })
+                GlassFilterChip(selected = o == selected, onClick = { onSelect(if (o == selected) "" else o) }, label = { Text(o, maxLines = 1) })
             }
         }
         return
@@ -160,7 +162,7 @@ fun ChoiceChips(options: List<String>, selected: String, onSelect: (String) -> U
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         options.forEach { o ->
-            FilterChip(
+            GlassFilterChip(
                 selected = o == selected,
                 onClick = { onSelect(if (o == selected) "" else o) },
                 label = { Text(o) }
@@ -175,7 +177,7 @@ fun ChoiceChips(options: List<String>, selected: String, onSelect: (String) -> U
 fun DatePickField(label: String, value: Long?, onChange: (Long?) -> Unit, modifier: Modifier = Modifier) {
     var open by remember { mutableStateOf(false) }
     Box(modifier = modifier.fillMaxWidth()) {
-        OutlinedTextField(
+        GlassInputField(
             value = formatDate(value),
             onValueChange = {},
             readOnly = true,

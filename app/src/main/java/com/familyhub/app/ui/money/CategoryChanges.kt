@@ -1,5 +1,9 @@
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassBottomSheet
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFilterChip
+import com.familyhub.app.core.theme.GlassInputField
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -146,7 +150,7 @@ fun CategoryPickerDialog(env: AppEnv, kind: FinanceMonth.Kind, title: String, on
     val items = env.data["items"].orEmpty()
     val cats = remember(items, kind) { categoriesFor(items, kind) }
     var adding by remember { mutableStateOf(false) }
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
@@ -174,7 +178,7 @@ fun CategoryPickerDialog(env: AppEnv, kind: FinanceMonth.Kind, title: String, on
 /** "Move 12 transactions to Dining?" with what is left alone. */
 @Composable
 fun ConfirmCategoryPlan(plan: Recategorize.Plan, target: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (plan.count == 0) "Nothing to change" else "Move ${plan.count} ${if (plan.count == 1) "transaction" else "transactions"} to $target?") },
         text = {
@@ -213,17 +217,17 @@ fun ApplyToExistingSheet(env: AppEnv, category: String, kind: FinanceMonth.Kind,
         Recategorize.eligible(expenses, kind, range.from, range.to, query, onlyUncat, exclude = category)
     }
     val fmt = remember { SimpleDateFormat("d MMM yyyy", Locale.getDefault()) }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    GlassBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
             Text("Apply \"$category\" to existing transactions", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
-            OutlinedTextField(
+            GlassInputField(
                 value = query, onValueChange = { query = it }, singleLine = true, placeholder = { Text("Search name, shop, amount") },
                 leadingIcon = { Icon(Icons.Rounded.Search, null) }, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()
             )
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 listOf("All time", "Last 3 months", "This month").forEach { p ->
-                    FilterChip(selected = period == p, onClick = { period = p }, label = { Text(p) })
+                    GlassFilterChip(selected = period == p, onClick = { period = p }, label = { Text(p) })
                 }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

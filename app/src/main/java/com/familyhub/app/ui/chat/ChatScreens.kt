@@ -1,5 +1,8 @@
 package com.familyhub.app.ui.chat
 
+import com.familyhub.app.core.theme.GlassBottomSheet
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassInputField
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -256,7 +259,7 @@ fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
     }
 
     menuFor?.let { c ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { menuFor = null },
             title = { Text(chatTitle(c, env)) },
             text = {
@@ -272,7 +275,7 @@ fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
 
     if (newChat) {
         val others = env.members.filter { it.status == "ACTIVE" && it.uid != env.uid }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { newChat = false },
             title = { Text("New chat") },
             text = {
@@ -478,7 +481,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
             IconButton(onClick = { searching = !searching; if (!searching) search = "" }) { Icon(Icons.Rounded.Search, "Search in this chat") }
         }
         if (searching) {
-            OutlinedTextField(
+            GlassInputField(
                 value = search, onValueChange = { search = it }, singleLine = true, placeholder = { Text("Search loaded messages") },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), shape = RoundedCornerShape(14.dp)
             )
@@ -587,7 +590,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
         Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
             IconButton(onClick = { showEmoji = !showEmoji }) { Icon(if (showEmoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, "Emoji") }
             if (text.isEmpty() && editing == null) IconButton(onClick = { showPoll = true }) { Icon(Icons.Rounded.Poll, "Create a poll") }
-            OutlinedTextField(
+            GlassInputField(
                 value = text, onValueChange = { if (it.length <= ChatRepository.MAX_TEXT) text = it },
                 placeholder = { Text("Message") }, maxLines = 5, shape = RoundedCornerShape(22.dp), modifier = Modifier.weight(1f)
             )
@@ -612,7 +615,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
     // Long-press menu.
     menuFor?.let { m ->
         val mine = m.senderUid == env.uid
-        ModalBottomSheet(onDismissRequest = { menuFor = null }) {
+        GlassBottomSheet(onDismissRequest = { menuFor = null }) {
             Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 24.dp)) {
                 if (!m.deletedForAll) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
                     QUICK.forEach { e ->
@@ -646,7 +649,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
     }
 
     reactPickerFor?.let { m ->
-        ModalBottomSheet(onDismissRequest = { reactPickerFor = null }) {
+        GlassBottomSheet(onDismissRequest = { reactPickerFor = null }) {
             EmojiPanel(onPick = { e ->
                 reactPickerFor = null; ChatPrefs.useEmoji(context, e)
                 scope.launch { try { ChatRepository.react(env.familyId, chatId, m.id, env.uid, e) } catch (x: Exception) { } }
@@ -656,7 +659,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
 
     forwardOf?.let { m ->
         val targets = chats.orEmpty().filter { it.id != chatId }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { forwardOf = null },
             title = { Text("Forward to") },
             text = {
@@ -846,17 +849,17 @@ private fun PollDialog(onDismiss: () -> Unit, onSend: (String, List<String>) -> 
     var question by remember { mutableStateOf("") }
     val options = remember { mutableStateListOf("", "") }
     val ready = question.isNotBlank() && options.count { it.isNotBlank() } >= 2
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text("New poll") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
+                GlassInputField(
                     value = question, onValueChange = { question = it.take(300) },
                     label = { Text("Question") }, maxLines = 3, modifier = Modifier.fillMaxWidth()
                 )
                 options.forEachIndexed { i, o ->
-                    OutlinedTextField(
+                    GlassInputField(
                         value = o, onValueChange = { options[i] = it.take(ChatRepository.POLL_OPTION_MAX) },
                         label = { Text("Answer ${i + 1}") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                         trailingIcon = if (options.size > 2) {

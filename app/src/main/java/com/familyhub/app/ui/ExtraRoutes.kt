@@ -58,7 +58,7 @@ val ExtraRouteIds: Set<String> = setOf(
     "profile", "families", "arrange", "assistant", "assistant_voice", "health_hub", "periods", "insights", "cards", "import", "sos",
     "home_hub", "life_hub", "reminders_hub", "arrange_home",
     "accounts_home", "loans_home", "due_calendar", "transfer", "statement_import", "data_tools", "calls", "safety",
-    "transactions", "categories", "assistant_family", "ai_settings", "duplicates", "activity", "recurring", "shopping", "budget_planner", "money_intel", "reports", "weekly_brief"
+    "transactions", "categories", "assistant_family", "ai_settings", "duplicates", "activity", "recurring", "shopping", "budget_planner", "money_intel", "reports", "weekly_brief", "search"
 )
 
 /** Screens for one account, card, loan or chat: "acct:<id>", "ccard:<id>", "loan:<id>", "chat:<id>". */
@@ -133,6 +133,7 @@ fun ExtraRoute(route: String, env: AppEnv) {
         "sos" -> com.familyhub.app.ui.sos.SosScreen(env)
         "safety" -> com.familyhub.app.ui.sos.SafetyScreen(env)
         "transactions" -> com.familyhub.app.ui.money.TransactionsScreen(env)
+        "search" -> com.familyhub.app.ui.search.UniversalSearchScreen(env)
         "categories" -> com.familyhub.app.ui.money.CategoriesScreen(env)
         "duplicates" -> com.familyhub.app.ui.money.DuplicatesScreen(env)
         "activity" -> com.familyhub.app.ui.family.ActivityTimelineScreen(env)

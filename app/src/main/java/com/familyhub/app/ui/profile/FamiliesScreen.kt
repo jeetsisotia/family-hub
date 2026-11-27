@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.profile
 
+import com.familyhub.app.core.theme.GlassDialog
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -201,7 +202,7 @@ fun FamiliesScreen(
 
     val l = leaving
     if (l != null) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { leaving = null },
             title = { Text("Leave ${l.name}?") },
             text = { Text("You will stop seeing this family's shared records. Your own \"Only me\" records are kept.") },

@@ -2,6 +2,8 @@
 
 package com.familyhub.app
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassInputField
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -691,7 +693,7 @@ class MainActivity : FragmentActivity() {
 
 @Composable
 private fun LastCrashDialog(text: String, onShare: () -> Unit, onClose: () -> Unit) {
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onClose,
         title = { Text("Family Hub closed unexpectedly last time") },
         text = {
@@ -728,7 +730,7 @@ private fun SetupScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Set Up Your Family Group", style = MaterialTheme.typography.headlineSmall)
-        OutlinedTextField(
+        GlassInputField(
             value = groupName,
             onValueChange = { groupName = it },
             label = { Text("New Family Name") },
@@ -753,7 +755,7 @@ private fun SetupScreen(
         ) { Text(if (setupBusy) "Please wait..." else "Create Family Group") }
 
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-        OutlinedTextField(
+        GlassInputField(
             value = inviteCode,
             onValueChange = { inviteCode = it },
             label = { Text("Invite Code (e.g. FH-1A2B3C)") },

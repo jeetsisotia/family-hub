@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassDialog
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -210,7 +211,7 @@ fun DuplicatesScreen(env: AppEnv) {
     }
     confirm?.let { (g, remove) ->
         val keep = g.records.firstOrNull { it.str("id") == (keepChoice[g.key] ?: g.keep.str("id")) } ?: g.keep
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirm = null },
             title = { Text("Remove ${remove.size} ${if (remove.size == 1) "entry" else "entries"}?") },
             text = {

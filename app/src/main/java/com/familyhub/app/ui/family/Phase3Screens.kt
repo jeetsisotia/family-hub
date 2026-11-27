@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.family
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassInputField
 import android.content.Context
 import android.content.Intent
 import android.graphics.Paint
@@ -112,13 +114,13 @@ fun GoalsOverview(env: AppEnv) {
         var takeOut by remember(g) { mutableStateOf(false) }
         var note by remember(g) { mutableStateOf("") }
         var saving by remember(g) { mutableStateOf(false) }
-        AlertDialog(onDismissRequest = { if (!saving) adding = null }, title = { Text((g["title"] as? String).orEmpty()) },
+        GlassDialog(onDismissRequest = { if (!saving) adding = null }, title = { Text((g["title"] as? String).orEmpty()) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ChoiceChips(listOf("Add", "Take out"), if (takeOut) "Take out" else "Add", { takeOut = it == "Take out" })
-                    OutlinedTextField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' }.take(9) }, label = { Text("Amount (₹)") }, singleLine = true,
+                    GlassInputField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' }.take(9) }, label = { Text("Amount (₹)") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                    OutlinedTextField(note, { note = it.take(80) }, label = { Text("Note (optional)") }, singleLine = true)
+                    GlassInputField(note, { note = it.take(80) }, label = { Text("Note (optional)") }, singleLine = true)
                 }
             },
             confirmButton = {
@@ -250,11 +252,11 @@ fun BudgetPlannerScreen(env: AppEnv) {
         var yearly by remember { mutableStateOf(false) }
         var onlyMe by remember { mutableStateOf(false) }
         var saving by remember { mutableStateOf(false) }
-        AlertDialog(onDismissRequest = { if (!saving) adding = false }, title = { Text("Category limit") },
+        GlassDialog(onDismissRequest = { if (!saving) adding = false }, title = { Text("Category limit") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ChoiceChips(cats, cat, { cat = it }, scroll = true)
-                    OutlinedTextField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' }.take(9) }, label = { Text("Limit (₹)") }, singleLine = true,
+                    GlassInputField(amount, { amount = it.filter { c -> c.isDigit() || c == '.' }.take(9) }, label = { Text("Limit (₹)") }, singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                     ChoiceChips(listOf("Monthly", "Yearly"), if (yearly) "Yearly" else "Monthly", { yearly = it == "Yearly" })
                     Row(verticalAlignment = Alignment.CenterVertically) { Switch(onlyMe, { onlyMe = it }); Spacer(Modifier.width(8.dp)); Text("Only me (counts only my spending)", style = MaterialTheme.typography.bodySmall) }

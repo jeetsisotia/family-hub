@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.profile
 
+import com.familyhub.app.core.theme.GlassDialog
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -151,7 +152,7 @@ fun ProfileScreen(
 
     androidx.activity.compose.BackHandler(enabled = dirty) { askLeave = true }
     if (askLeave) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { askLeave = false },
             title = { Text("Save your changes?") },
             text = { Text("You changed your profile. Save before leaving?") },

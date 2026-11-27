@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.modules
 
+import com.familyhub.app.core.theme.GlassDialog
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -51,32 +52,15 @@ private fun AlertRow(alert: AlertItem, onClick: () -> Unit) {
         days == 1 -> "tomorrow"
         else -> "in $days days"
     }
-    GlassCard(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (alert.overdue) Icons.Rounded.WarningAmber else Icons.Rounded.Notifications,
-                contentDescription = null,
-                tint = if (alert.overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(alert.title.ifBlank { "(untitled)" }, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                Text(
-                    text = "${alert.label} • ${fmt.format(Date(alert.dateMillis))} • $whenText",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (alert.overdue) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-            }
-        }
-    }
+    com.familyhub.app.core.theme.GlassNotificationCard(
+        title = alert.title.ifBlank { "(untitled)" },
+        subtitle = "${alert.label} • ${fmt.format(Date(alert.dateMillis))}",
+        icon = if (alert.overdue) Icons.Rounded.WarningAmber else Icons.Rounded.Notifications,
+        accent = if (alert.overdue) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+        trailing = whenText,
+        urgent = alert.overdue,
+        onClick = onClick
+    )
 }
 
 @Composable
@@ -176,7 +160,7 @@ fun FamilyScreen(
     }
     var confirmAdmin by remember { mutableStateOf<FamilyMember?>(null) }
     confirmAdmin?.let { who ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmAdmin = null },
             title = { Text(if (who.isAdmin) "Remove ${who.name} as Family Admin?" else "Make ${who.name} a Family Admin?") },
             text = {
@@ -198,7 +182,7 @@ fun FamilyScreen(
     var confirmRemove by remember { mutableStateOf<FamilyMember?>(null) }
     confirmRemove?.let { who ->
         val isPending = who.status != "ACTIVE"
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmRemove = null },
             title = { Text(if (isPending) "Decline ${who.name}?" else "Remove ${who.name}?") },
             text = {
@@ -359,7 +343,7 @@ fun FamilyScreen(
                         var menu by remember { mutableStateOf(false) }
                         Box {
                             IconButton(onClick = { menu = true }) { Icon(Icons.Rounded.MoreVert, contentDescription = "Options for ${m.name}") }
-                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            com.familyhub.app.core.theme.GlassDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                 if (isOwner) DropdownMenuItem(
                                     text = { Text(if (m.isAdmin) "Remove as Family Admin" else "Make Family Admin") },
                                     onClick = { menu = false; confirmAdmin = m }
@@ -423,7 +407,7 @@ fun SettingsScreen(
 ) {
     var confirmSignOut by remember { mutableStateOf(false) }
     if (confirmSignOut) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmSignOut = false },
             title = { Text("Sign out?") },
             text = { Text("You can sign back in with the same Google account. Data saved only on this phone (steps, water, app lock) stays here.") },

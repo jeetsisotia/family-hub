@@ -82,6 +82,16 @@ Phone report: "How much did we spend on grocery this month?" → "couldn't find"
 
 Phone, build #96, no key: "how much did we apend on grocery this month" → "add your own free Gemini API key". Cause: the typo "apend" missed every local money pattern, so the question fell through to the AI path, which needs a key. Fix: `Planner.fixTypos` (one-letter slips and swaps, real words and Hinglish pronouns kept) before money matching; `Planner.spendPeriod` / `periodRange` (this or last month, this or last week, Hinglish); `MoneyAnswers.isMoneyQuestion`, and the Gemini chat answers money questions on the phone before any Gemini call. General questions without a key still ask for one. phase4-test 87 checks; emulator: 10 no-key checks.
 
+### Ultimate master prompt (27 Nov 22:38): scope agreed
+
+The brief has 16 phases (A–P), more than one session. Jeet chose, in order: (1) Liquid Glass design system plus universal search, applied to every screen; (2) calling stays on free STUN (no TURN, no cost; some networks will not connect; group calls up to about 4); messaging, new modules and the rest follow in later sessions.
+
+Audit: most of the glass system already existed (`core/theme/Glass.kt`, `DesignSystem.kt`: glass modifier, GlassCard ×131, floating GlassTabBar with spring animation, collapsing ScreenTopBar, SegmentedControl, grouped rows, reduce transparency, reduced motion, haptics). Chat, one-to-one WebRTC calls (beta), SOS, QR joining, Home Vault, Meals, Memories, Chores, Settle Up, Travel and Notice Board modules exist.
+
+Bundle p70: `core/theme/GlassComponents.kt` (GlassDialog with real window blur on Android 12+, GlassBottomSheet, GlassActionSheet, GlassFilterChip, GlassInputField, GlassFloatingActionButton, GlassSearchBar, GlassNotificationCard, GlassDropdownMenu, GlassSkeleton). 130 Material calls in 25 files now use them; 3 Material segmented rows now use SegmentedControl; dark background is deep charcoal instead of black. Universal search (`core/search/SearchIndex.kt`, `ui/search/SearchScreen.kt`, route `search`, bar on Home): every module and members, live suggestions, recent searches with clear, voice search where the phone supports it, section filter chips with counts, bold matches, amounts; opening a result opens that section with its search filled in (`SearchSeed`). Tests: tools/search-test (22 checks), 10 emulator checks.
+
+Mapping of the brief's names: GlassToolbar = `ScreenTopBar`, GlassNavigationBar = `GlassTabBar`, GlassTabBar = `SegmentedControl`, GlassCard = `GlassCard`.
+
 ### Phone tests to give at the end (collect here)
 
 1. Mukul-style category change on your own data, in both AI screens.

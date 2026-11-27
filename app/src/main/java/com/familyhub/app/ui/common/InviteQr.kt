@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.common
 
+import com.familyhub.app.core.theme.GlassDialog
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
@@ -70,7 +71,7 @@ object InviteQr {
 @Composable
 fun InviteQrDialog(familyName: String, code: String, onDismiss: () -> Unit) {
     val image = remember(code) { runCatching { InviteQr.bitmap(InviteQr.content(code)) }.getOrNull() }
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text("Join $familyName") },
         text = {

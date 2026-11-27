@@ -1,5 +1,8 @@
 package com.familyhub.app.ui.money
 
+import com.familyhub.app.core.theme.GlassBottomSheet
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFilterChip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -235,7 +238,7 @@ fun TransactionSheet(
     askMerchant?.let { (merchant, others) ->
         val name = com.familyhub.app.money.MerchantRules.label(merchant)
         val cap = 300
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { askMerchant = null },
             title = { Text("Use \"$newCategory\" for $name?") },
             text = {
@@ -278,7 +281,7 @@ fun TransactionSheet(
     val date = rec.lng("dateMillis")?.let { SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()).format(Date(it)) }.orEmpty()
 
     if (confirmDelete) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete this entry?") },
             text = { Text("${rec.str("title")} • ${rupee(amount)} will be removed from Finance and all totals.") },
@@ -291,7 +294,7 @@ fun TransactionSheet(
         )
     }
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    GlassBottomSheet(onDismissRequest = onDismiss) {
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp)
         ) {
@@ -337,7 +340,7 @@ fun TransactionSheet(
                     modifier = Modifier.padding(start = 40.dp, bottom = 8.dp)
                 ) {
                     financeCategories.forEach { c ->
-                        FilterChip(
+                        GlassFilterChip(
                             selected = rec.str("category") == c,
                             onClick = {
                                 val changed = rec.str("category") != c
@@ -477,7 +480,7 @@ fun BulkActionBar(
     var pickCategory by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     if (confirmDelete) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("Delete $count entries?") },
             text = { Text("They will be removed from Finance and all totals.") },
@@ -490,7 +493,7 @@ fun BulkActionBar(
         )
     }
     if (pickCategory) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { pickCategory = false },
             title = { Text("Category for $count entries") },
             text = {

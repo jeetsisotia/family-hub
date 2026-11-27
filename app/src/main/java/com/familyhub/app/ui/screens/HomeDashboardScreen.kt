@@ -104,7 +104,7 @@ fun HomeDashboardScreen(
                             size = 46.dp
                         )
                     }
-                    DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
+                    com.familyhub.app.core.theme.GlassDropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
                         listOf(
                             Triple("profile", "Manage my profile", Icons.Rounded.AccountCircle),
                             Triple("families", "My families", Icons.Rounded.Diversity3),
@@ -123,18 +123,23 @@ fun HomeDashboardScreen(
         }
 
         item {
-            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().riseIn(1)) {
-                SegmentedButton(
-                    selected = familyWideView,
-                    onClick = { familyWideView = true },
-                    shape = SegmentedButtonDefaults.itemShape(0, 2)
-                ) { Text("Family View") }
-                SegmentedButton(
-                    selected = !familyWideView,
-                    onClick = { familyWideView = false },
-                    shape = SegmentedButtonDefaults.itemShape(1, 2)
-                ) { Text("My View") }
-            }
+            // Universal search: one tap opens search across every section.
+            com.familyhub.app.core.theme.GlassSearchBar(
+                value = "",
+                onValueChange = {},
+                placeholder = "Search FamilyHub",
+                modifier = Modifier.riseIn(1),
+                onClickWhenIdle = { onQuickNavigate("search") }
+            )
+        }
+
+        item {
+            com.familyhub.app.core.theme.SegmentedControl(
+                options = listOf("Family View", "My View"),
+                selected = if (familyWideView) "Family View" else "My View",
+                onSelect = { familyWideView = it == "Family View" },
+                modifier = Modifier.fillMaxWidth().riseIn(1)
+            )
         }
 
         if (glanceCard != null) {

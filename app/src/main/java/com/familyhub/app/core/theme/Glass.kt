@@ -67,7 +67,7 @@ fun AuroraBackground(modifier: Modifier = Modifier) {
         animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Reverse),
         label = "aurora2"
     )
-    val base = if (dark) listOf(Color(0xFF07070A), Color(0xFF000000)) else listOf(Color(0xFFF6F6F9), Color(0xFFE8E8EE))
+    val base = if (dark) listOf(Color(0xFF141418), Color(0xFF0B0B0D)) else listOf(Color(0xFFF6F6F9), Color(0xFFE8E8EE))
     val glows = if (dark) {
         listOf(Color(0x661A3A8A), Color(0x523A1E6B), Color(0x45104A48))
     } else {

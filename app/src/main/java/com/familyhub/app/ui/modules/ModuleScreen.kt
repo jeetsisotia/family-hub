@@ -1,5 +1,9 @@
 package com.familyhub.app.ui.modules
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFilterChip
+import com.familyhub.app.core.theme.GlassFloatingActionButton
+import com.familyhub.app.core.theme.GlassInputField
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -139,7 +143,7 @@ fun ModuleScreen(
     val all = preview ?: saved
     val records = remember(all) { recordsFor(def, all) }
     val sorted = remember(records) { sortRecords(def, records) }
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(com.familyhub.app.core.search.SearchSeed.take(def.route)) }
     val shown = remember(sorted, query) {
         val q = query.trim()
         if (q.isEmpty()) sorted else sorted.filter { r -> r.values.any { v -> v is String && v.contains(q, ignoreCase = true) } }
@@ -320,9 +324,9 @@ fun ModuleScreen(
                         }
                     }
                 }
-                if (records.size > 3) {
+                if (records.size > 3 || query.isNotEmpty()) {
                     item {
-                        OutlinedTextField(
+                        GlassInputField(
                             value = query,
                             onValueChange = { query = it },
                             modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
@@ -427,7 +431,7 @@ fun ModuleScreen(
             )
         }
 
-        if (selected.isEmpty()) FloatingActionButton(
+        if (selected.isEmpty()) GlassFloatingActionButton(
             onClick = { editing = null; showForm = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
             shape = RoundedCornerShape(22.dp),
@@ -457,7 +461,7 @@ fun ModuleScreen(
 
         val del = toDelete
         if (del != null) {
-            AlertDialog(
+            GlassDialog(
                 onDismissRequest = { toDelete = null },
                 title = { Text("Delete this entry?") },
                 text = { Text(del.str(def.titleKey)) },
@@ -830,11 +834,11 @@ private fun FinanceHeader(
 
     if (showBudget) {
         var text by remember { mutableStateOf(if (budget % 1.0 == 0.0) budget.toLong().toString() else budget.toString()) }
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { showBudget = false },
             title = { Text("Monthly budget (₹)") },
             text = {
-                OutlinedTextField(
+                GlassInputField(
                     value = text,
                     onValueChange = { s -> text = s.filter { c -> c.isDigit() || c == '.' } },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -935,7 +939,7 @@ private fun RecordForm(
     }
     var formError by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
+    GlassDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Add to ${def.title}" else "Edit ${def.title}") },
         text = {
@@ -954,7 +958,7 @@ private fun RecordForm(
                     Text("Share with", style = MaterialTheme.typography.labelLarge)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         joined.forEach { f ->
-                            FilterChip(
+                            GlassFilterChip(
                                 selected = chosen == f.id,
                                 onClick = { draft["targetFamilyId"] = f.id },
                                 label = { Text(f.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -967,14 +971,14 @@ private fun RecordForm(
                     if (f.showIf?.invoke(draft) == false) return@forEach
                     val label = if (f.required) "${f.label} *" else f.label
                     when (f.type) {
-                        FieldType.TEXT -> OutlinedTextField(
+                        FieldType.TEXT -> GlassInputField(
                             value = (draft[f.key] as? String).orEmpty(),
                             onValueChange = { draft[f.key] = it },
                             label = { Text(label) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        FieldType.MULTILINE -> OutlinedTextField(
+                        FieldType.MULTILINE -> GlassInputField(
                             value = (draft[f.key] as? String).orEmpty(),
                             onValueChange = { draft[f.key] = it },
                             label = { Text(label) },
@@ -982,7 +986,7 @@ private fun RecordForm(
                             maxLines = 6,
                             modifier = Modifier.fillMaxWidth()
                         )
-                        FieldType.NUMBER -> OutlinedTextField(
+                        FieldType.NUMBER -> GlassInputField(
                             value = nums[f.key].orEmpty(),
                             onValueChange = { s -> nums[f.key] = s.filter { c -> c.isDigit() || c == '.' } },
                             label = { Text(label) },
@@ -1084,7 +1088,7 @@ private fun TimeField(label: String, value: String, onChange: (String) -> Unit) 
             initialMinute = parsed?.second ?: 0,
             is24Hour = android.text.format.DateFormat.is24HourFormat(androidx.compose.ui.platform.LocalContext.current)
         )
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { show = false },
             title = { Text(label.substringBefore(" (")) },
             text = { TimePicker(state = state) },
@@ -1178,7 +1182,7 @@ internal fun PhotoField(label: String, value: String?, onChange: (String?) -> Un
 private fun ChoiceField(label: String, value: String, options: List<String>, onChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-        OutlinedTextField(
+        GlassInputField(
             value = value,
             onValueChange = {},
             readOnly = true,
@@ -1210,13 +1214,13 @@ private fun VisibilityPicker(value: String, onChange: (String) -> Unit) {
     Column {
         Text("Who can see this", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
+            GlassFilterChip(
                 selected = value == VIS_FAMILY,
                 onClick = { onChange(VIS_FAMILY) },
                 label = { Text("Family") },
                 leadingIcon = { Icon(Icons.Rounded.Groups, contentDescription = null, modifier = Modifier.size(16.dp)) }
             )
-            FilterChip(
+            GlassFilterChip(
                 selected = value == VIS_PRIVATE,
                 onClick = { onChange(VIS_PRIVATE) },
                 label = { Text("Only me") },

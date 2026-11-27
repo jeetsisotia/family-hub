@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.health
 
+import com.familyhub.app.core.theme.GlassDialog
+import com.familyhub.app.core.theme.GlassFilterChip
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -250,7 +252,7 @@ fun PeriodScreen(env: AppEnv) {
     }
 
     confirmDelete?.let { r ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirmDelete = null },
             title = { Text("Delete this period?") },
             text = { Text(formatDate(r.lng("startMillis"))) },
@@ -304,7 +306,7 @@ private fun LegendRow() {
 private fun SymptomChips(chosen: List<String>, onToggle: (String) -> Unit) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         SYMPTOMS.forEach { s ->
-            FilterChip(selected = s in chosen, onClick = { onToggle(s) }, label = { Text(s) })
+            GlassFilterChip(selected = s in chosen, onClick = { onToggle(s) }, label = { Text(s) })
         }
     }
 }
