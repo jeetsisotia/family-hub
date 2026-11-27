@@ -64,7 +64,8 @@ object FinanceActions {
 
     /** Turns an AI-suggested change (kind "recategorize") into cards built from the real entries. */
     fun fromAi(env: AppEnv, a: AiAction): AppCommands.Result {
-        val q = a.query.ifBlank { a.payee }.ifBlank { a.title }
+        // The AI may put the whole request in "title" ("Change category of Mukul"): only the shop or payee words are kept.
+        val q = TxnFinder.cleanQuery(a.query.ifBlank { a.payee }.ifBlank { a.title })
         val req = TxnFinder.parse("change the category of $q to ${a.category}", allCategories(env))
             ?: TxnFinder.Request(q.lowercase(Locale.ROOT), a.category)
         return resolve(env, req.copy(amount = a.amount ?: req.amount), a.dateMillis)
@@ -85,6 +86,13 @@ object FinanceActions {
         if (onDay != null) found = found.filter { r -> r.lng("dateMillis")?.let { kotlin.math.abs(startOfDay(it) - startOfDay(onDay)) <= DAY_MS } == true }
         val what = listOfNotNull(req.query.takeIf { it.isNotBlank() }?.let { "\"$it\"" }, req.amount?.let { inr(it) }).joinToString(" ")
         if (found.isEmpty()) {
+            val close = TxnFinder.near(all, req).filter { FinanceMonth.normName(FinanceMonth.categoryOf(it)) != FinanceMonth.normName(target) }
+            if (close.isNotEmpty()) {
+                return AppCommands.Result(
+                    "No transaction has exactly $what. These are the closest in Finance; tap Change only on the one you mean " +
+                        "(nothing changes otherwise):", close.map { card(it, target) }
+                )
+            }
             val seen = all.count { Recategorize.categorisable(it) }
             return AppCommands.Result(
                 "I couldn't find a transaction matching $what in Finance (I looked through $seen entries you can see). " +
@@ -101,7 +109,7 @@ object FinanceActions {
         }
         val cards = movable.take(MAX_CARDS).map { card(it, target) }
         val reply = if (movable.size == 1) {
-            "Found it in Finance. Check the details and tap Change to move it to $target:"
+            "Found 1 transaction matching $what in Finance. Check the details and tap Change to move it to $target:"
         } else {
             "I found ${movable.size} transactions matching $what. Which one do you mean? Tap Change on the right one" +
                 (if (movable.size > MAX_CARDS) " (showing the newest $MAX_CARDS; add the amount or date to narrow it)" else "") + ":"

@@ -246,7 +246,7 @@ private fun universalSystem(familySummary: String?): String = buildString {
  * sources, copy, regenerate and stop. Uses the person's own Gemini key. FamilyHub actions open from the Family button.
  */
 @Composable
-fun UniversalChatScreen(env: AppEnv) {
+fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -311,7 +311,8 @@ fun UniversalChatScreen(env: AppEnv) {
             }
         }
     }
-    val connected = GeminiClient.isConfigured()
+    // previewConnected: the emulator test only (no key there), to photograph the connected layout.
+    val connected = previewConnected || GeminiClient.isConfigured()
     val messages = current?.messages.orEmpty()
 
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -563,12 +564,18 @@ fun UniversalChatScreen(env: AppEnv) {
                     InputChip(selected = true, onClick = { attachment = null }, label = { Text("📎 " + a.first) },
                         trailingIcon = { Icon(Icons.Rounded.Close, contentDescription = "Remove attachment", modifier = Modifier.size(16.dp)) })
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                // One line on every width and font size: the chips scroll sideways instead of squeezing and wrapping.
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically
+                ) {
                     FilterChip(selected = web, enabled = AiSession.webSearchAllowed, onClick = { web = !web },
-                        label = { Text(if (AiSession.webSearchAllowed) "Web search" else "Web search (off in settings)") },
+                        label = { Text(if (AiSession.webSearchAllowed) "Web search" else "Web search (off in settings)", maxLines = 1, softWrap = false) },
                         leadingIcon = { Icon(Icons.Rounded.Public, contentDescription = null, modifier = Modifier.size(16.dp)) })
-                    FilterChip(selected = useFamily, onClick = { useFamily = !useFamily }, label = { Text("FamilyHub data") })
-                    AssistChip(onClick = { googleDialog = true }, label = { Text(googleBusy ?: "Google") },
+                    FilterChip(selected = useFamily, onClick = { useFamily = !useFamily }, label = { Text("FamilyHub data", maxLines = 1, softWrap = false) })
+                    AssistChip(onClick = { googleDialog = true },
+                        label = { Text(googleBusy ?: "Google", maxLines = 1, softWrap = false, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 180.dp)) },
                         leadingIcon = { Icon(Icons.Rounded.Mail, contentDescription = null, modifier = Modifier.size(16.dp)) })
                 }
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -608,13 +615,13 @@ fun UniversalChatScreen(env: AppEnv) {
             title = { Text("Use your Google data") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         GoogleLinks.Service.values().forEach { sv ->
-                            FilterChip(selected = service == sv, onClick = { service = sv }, label = { Text(sv.label.removePrefix("Google ")) })
+                            FilterChip(selected = service == sv, onClick = { service = sv }, label = { Text(sv.label.removePrefix("Google "), maxLines = 1, softWrap = false) })
                         }
                     }
                     when (service) {
-                        GoogleLinks.Service.CALENDAR -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        GoogleLinks.Service.CALENDAR -> FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             FilterChip(selected = days == 1, onClick = { days = 1 }, label = { Text("Today") })
                             FilterChip(selected = days == 7, onClick = { days = 7 }, label = { Text("Next 7 days") })
                             FilterChip(selected = days == 30, onClick = { days = 30 }, label = { Text("30 days") })

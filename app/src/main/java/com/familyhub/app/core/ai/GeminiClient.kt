@@ -239,32 +239,18 @@ object GeminiClient : AiProvider {
             }
             return parse(text, model, allowEmpty)
         } catch (e: UnknownHostException) {
-            throw AiException("No internet connection.")
+            throw AiException(GeminiErrors.NETWORK)
         } catch (e: SocketTimeoutException) {
-            throw AiException("The AI took too long to answer. Please try again.")
+            throw AiException(GeminiErrors.TIMEOUT)
         } finally {
             conn.disconnect()
         }
     }
 
     private fun errorFor(code: Int, text: String, model: String, webSearch: Boolean): Exception {
-                val msg = try { JSONObject(text).optJSONObject("error")?.optString("message").orEmpty() } catch (e: Exception) { "" }
-                Log.w("GeminiClient", "$model -> HTTP $code")
-                val low = msg.lowercase()
-                return when {
-                    // Checked live (AI live check run #2): with the search tool, free keys can get a plain "quota
-                    // exceeded" 429 while normal answers still work, so any search refusal is reported as such.
-                    webSearch && (code == 429 || ((code == 400 || code == 403) && ("search" in low || "grounding" in low || "tool" in low))) ->
-                        AiException("Web search is not available on this key's free quota right now (normal answers still work). Turn web search off and ask again, or try later.")
-                    code == 404 || (code == 400 && ("not found" in low || "not supported" in low)) ->
-                        ModelUnavailable("Model $model is not available for this key.")
-                    code == 429 && "limit: 0" in msg -> ModelUnavailable("Model $model has no free quota on this key.")
-                    code == 429 -> AiException("Google's limit for your key is used up for now. Please try again later.")
-                    code == 400 && "api key" in low -> AiException("Google says this API key is not valid. Check it in AI settings.")
-                    code == 401 || code == 403 -> AiException("Google refused this API key. Check it in AI settings (Google AI Studio).")
-                    code >= 500 -> ModelUnavailable("Google's AI service is busy. Please try again shortly.")
-                    else -> AiException("AI error $code: ${msg.take(160)}")
-                }
+        Log.w("GeminiClient", "$model -> HTTP $code")
+        val r = GeminiErrors.classify(code, text, model, webSearch)
+        return if (r.tryNextModel) ModelUnavailable(r.message) else AiException(r.message)
     }
 
     /** Reads one full response (or the last streamed chunk set) into a reply. */
@@ -397,9 +383,9 @@ object GeminiClient : AiProvider {
             return Reply(out, sources.distinctBy { it.url }, model, tokens, searched)
         } catch (e: java.io.IOException) {
             ctx.ensureActive()
-            if (e is UnknownHostException) throw AiException("No internet connection.")
-            if (e is SocketTimeoutException) throw AiException("The AI took too long to answer. Please try again.")
-            throw AiException("The connection was interrupted. Please try again.")
+            if (e is UnknownHostException) throw AiException(GeminiErrors.NETWORK)
+            if (e is SocketTimeoutException) throw AiException(GeminiErrors.TIMEOUT)
+            throw AiException(GeminiErrors.INTERRUPTED)
         } finally {
             stop?.dispose()
             conn.disconnect()

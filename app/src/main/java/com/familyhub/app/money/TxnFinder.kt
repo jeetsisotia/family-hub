@@ -24,6 +24,10 @@ object TxnFinder {
     private val P3 = Regex("^$VERB\\s+(.+?)\\s+(?:to|as|into|under|in)\\s+(?:the\\s+)?(.+?)$")
     // Hinglish: "X ki category Y kar do", "X ko Y mein daal do", "X ko Y category mein shift karo"
     private val P4 = Regex("^(.+?)\\s+(?:ki|ka|ke)\\s+category\\s+(.+?)\\s+(?:kar|kardo|karo|kr|set|bana|badal)\\b.*$")
+    // "category of X should be Y", "X's category should be Y"
+    private val P6 = Regex("^(?:the\\s+)?(?:category|categories)\\s+(?:of|for)\\s+(.+?)\\s+(?:should be|must be|to|as|=)\\s+(.+)$")
+    // Hinglish without "ko": "X wala payment Y category mein daal do", "X Y category me kar do"
+    private val P7 = Regex("^(.+?)\\s+(\\S+)\\s+category\\s+(?:mein|me|main|mai|par|pe)\\s+(?:daal|dal|daalo|dalo|kar|karo|shift|move|rakh|set).*$")
     private val P5 = Regex("^(.+?)\\s+ko\\s+(.+?)\\s+(?:category\\s+)?(?:mein|me|main|mai)\\s+(?:daal|dal|daalo|dalo|kar|karo|shift|move|rakh).*$")
 
     private val STRONG = Regex("^(?:change|move|switch|shift|correct|fix|recategori[sz]e|re-categori[sz]e|categori[sz]e|classify)$")
@@ -33,14 +37,18 @@ object TxnFinder {
         "the", "a", "an", "my", "our", "of", "for", "on", "from", "at", "in", "to", "this", "that", "with",
         "transaction", "transactions", "txn", "entry", "entries", "expense", "expenses", "payment", "payments",
         "spend", "spending", "purchase", "order", "record", "item", "category", "last", "latest", "recent", "most",
-        "wala", "wali", "vala", "vali", "please", "rs", "inr", "₹"
+        "wala", "wali", "vala", "vali", "please", "rs", "inr", "₹",
+        // Words of the request itself, never part of a shop or payee name (an AI may copy them into its "title").
+        "change", "changed", "update", "set", "move", "switch", "shift", "correct", "fix", "recategorize", "recategorise",
+        "categorize", "categorise", "classify", "categories", "ki", "ka", "ke", "ko", "kar", "karo", "kardo", "do", "mein",
+        "me", "should", "be", "new", "one", "paid", "to", "named", "called"
     )
     private val LATEST = Regex("\\b(last|latest|most recent|recent|newest)\\b")
 
     /** True if the text asks to change a transaction's category (even if it cannot be read completely). */
     fun isIntent(text: String): Boolean {
         val s = clean(text)
-        if (P1.matches(s) || P2.matches(s) || P4.matches(s) || P5.matches(s)) return true
+        if (P1.matches(s) || P2.matches(s) || P4.matches(s) || P5.matches(s) || P6.matches(s) || P7.matches(s)) return true
         return Regex("\\b(recategori[sz]e|re-categori[sz]e|categori[sz]e)\\b").containsMatchIn(s) ||
             (Regex("\\bcategory\\b").containsMatchIn(s) && Regex("\\b(change|update|set|move|switch|shift|correct|fix|badal|kar)\\b").containsMatchIn(s) &&
                 Regex("\\b(transaction|txn|entry|expense|payment|spend|purchase|order)s?\\b").containsMatchIn(s))
@@ -64,6 +72,8 @@ object TxnFinder {
             ?: P2.matchEntire(s)?.destructured?.let { (a, b) -> a to b }
             ?: P4.matchEntire(s)?.destructured?.let { (a, b) -> a to b }
             ?: P5.matchEntire(s)?.destructured?.let { (a, b) -> a to b }
+            ?: P6.matchEntire(s)?.destructured?.let { (a, b) -> a to b }
+            ?: P7.matchEntire(s)?.destructured?.let { (a, b) -> a to b }
             ?: P3.matchEntire(s)?.let { m ->
                 val (a, b) = m.destructured
                 // Weak verbs ("put milk in shopping", "mark it as paid") count only with the word "category".
@@ -81,7 +91,7 @@ object TxnFinder {
         }
         val latest = LATEST.containsMatchIn(q)
         val words = q.replace(Regex("[^\\p{L}\\p{N}@&.' -]"), " ").split(Regex("\\s+"))
-            .map { it.trim('.', '\'', '-') }.filter { it.isNotBlank() && it !in STOP }
+            .map { it.trim('.', '\'', '-', '’').removeSuffix("'s").removeSuffix("’s") }.filter { it.isNotBlank() && it !in STOP }
         return Request(words.joinToString(" "), cat, amount, latest)
     }
 
@@ -115,5 +125,32 @@ object TxnFinder {
         }.distinctBy { it["id"] }
             .sortedByDescending { (it["dateMillis"] as? Number)?.toLong() ?: 0L }
         return if (req.latest) found.take(1) else found
+    }
+
+    /** Cleans words an AI copied into a search ("Change category of Mukul" -> "mukul"). */
+    fun cleanQuery(text: String): String =
+        text.lowercase(Locale.ROOT).replace(Regex("[^\\p{L}\\p{N}@&. -]"), " ").split(Regex("\\s+"))
+            .map { it.trim('.', '-') }.filter { it.isNotBlank() && it !in STOP }.joinToString(" ")
+
+    /**
+     * When nothing matches every word: the closest entries (some of the words, or the words run together, as in
+     * "MUKULKUMAR"), best first, so the person can still pick the right one. Never changes anything by itself.
+     */
+    fun near(records: List<Map<String, Any?>>, req: Request, max: Int = 5): List<Map<String, Any?>> {
+        val words = req.query.lowercase(Locale.ROOT).split(" ").filter { it.length >= 3 }
+        if (words.isEmpty()) return emptyList()
+        val joined = words.joinToString("")
+        return records.asSequence()
+            .filter { Recategorize.categorisable(it) && (it["id"] as? String).orEmpty().isNotEmpty() }
+            .map { r ->
+                val h = hay(r); val flat = h.filter { it.isLetterOrDigit() }
+                val score = words.count { it in h } * 2 + (if (joined.length >= 4 && joined in flat) 3 else 0) +
+                    words.count { w -> w.length >= 4 && Regex("\\b" + Regex.escape(w.take(4))).containsMatchIn(h) }
+                val amountOk = req.amount == null || kotlin.math.abs(Ledger.amount(r) - req.amount) < 1.0
+                r to (if (amountOk) score else 0)
+            }
+            .filter { it.second > 0 }
+            .sortedWith(compareByDescending<Pair<Map<String, Any?>, Int>> { it.second }.thenByDescending { (it.first["dateMillis"] as? Number)?.toLong() ?: 0L })
+            .map { it.first }.distinctBy { it["id"] }.take(max).toList()
     }
 }

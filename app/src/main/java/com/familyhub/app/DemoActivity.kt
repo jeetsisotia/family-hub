@@ -94,7 +94,8 @@ class DemoActivity : FragmentActivity() {
                     val titleCollapse = androidx.compose.runtime.remember { com.familyhub.app.core.theme.TitleCollapse() }
                     androidx.compose.runtime.CompositionLocalProvider(com.familyhub.app.core.theme.LocalTitleCollapse provides titleCollapse) {
                     Box(modifier = Modifier.fillMaxSize().nestedScroll(titleCollapse.connection)) {
-                        val def = ModuleByRoute[route]
+                        // "form:<module>" opens that module's add form (Health, Documents, Reminders…) for the screenshot check.
+                        val def = ModuleByRoute[route.removePrefix("form:")]
                         val financeOverview: @Composable () -> Unit = { com.familyhub.app.ui.money.FinanceOverview(env) }
                         when {
                             route == "assistant" -> AssistantScreen(
@@ -178,6 +179,7 @@ class DemoActivity : FragmentActivity() {
                             )
                             route == "finance" -> com.familyhub.app.ui.money.FinanceDashboard(env)
                             route == "universal" -> com.familyhub.app.ui.ai.UniversalChatScreen(env)
+                            route == "universal_connected" -> com.familyhub.app.ui.ai.UniversalChatScreen(env, previewConnected = true)
                             // The assistant changing a transaction's category, with the real Finance row for it below.
                             route == "ai_recat" -> Column(Modifier.fillMaxSize()) {
                                 Box(Modifier.weight(1f)) { AssistantScreen(env, autoAsk = ask) }
@@ -214,7 +216,8 @@ class DemoActivity : FragmentActivity() {
                                 onOpen = {},
                                 onAskAi = {},
                                 overview = if (def.kind == "finance") financeOverview else null,
-                                preview = env.data[def.collection]
+                                preview = env.data[def.collection],
+                                previewState = if (route.startsWith("form:")) "form" else null
                             )
                             else -> Text("Unknown screen: $route", modifier = Modifier.padding(24.dp))
                         }
@@ -334,6 +337,9 @@ object DemoData {
             "isPaid" to true, "isDeleted" to false))
         expenses.add(rec("type" to "EXPENSE", "title" to "SWIGGY", "category" to "Other", "sourceKey" to "sms-demo-1",
             "amountInr" to 645.0, "dateMillis" to now - 2 * d + 600_000L, "paymentMethod" to "UPI", "isPaid" to true, "isDeleted" to false))
+        // A UPI payment to a person, for "Change the category of Mukul to Shopping".
+        expenses.add(rec("type" to "EXPENSE", "title" to "UPI/MUKUL KUMAR/okaxis", "category" to "Other", "amountInr" to 350.0,
+            "dateMillis" to now - 3 * d, "paymentMethod" to "UPI", "memberName" to "Demo User", "memberUid" to UID, "isPaid" to true, "isDeleted" to false))
         expenses.add(rec("type" to "EXPENSE", "title" to "Myntra shoes", "category" to "Shopping", "amountInr" to 2499.0,
             "dateMillis" to now - 9 * d, "paymentMethod" to "Credit card", "card" to "HDFC Millennia", "memberName" to "Demo User",
             "memberUid" to UID, "isPaid" to true, "isDeleted" to false))
@@ -427,7 +433,7 @@ object DemoStore {
     /** The Swiggy entries as Finance → Transactions shows them (same row), from the same data the assistant changes. */
     @Composable
     fun FinanceRows(env: AppEnv, store: String?) {
-        val rows = env.data["expenses"].orEmpty().filter { (it["title"] as? String).orEmpty().startsWith("Swiggy order") }
+        val rows = env.data["expenses"].orEmpty().filter { (it["title"] as? String).orEmpty().let { t -> t.startsWith("Swiggy order") || "MUKUL" in t } }
         Column(
             Modifier.fillMaxWidth().background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceContainer)
                 .padding(horizontal = 8.dp, vertical = 6.dp)

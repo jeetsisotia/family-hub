@@ -2,9 +2,38 @@
 
 For picking up the work after a usage limit or a new session. Read this file and `PROGRESS.md`, fetch `main`, and continue from the first unfinished task. Do not repeat finished work.
 
-## Current brief
+## Current brief (Brief 5, 27 Nov 2026 12:38)
 
-`FamilyHub — Final development, user feedback & release prompt` (27 Nov 2026, Brief 4). Evidence: `docs/VERIFICATION-REPORT.md`. Earlier briefs: `PROGRESS.md`, `docs/FINAL-REPORT-3.md`.
+**Brief:** "FamilyHub — Master development prompt" (four phases).
+
+**Your instruction:** finish **Priority Zero and Phase 1 only**, then stop. Phases 2–4 and the premium features wait for your go-ahead.
+
+**Rules:**
+- Keep the existing app: package, Firebase project, rules, signing, backup and data.
+- Spark plan only. No secrets in code, APKs, commits or logs.
+- Nothing counts as PASS without test evidence.
+- Statuses: PASS, PARTIAL, BLOCKED, NOT STARTED.
+
+### Checklist (update after every bundle)
+
+| # | Item | Status | Evidence / commit |
+|---|---|---|---|
+| P0-A | AI matching: "Change the category of Mukul to Shopping" and 13 other phrasings (English and Hinglish), the AI's own wording cleaned, closest matches offered when nothing matches exactly | Code + 175 ledger checks | p58 |
+| P0-B | AI screen: the chips above the message box (Web search, FamilyHub data, Google) no longer wrap; checked at 1.3× text and 360dp width | Code; emulator check added | p58 |
+| P0-C | Due Summary: tap to fold and open checked on the emulator (the rest was checked before) | Emulator check added | p58 |
+| P0-D | Health (vitals, medicines), Documents and Reminders add forms, light and dark | Demo routes `form:<module>` added | p58 |
+| P0-E | Gemini errors: invalid key, key refused, API not enabled, rate limit, daily quota, web search quota and network problems each get their own message (`GeminiErrors`, 11 tests) | Code + tests | p58 |
+| P0-F | Regression table | To do after the build | |
+| 1.1 | Family activity timeline | NOT STARTED | |
+| 1.2 | Document expiry tracker | NOT STARTED | |
+| 1.3 | Recurring expense detection | NOT STARTED | |
+
+### How to resume
+
+1. Fetch `main` and read this table.
+2. Pick up the first row that is not PASS.
+
+Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. Workflow files are uploaded on their own; never include `.github` in a bundle.
 
 ## State (Brief 4)
 

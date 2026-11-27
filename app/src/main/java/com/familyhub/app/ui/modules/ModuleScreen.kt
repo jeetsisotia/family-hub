@@ -145,7 +145,8 @@ fun ModuleScreen(
         if (q.isEmpty()) sorted else sorted.filter { r -> r.values.any { v -> v is String && v.contains(q, ignoreCase = true) } }
     }
 
-    var showForm by remember { mutableStateOf(false) }
+    // previewState "form": the emulator test opens the add form directly, to photograph it.
+    var showForm by remember { mutableStateOf(previewState == "form") }
     var editing by remember { mutableStateOf<Rec?>(null) }
     var toDelete by remember { mutableStateOf<Rec?>(null) }
     var error by remember { mutableStateOf<String?>(null) }

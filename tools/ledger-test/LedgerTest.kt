@@ -452,6 +452,30 @@ fun main() {
         check("recat: intent seen even when unreadable", F.isIntent("can you fix the category of my expense"))
         check("recat: a question is not a change", !F.isIntent("how much did I spend on shopping"))
         check("recat: plural forms resolve", F.resolveCategory("grocery", cats) == "Groceries")
+        // "Mukul" requests in many forms: the word "category" (and the request's own words) never become part of the name.
+        val mk = recs + listOf(
+            mapOf("id" to "m1", "type" to "EXPENSE", "title" to "UPI/MUKUL KUMAR/okaxis", "amountInr" to 250.0, "category" to "Other", "dateMillis" to at(2026, 11, 24)),
+            mapOf("id" to "m2", "type" to "EXPENSE", "title" to "Paid", "notes" to "To Mukul", "amountInr" to 90.0, "category" to "Other", "dateMillis" to at(2026, 11, 22))
+        )
+        val mukul = listOf(
+            "Change the category of Mukul to Shopping.", "change category of mukul to shopping", "Change category Mukul to Shopping",
+            "change Mukul category to Shopping", "Change Mukul's category to Shopping", "Set the category for Mukul as Shopping",
+            "Please change the category of the Mukul transaction to Shopping", "Category of Mukul should be Shopping",
+            "Mukul ki category shopping kar do", "Mukul ka category Shopping karo", "Mukul ko shopping mein daal do",
+            "Mukul wala payment shopping category mein daal do", "move Mukul to Shopping", "recategorize mukul as shopping"
+        )
+        for (q in mukul) {
+            val r = F.parse(q, cats)
+            check("recat: '$q' -> mukul / shopping", r?.query == "mukul" && F.resolveCategory(r.category, cats) == "Shopping", r)
+        }
+        check("recat: Mukul matches the UPI title and the 'To Mukul' note, newest first",
+            F.match(mk, F.parse("change the category of Mukul to Shopping", cats)!!).map { it["id"] } == listOf("m1", "m2"))
+        check("recat: AI title cleaned", F.cleanQuery("Change category of Mukul") == "mukul" && F.cleanQuery("Mukul ki category") == "mukul", F.cleanQuery("Change category of Mukul"))
+        check("recat: near match for a name run together (MUKULKUMAR)",
+            F.near(listOf(mapOf("id" to "x", "type" to "EXPENSE", "title" to "MUKULKUMAR UPI", "amountInr" to 10.0, "dateMillis" to 1L)),
+                com.familyhub.app.money.TxnFinder.Request("mukul kumar", "shopping")).size == 1)
+        check("recat: near never offers deleted entries or transfers", F.near(recs, com.familyhub.app.money.TxnFinder.Request("swiggy wallet", "shopping")).none { it["id"] == "s4" || it["id"] == "s5" })
+
         val plan = com.familyhub.app.money.Recategorize.forIds(recs, setOf("s1"), "Shopping", 7L)
         check("recat: the shared plan changes only category and subcategory, Undo keeps the old one",
             plan.count == 1 && plan.changes[0].fields.keys == setOf("category", "subcategory", "updatedAt") && plan.changes[0].undo["category"] == "Dining")
