@@ -147,7 +147,9 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
     fun add(a: AiAction) {
         scope.launch {
             try {
+                env.repo.lastCreated = null
                 applyAction(env, context, a)
+                a.created = env.repo.lastCreated
                 a.state = "added"
                 AiAudit.record(context, a, true)
             } catch (e: Exception) {
@@ -185,6 +187,23 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                 )
             } else {
                 messages.add(ChatMsg(false, "The payment app did not confirm a successful payment. If you did pay, add it as an expense.", aiText = null))
+            }
+            refresh++
+        }
+    }
+
+    /** Undo of an added record: the normal delete (shared records go to Recently deleted). */
+    fun undo(a: AiAction) {
+        val c = a.created ?: return
+        scope.launch {
+            try {
+                env.repo.deleteScoped(env.familyId, env.uid, c.collection,
+                    mapOf("id" to c.id, com.familyhub.app.data.remote.PRIVATE_FLAG to c.private))
+                a.state = "undone"
+                AiAudit.record(context, a.copy(title = "Undo: " + a.title), true)
+            } catch (e: Exception) {
+                a.error = "Undo failed: " + (e.message ?: "")
+                AiAudit.record(context, a.copy(title = "Undo: " + a.title), false, a.error)
             }
             refresh++
         }
@@ -324,8 +343,12 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        AppCommands.suggestionsFor(page).forEach { s -> AiSuggestion(Icons.Rounded.AutoAwesome, s) { send(s) } }
-                        SUGGESTIONS.forEach { (icon, s) -> AiSuggestion(icon, s) { send(s) } }
+                        // On a page, its own suggestions first and only a few general ones; general ones alone otherwise.
+                        val forPage = remember(page, env.data) { AppCommands.suggestionsFor(page, env) }
+                        forPage.forEach { s -> AiSuggestion(Icons.Rounded.AutoAwesome, s) { send(s) } }
+                        SUGGESTIONS.filter { (_, s) -> forPage.none { it.startsWith(s.take(20)) } }
+                            .take(if (forPage.isEmpty()) SUGGESTIONS.size else 3)
+                            .forEach { (icon, s) -> AiSuggestion(icon, s) { send(s) } }
                     }
                 }
             }
@@ -340,7 +363,8 @@ fun AssistantScreen(env: AppEnv, autoAsk: String? = null, startVoice: Boolean = 
                             }
                         },
                         onAddAll = { m.actions.filter { it.state == "new" && it.kind != "open" }.forEach { add(it) } },
-                        onOpenInApp = { a -> openInApp(a) }
+                        onOpenInApp = { a -> openInApp(a) },
+                        onUndo = { a -> undo(a) }
                     )
                 }
             }
@@ -383,7 +407,8 @@ private fun MessageBubble(
     m: ChatMsg,
     onAction: (AiAction, Boolean) -> Unit,
     onAddAll: () -> Unit,
-    onOpenInApp: (AiAction) -> Unit = {}
+    onOpenInApp: (AiAction) -> Unit = {},
+    onUndo: (AiAction) -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -415,10 +440,15 @@ private fun MessageBubble(
                             }
                             FlowRow(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.Center) {
                                 when (a.state) {
-                                    "added" -> Text(
-                                        actionDone(a.kind),
-                                        color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold
-                                    )
+                                    "added" -> {
+                                        Text(
+                                            actionDone(a.kind),
+                                            color = Color(0xFF34C759), fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.align(Alignment.CenterVertically)
+                                        )
+                                        if (a.created != null) TextButton(onClick = { onUndo(a) }) { Text("Undo") }
+                                    }
+                                    "undone" -> Text("Undone", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
                                     else -> {
                                         AiPillButton(
                                             if (a.state == "failed") "Retry" else actionButton(a.kind),

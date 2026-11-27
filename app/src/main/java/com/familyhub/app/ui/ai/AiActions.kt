@@ -62,8 +62,10 @@ data class AiAction(
     /** For tidy-up actions made on the phone: the records they change and where those live. */
     val collection: String = "",
     val refs: List<Rec> = emptyList(),
-    var state: String = "new", // new, added, dismissed, failed
-    var error: String = ""
+    var state: String = "new", // new, added, dismissed, failed, undone
+    var error: String = "",
+    /** The (last) new record this action created, for Undo. */
+    var created: com.familyhub.app.data.remote.RecordRepository.Created? = null
 )
 
 private val DONE_CLAIM = Regex(

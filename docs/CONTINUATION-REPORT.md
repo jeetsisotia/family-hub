@@ -18,7 +18,7 @@ For picking up the work after a usage limit or a new session. Read this file and
 | | |
 |---|---|
 | Starting commit | `6e8cdbb` (build #63 passed) |
-| Latest bundle | p43 (report). Code: p42 `ca703ec`; p41 `6663968`; p40 `d18184c`; p39 `b86ccef`; CI `cbd9555` |
+| Latest bundle | p44 (Insights card, page suggestions, AI Undo); p43 (report). Code: p42 `ca703ec`; p41 `6663968`; p40 `d18184c`; p39 `b86ccef`; CI `cbd9555` |
 | How code reaches GitHub | Bundles through the upload page and `apply-bundle.yml` (see PROGRESS.md). Workflow files can only be changed on the upload page itself, not through a bundle |
 
 ## Tasks
@@ -31,16 +31,11 @@ For picking up the work after a usage limit or a new session. Read this file and
 | 4 | Finance → Duplicates: reasons, confidence, which to keep, "Not duplicates", confirmation with a count, Undo; the AI uses the same finder and the same safe removal | **Code done, tests pass**. Build: pending |
 | 5 | Home and More: one place for each feature; Apple-style grouped lists | **Code done**: More is a grouped list without the repeated Loans, Accounts and SOS; Home without the repeated money card, shortcut row and task and document cards, plus Recent; hub screens and Finance → Manage as grouped lists. Screenshots: pending |
 | 6 | CI: remove the hanging Gemini check; name screenshots by real screens, light and dark; unit tests on every push | **Done** (commit `cbd9555`; Unit tests run #1 passed) |
-| 7 | AI action registry: permission, confirm, audit, undo for every data-changing action | **Code done**: every AI action re-checks membership and Finance permission just before writing; a local log of AI actions with success or failure is shown in AI settings; duplicate removal can be undone. Undo for records the AI adds: not built (they can be deleted normally) |
+| 7 | AI action registry: permission, confirm, audit, undo for every data-changing action | **Code done**: permission re-check, a local log in AI settings, Undo for duplicate removal, category changes and (p44) records the AI adds |
 | 8 | Docs: AI-SETUP, LIMITATIONS, TESTING, INSTALL reconciled | **Done** |
 | 9 | Final report with PASS / FAIL / NOT TESTED / NEEDS MY PHONE / NEEDS MY INPUT / BLOCKED | **Done**: `docs/FINAL-REPORT-3.md` |
 | 10 | Shared module list screen as one inset grouped list | **Done**: build #67 passed, Reminders screenshot checked |
 
 ## Next exact step
 
-Brief 3 is reported in `docs/FINAL-REPORT-3.md`. Remaining, in order:
-1. Apple-style pass on the Insights header card and the detail sheets.
-2. Tailored AI suggestions for every page.
-3. Undo for records the AI adds.
-
-Also the phone checks listed in the report.
+Check build #68 (p44: Insights card, page suggestions, AI Undo) and the Insights screenshot. Then: suggestions for Health and Documents; the detail sheets and forms.

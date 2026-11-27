@@ -346,18 +346,35 @@ object AppCommands {
         }
     }
 
-    /** Suggestions for the page the assistant was opened from. */
-    fun suggestionsFor(page: String?): List<String> = when (page?.lowercase(Locale.ROOT)) {
-        "finance", "money", "expenses", "money insights", "insights" -> listOf(
-            "How much did we spend this month?", "What's my top category?", "Which EMIs are pending?", "When is my next card bill due?",
-            "Find duplicate transactions", "Merge refunds"
-        )
-        "my profile", "profile" -> listOf("Add emergency contact Papa 98765 43210")
-        "household", "tasks" -> listOf("Help with my open tasks", "Act on tasks added by the owner", "Find duplicate tasks")
-        "shopping" -> listOf("Find duplicate items", "Add milk, eggs and bread to shopping")
-        "calendar" -> listOf("Find duplicate events", "What's due this week?")
-        "subscriptions", "cards", "loans", "credit cards", "loans & emi", "due calendar" -> listOf("What's due this week?", "Which EMIs are pending?", "When is my next card bill due?")
-        null -> emptyList()
-        else -> listOf("Find duplicates on this page", "Help with my open tasks")
+    /**
+     * Suggestions for the page the assistant was opened from. With [env], each one is offered only when it
+     * would find something (uncategorised entries, suspected duplicates, open tasks, things due), and each uses
+     * wording the assistant answers on the phone without a Gemini key.
+     */
+    fun suggestionsFor(page: String?, env: AppEnv? = null): List<String> {
+        val p = page?.lowercase(Locale.ROOT) ?: return emptyList()
+        val expenses = env?.data?.get("expenses").orEmpty()
+        val uncategorised = expenses.count { com.familyhub.app.money.Recategorize.categorisable(it) && com.familyhub.app.money.Recategorize.uncategorised(it) }
+        val dups = if (env != null) com.familyhub.app.money.Duplicates.find(expenses).size else 1
+        val openTasks = env?.data?.get("tasks").orEmpty().count { it["isDeleted"] != true && it["isCompleted"] != true && (it["type"] as? String) != "SHOPPING" }
+        fun ifAny(n: Int, s: String) = if (env == null || n > 0) s else null
+        return when (p) {
+            "finance", "money", "expenses", "transactions" -> listOfNotNull(
+                ifAny(uncategorised, "Categorise uncategorised transactions" + if (env != null) " ($uncategorised)" else ""),
+                ifAny(dups, "Find duplicate transactions" + if (env != null) " ($dups suspected)" else ""),
+                "How much did we spend this month?", "How much did we save this month?", "What's due this week?", "Merge refunds"
+            )
+            "money insights", "insights" -> listOfNotNull(
+                "Who spent the most this month?", "How much did we save this month?",
+                ifAny(uncategorised, "Categorise uncategorised transactions")
+            )
+            "my profile", "profile" -> listOf("Add emergency contact Papa 98765 43210")
+            "household", "tasks" -> listOfNotNull(ifAny(openTasks, "Help with my open tasks" + if (env != null) " ($openTasks)" else ""), "Find duplicate tasks")
+            "shopping" -> listOf("Add milk, eggs and bread to shopping", "Find duplicate items")
+            "calendar" -> listOf("What's due this week?", "Find duplicate events")
+            "subscriptions", "cards", "loans", "credit cards", "loans & emi", "loans & emis", "due calendar", "accounts" ->
+                listOf("What's due this week?", "Which EMIs are pending?", "When is my next card bill due?", "What's my bank balance?")
+            else -> listOf("Find duplicates on this page")
+        }
     }
 }

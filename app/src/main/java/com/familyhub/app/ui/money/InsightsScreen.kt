@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.familyhub.app.core.theme.AccentCard
 import com.familyhub.app.core.theme.GlassCard
 import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.ui.AppEnv
@@ -222,10 +221,10 @@ fun InsightsScreen(env: AppEnv) {
 
             // Summary
             item {
-                AccentCard(modifier = Modifier.fillMaxWidth()) {
+                GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(18.dp)) {
-                        Text("Spent • $periodLabel", color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelLarge)
-                        Text(inr(spent), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        Text("Spent • $periodLabel", color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), style = MaterialTheme.typography.labelLarge)
+                        Text(inr(spent), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         val change = if (prevSpent > 0) (spent - prevSpent) / prevSpent * 100 else null
                         Text(
                             when {
@@ -233,7 +232,7 @@ fun InsightsScreen(env: AppEnv) {
                                 change >= 0 -> "▲ %.0f%% more than the previous period (%s)".format(change, inr(prevSpent))
                                 else -> "▼ %.0f%% less than the previous period (%s)".format(-change, inr(prevSpent))
                             },
-                            color = Color.White.copy(alpha = 0.9f),
+                            color = if (change != null && change > 0) Color(0xFFFF3B30) else if (change != null) Color(0xFF34C759) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                             style = MaterialTheme.typography.bodySmall
                         )
                         Spacer(modifier = Modifier.height(10.dp))
@@ -248,12 +247,12 @@ fun InsightsScreen(env: AppEnv) {
                             LinearProgressIndicator(
                                 progress = { used.coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth().height(6.dp),
-                                color = if (used > 1f) Color(0xFFFF453A) else Color.White,
-                                trackColor = Color.White.copy(alpha = 0.25f)
+                                color = if (used > 1f) Color(0xFFFF3B30) else MaterialTheme.colorScheme.primary,
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
                             )
                             Text(
                                 "%.0f%% of the %s monthly budget".format(used * 100, inr(env.family.monthlyBudget)),
-                                color = Color.White.copy(alpha = 0.9f),
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.padding(top = 4.dp)
                             )
@@ -463,8 +462,8 @@ private fun BudgetSettingsDialog(
 @Composable
 private fun StatBlock(label: String, value: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(label, color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.labelSmall)
-        Text(value, color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
+        Text(value, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 

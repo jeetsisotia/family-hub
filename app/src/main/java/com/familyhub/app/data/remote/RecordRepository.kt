@@ -113,6 +113,8 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
         val wasPrivate = existing?.get(PRIVATE_FLAG) == true
         val dest = target(familyId, uid, collection, private)
         val ref = if (id.isNullOrBlank()) dest.document() else dest.document(id)
+        // Remembered so the assistant can offer Undo on a record it has just added.
+        if (existing == null) lastCreated = Created(collection, ref.id, private)
         if (existing != null && !id.isNullOrBlank() && wasPrivate != private) {
             val merged = HashMap<String, Any?>(clean(existing))
             merged.putAll(clean(data))
@@ -172,6 +174,10 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
     suspend fun putScoped(familyId: String, uid: String, collection: String, id: String, data: Map<String, Any?>, private: Boolean) {
         target(familyId, uid, collection, private).document(id).set(clean(data), SetOptions.merge()).await()
     }
+
+    /** The last record this phone created (collection, id, "Only me"), for Undo of AI actions. */
+    data class Created(val collection: String, val id: String, val private: Boolean)
+    @Volatile var lastCreated: Created? = null
 
     /**
      * Updates fields on many records in batches of 400 (for example moving transactions to another category).

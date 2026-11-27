@@ -43,7 +43,14 @@ fun main() {
         "Switch to dark mode" to "theme:dark",
         "please change the app to light theme" to "theme:light",
         "set theme to system" to "theme:system",
-        "Add expense 300 for dark chocolate" to "assistant"
+        "Add expense 300 for dark chocolate" to "assistant",
+        // The page suggestions (AppCommands.suggestionsFor) must reach the right answer, counts included.
+        "Categorise uncategorised transactions (12)" to "uncat",
+        "Who spent the most this month?" to "family",
+        "How much did we save this month?" to "save",
+        "What's my bank balance?" to "balance",
+        "Which EMIs are pending?" to "emi",
+        "When is my next card bill due?" to "card"
     )
     for ((q, want) in cases) { val got = route(q); check("\"$q\" -> $want" + if (got != want) " (got $got)" else "", got == want) }
     println(if (fails == 0) "ALL PASSED ($passes)" else "$fails FAILED")

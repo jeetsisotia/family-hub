@@ -19,7 +19,7 @@ These run on GitHub on every push to `main` (`.github/workflows/unit-tests.yml`,
 | SMS and email alerts | `tools/import-test` | 15 |
 | Statement import | `tools/import-test` | 22 |
 | Chat @mentions | `tools/chat-test` | 14 |
-| Assistant questions | `tools/ai-test` | 22 |
+| Assistant questions, including every page suggestion | `tools/ai-test` | 28 |
 | Health and AI limits | `tools/health-test` | 21 |
 | Reminder rules (repeats, month ends) | `tools/reminder-test` | 40 |
 | Safety logic | `tools/safety-test` | 64 |
