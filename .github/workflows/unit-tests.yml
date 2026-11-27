@@ -57,6 +57,8 @@ jobs:
 
           (cd tools/ai-test && python3 extract.py && kotlinc Regexes.kt AiTest.kt -include-runtime -d $W/ai.jar 2>&1 | grep -v warning || true)
           run "Assistant questions (ai-test)" $W/ai.jar
+          (cd tools/ai-test && kotlinc $A/core/ai/GeminiErrors.kt GeminiErrorsTest.kt -include-runtime -d $W/gerr.jar 2>&1 | grep -v warning || true)
+          run "Gemini error messages (ai-test)" $W/gerr.jar
 
           (cd tools/health-test && kotlinc $A/health/HealthMath.kt $A/core/ai/AiLimiter.kt HealthTest.kt -include-runtime -d $W/health.jar 2>&1 | grep -v warning || true)
           run "Health and AI limits (health-test)" $W/health.jar
