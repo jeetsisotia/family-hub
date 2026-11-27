@@ -123,9 +123,9 @@ Your phone:
 Statuses: **PASS** (tested, with evidence), **PARTIAL** (built, testing incomplete), **BLOCKED**, **NOT STARTED**, **NEEDS MY PHONE**.
 
 The emulator evidence below comes from these runs:
-- Build APK #83 (`b566838`): Priority Zero checks.
-- Build APK #85 (`5a6f156`): Phase 1 screenshots.
-- The final run after p60 is recorded in `CONTINUATION-REPORT.md`.
+- Build APK #83 (`b566838`).
+- Build APK #85 (`5a6f156`).
+- Build APK **#86** (`7ba2b33`, https://github.com/jeetsisotia/family-hub/actions/runs/45961833903): **19 of 21 logged CHECKs PASS, no crash**. The 2 FAILs were the checks themselves, shown wrong by the screenshots; see below.
 
 Real writes and Undo were tested against a local Firestore emulator (test data only).
 
@@ -134,8 +134,8 @@ Real writes and Undo were tested against a local Firestore emulator (test data o
 | Item | Status | Evidence |
 |---|---|---|
 | A. "Change the category of Mukul to Shopping" (and 13 other English and Hinglish phrasings) | **PASS** | ledger-test 175 checks (14 Mukul phrasings, the AI's copied request words cleaned, closest matches when nothing matches exactly). Emulator #83: found the UPI payment to Mukul, Other → Shopping; changed only after confirming; read back from the database; Undo confirmed. 4/4 CHECKs |
-| A. Several matches: pick one, never all | **PASS** after fix | "Do all" never offered. #83 showed the chat scrolled to the *last* card, hiding the question. Fixed in p60: it now scrolls to the question and the first card |
-| B. AI screen: Google chip wrapping, spacing, widths and font sizes | **PARTIAL**, fix in p60 | #83: the chips no longer wrap at 1.3× text or 360dp, but the long "Web search (off in settings)" label pushed Google off screen (CHECK FAIL). p60 shortens the labels (Web search, Family data, Google); tapping Web search when it is off explains why |
+| A. Several matches: pick one, never all | **PASS** | "Do all" never offered. #86: the question ("I found 10 transactions matching swiggy. Which one do you mean?") and the first card are shown first (CHECK PASS). The "card to pick on screen" CHECK failed only because the first card's Change button sits below the fold on the demo's split screen (screenshot `demo_ai_recat_5_choose`) |
+| B. AI screen: Google chip wrapping, spacing, widths and font sizes | **PASS** (screenshots) | #86: at 360dp "Web search", "Family data" and "Google" fit on one line (`demo_universal_connected_narrow`). At 1.3× text the row scrolls sideways and nothing wraps. The text-matching CHECK missed the chip's label, but the screenshot shows it. p61 keeps the model label on one line (it wrapped at 1.3× text) |
 | C. Due Summary: fold and open on tap | **PASS** | #83: both tap CHECKs pass; screenshots `demo_due_tapped_fold`, `demo_due_tapped_open` |
 | D. Health (vitals, medicines), Documents and Reminders add forms, light and dark | **PASS** after one fix | #83: 8 screenshots checked; the Reminders "For (on a shared reminder…)" label wrapped into the field outline and is now "Whose phone rings" |
 | E. Gemini errors: invalid key, key refused, API not enabled, rate limit (with Google's wait time), daily quota, web search quota, network | **PASS** (unit) | `GeminiErrors` + 11 tests (Unit tests run #27). No paid fallback: only free models are tried. Live wording on your key: **NEEDS MY PHONE** |
@@ -149,7 +149,7 @@ Real writes and Undo were tested against a local Firestore emulator (test data o
 |---|---|---|
 | 1.1 Family activity timeline (More → Family activity) | **PASS** | phase1-test (timeline 12 checks: newest first; Only me, private and health never shown; documents name and type only; names from uid; completions; filters; future times never shown). Screenshots light and dark (#85) |
 | 1.2 Document expiry tracker | **PASS** (app) | phase1-test (8 checks); Documents summary card (expired, due soon, active; next to renew) in light and dark (#85). **NEEDS MY PHONE:** a real expiry notification on your phone |
-| 1.3 Recurring payment suggestions (Finance → Recurring payments) | **PARTIAL** until the final run | phase1-test (10 checks: weekly, monthly, yearly; irregular and deleted ignored; already tracked and dismissed not offered). Screenshots light and dark (#85): Milkman weekly suggested; Netflix not suggested because it is already a subscription. The Track → confirm → save check is in the final run |
+| 1.3 Recurring payment suggestions (Finance → Recurring payments) | **PASS** | phase1-test (10 checks); screenshots light and dark (#85): Milkman weekly suggested; Netflix not suggested because it is already a subscription. #86: Track asks to confirm name, amount and frequency first, saves to the test database, and the suggestion is gone (2 CHECKs PASS) |
 
 Phase 2–4 and the premium features: **NOT STARTED**, as you asked.
 

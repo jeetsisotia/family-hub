@@ -457,9 +457,9 @@ fun UniversalChatScreen(env: AppEnv, previewConnected: Boolean = false) {
         // Provider and model, and the FamilyHub actions mode.
         Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(
-                if (connected) "Gemini · " + AiSession.model.ifBlank { "automatic (free flash model)" } else "Not connected",
+                if (connected) "Gemini · " + AiSession.model.ifBlank { "automatic (free)" } else "Not connected",
                 style = MaterialTheme.typography.labelSmall, color = if (connected) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f) else Color(0xFFFF453A),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).padding(end = 8.dp), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
             AssistChip(onClick = { env.navigate("assistant_family") }, label = { Text("FamilyHub actions") },
                 leadingIcon = { Icon(Icons.Rounded.Home, contentDescription = null, modifier = Modifier.size(16.dp)) })
