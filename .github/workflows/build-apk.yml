@@ -292,6 +292,23 @@ jobs:
           seen 'Log service' p2m "maintenance: service history and Log service shown"
           adb shell am force-stop $PKG
 
+          # ---- Phase 3: savings goals, budget planner, money insights, reports (light and dark) ----
+          for r in goals budget_planner money_intel reports dark:goals dark:budget_planner dark:money_intel dark:reports; do demo "$r" "" 7 no; done
+          adb shell am start -W -n $PKG/.DemoActivity --es route budget_planner >/dev/null 2>&1; sleep 7; screen_text p3b
+          seen 'Category limits' p3b "budget: planned against actual by category"
+          seen 'only me' p3b "budget: an Only me limit is shown as such"
+          adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route money_intel >/dev/null 2>&1; sleep 7; screen_text p3i
+          seen 'not financial advice' p3i "insights: suggestions are labelled as suggestions, not advice"
+          adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route goals >/dev/null 2>&1; sleep 7; screen_text p3g
+          seen 'Goal progress' p3g "goals: progress, remaining and who added money"
+          adb shell am force-stop $PKG
+          adb shell am start -W -n $PKG/.DemoActivity --es route reports >/dev/null 2>&1; sleep 6
+          tap_text Share p3r; sleep 4; shot demo_reports_share; screen_text p3r2
+          grep -qiE 'Share|chooser|Gmail|Drive|Nearby' shots/p3r2.xml && echo "CHECK reports: a CSV opens the share sheet: PASS" || echo "CHECK reports: a CSV opens the share sheet: FAIL"
+          adb shell am force-stop $PKG
+
           # Track a recurring payment: confirm dialog, saved to the test database, suggestion gone.
           adb shell am start -W -n $PKG/.DemoActivity --es route recurring --es store emulator >/dev/null 2>&1; sleep 10
           tap_text Track r1; sleep 3; shot demo_recurring_confirm; screen_text rec1
