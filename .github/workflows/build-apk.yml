@@ -318,6 +318,17 @@ jobs:
 
           # ---- Phase 4: the family planner in the assistant (answered on the phone) and the weekly brief ----
           askq() { adb shell cmd statusbar collapse >/dev/null 2>&1; adb shell am start -W -n $PKG/.DemoActivity --es route ask --es ask "$1" >/dev/null 2>&1; sleep 8; shot "demo_ask_$2"; screen_text "ask_$2"; adb shell am force-stop $PKG; }
+          # ---- Universal search and Liquid Glass (27 Nov 22:38) ----
+          srch() { adb shell cmd statusbar collapse >/dev/null 2>&1; adb shell am start -W -n $PKG/.DemoActivity --es route "$1" --es ask "$2" >/dev/null 2>&1; sleep 8; shot "demo_$3"; screen_text "$3"; adb shell am force-stop $PKG; }
+          srch home none home_search; seen 'Search FamilyHub' home_search "home: the search bar is on Home"
+          srch search none search_empty; seen 'Search all of FamilyHub' search_empty "search: the empty page says what it searches"
+          srch search_q Netflix search_netflix; seen 'All (' search_netflix "search: results with an All filter and counts"
+          seen 'Subscriptions (' search_netflix "search: results from Subscriptions"
+          seen 'Finance (' search_netflix "search: results from Finance payments"
+          srch search_q 649 search_amount; seen 'Netflix' search_amount "search: found by amount"
+          srch search_q zorbing search_none; seen 'No results' search_none "search: nothing found is said plainly"
+          srch dark:search_q Netflix search_dark; seen 'All (' search_dark "search: dark theme"
+          srch dark:home none home_dark_glass; seen 'Search FamilyHub' home_dark_glass "home: dark theme with search"
           askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
           askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
           seen 'Clash' ask_week "planner: the clash is pointed out"
