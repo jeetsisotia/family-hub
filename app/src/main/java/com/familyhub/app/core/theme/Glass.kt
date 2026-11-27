@@ -131,6 +131,20 @@ fun Modifier.glass(shape: Shape = RoundedCornerShape(24.dp), strong: Boolean = f
         .border(1.dp, edge, shape)
 }
 
+/**
+ * The background of one row in an inset grouped list (rows joined, rounded only at the ends): a flat fill with
+ * no shadow, so neighbouring rows read as one block, like the iPhone's grouped lists.
+ */
+fun Modifier.groupedRowBackground(shape: Shape): Modifier = composed {
+    val dark = LocalGlassDark.current
+    val fill = when {
+        LocalSolidGlass.current -> if (dark) Color(0xFF1C1C1E) else Color.White
+        dark -> Color.White.copy(alpha = 0.08f)
+        else -> Color.White.copy(alpha = 0.72f)
+    }
+    this.clip(shape).background(fill)
+}
+
 /** Remembers a press state and returns a springy scale for "squishy" taps. */
 @Composable
 private fun pressScale(interaction: MutableInteractionSource): Float {

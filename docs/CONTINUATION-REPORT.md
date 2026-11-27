@@ -33,8 +33,9 @@ For picking up the work after a usage limit or a new session. Read this file and
 | 6 | CI: remove the hanging Gemini check; name screenshots by real screens, light and dark; unit tests on every push | **Done** (commit `cbd9555`; Unit tests run #1 passed) |
 | 7 | AI action registry: permission, confirm, audit, undo for every data-changing action | **Code done**: every AI action re-checks membership and Finance permission just before writing; a local log of AI actions with success or failure is shown in AI settings; duplicate removal can be undone. Undo for records the AI adds: not built (they can be deleted normally) |
 | 8 | Docs: AI-SETUP, LIMITATIONS, TESTING, INSTALL reconciled | **Done** |
-| 9 | Final report with PASS / FAIL / NOT TESTED / NEEDS MY PHONE / NEEDS MY INPUT / BLOCKED | Not started |
+| 9 | Final report with PASS / FAIL / NOT TESTED / NEEDS MY PHONE / NEEDS MY INPUT / BLOCKED | **Done**: `docs/FINAL-REPORT-3.md` |
+| 10 | Shared module list screen as one inset grouped list | **Code done** (p42). Screenshot check: pending |
 
 ## Next exact step
 
-Check APK builds #64 (p39) and #65 (p40) and the new screenshots on `demo-screenshots` (light and dark). Fix what the screenshots show. Then write the final report (task 9).
+Check build #67 (p42) and the Reminders screenshot (shared module list) in light and dark. Then: Insights header card, tailored AI suggestions per page, undo for records the AI adds.

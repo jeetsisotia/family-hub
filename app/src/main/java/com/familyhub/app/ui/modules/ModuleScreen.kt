@@ -3,9 +3,11 @@ package com.familyhub.app.ui.modules
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -27,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
 import com.familyhub.app.core.theme.AccentCard
 import com.familyhub.app.core.theme.GlassCard
+import com.familyhub.app.core.theme.groupedRowBackground
 import com.familyhub.app.core.theme.glass
 import com.familyhub.app.data.remote.PRIVATE_FLAG
 import com.familyhub.app.data.remote.Rec
@@ -297,10 +300,11 @@ fun ModuleScreen(
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                // No gap between list rows (they form one grouped block); other items add their own space below.
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 item {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 10.dp)) {
                         overview?.invoke()
                         ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget)
                         if (def.kind == "finance" && onOpen != null) {
@@ -313,7 +317,7 @@ fun ModuleScreen(
                         OutlinedTextField(
                             value = query,
                             onValueChange = { query = it },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
                             singleLine = true,
                             shape = RoundedCornerShape(18.dp),
                             colors = OutlinedTextFieldDefaults.colors(
@@ -328,7 +332,7 @@ fun ModuleScreen(
                 }
                 if (shown.isEmpty()) {
                     item {
-                        GlassCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+                        GlassCard(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp), shape = RoundedCornerShape(20.dp)) {
                             Column(
                                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
@@ -348,8 +352,8 @@ fun ModuleScreen(
                         }
                     }
                 }
-                items(shown, key = { (it[PRIVATE_FLAG] == true).toString() + it.str("id") }) { rec ->
-                    Box(modifier = Modifier.animateItem()) {
+                itemsIndexed(shown, key = { _, it -> (it[PRIVATE_FLAG] == true).toString() + it.str("id") }) { index, rec ->
+                    Box(modifier = Modifier.animateItem().then(if (isFinance) Modifier.padding(bottom = 10.dp) else Modifier)) {
                     if (isFinance) {
                         com.familyhub.app.ui.money.TransactionRow(
                             rec = rec,
@@ -364,6 +368,8 @@ fun ModuleScreen(
                     } else RecordCard(
                         def = def,
                         rec = rec,
+                        first = index == 0,
+                        last = index == shown.lastIndex,
                         onClick = { editing = rec; showForm = true },
                         onToggle = { checked -> toggle(rec, checked) },
                         onDelete = { toDelete = rec },
@@ -476,6 +482,8 @@ private fun amountText(def: ModuleDef, rec: Rec): String? {
 private fun RecordCard(
     def: ModuleDef,
     rec: Rec,
+    first: Boolean = true,
+    last: Boolean = true,
     onClick: () -> Unit,
     onToggle: (Boolean) -> Unit,
     onDelete: () -> Unit,
@@ -490,9 +498,16 @@ private fun RecordCard(
     val amount = amountText(def, rec)
     val phone = def.phoneKey?.let { rec.str(it) }.orEmpty()
 
-    GlassCard(
-        onClick = onClick,
-        shape = RoundedCornerShape(22.dp)
+    val corner = 14.dp
+    val shape = RoundedCornerShape(
+        topStart = if (first) corner else 0.dp, topEnd = if (first) corner else 0.dp,
+        bottomStart = if (last) corner else 0.dp, bottomEnd = if (last) corner else 0.dp
+    )
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .padding(bottom = if (last) 10.dp else 0.dp)
+            .groupedRowBackground(shape)
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
@@ -555,6 +570,13 @@ private fun RecordCard(
                     }
                 }
             }
+        }
+        if (!last) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 16.dp),
+                thickness = 0.5.dp,
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
         }
     }
 }
