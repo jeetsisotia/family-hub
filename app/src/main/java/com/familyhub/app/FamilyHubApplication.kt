@@ -17,5 +17,7 @@ class FamilyHubApplication : Application() {
             .setLocalCacheSettings(com.google.firebase.firestore.PersistentCacheSettings.newBuilder().build())
             .build()
         FirebaseFirestore.getInstance().firestoreSettings = settings
+        // Online or offline, for the sync notice (changes made offline are kept and sent later by Firestore).
+        com.familyhub.app.data.remote.SyncStatus.watch(this)
     }
 }

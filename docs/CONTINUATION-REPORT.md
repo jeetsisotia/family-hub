@@ -215,3 +215,17 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
 - Memories list header: "On this day" (earlier years) and albums with counts; new Album field.
 - Safety already had SOS, check-ins, safe-arrival and low-battery alerts (no change needed in this phase).
 - Tests: `tools/memory-test` (6 checks), rules tests "memories: …", emulator checks "memories: …".
+- Verified: Firestore rules tests run 46115083621 (commit b649049) — Success, including the new "memories: …" tests.
+
+## 28 Nov — Backup, offline and sync (bundle p83)
+
+- Sync status: every record listener now reports Firestore's "pending writes"; with the phone's connection state this
+  shows "Offline · N changes will sync…", "Syncing N changes…" or "All changes saved" (Home shows it only when not
+  saved; Data & backup always). Changes made offline were already kept by Firestore's on-phone cache.
+- Conflict protection: if someone else saved an entry after you opened its form, saving asks first —
+  **Keep both changes** (their fields plus the ones you edited), **Use mine**, or **Cancel**. Nothing is overwritten silently.
+- Restore verification: after a restore, the restored entries are re-read from the server and the result says
+  "Verified on the server" or how many are missing.
+- Attachment backup: memory photos (Firestore parts) are included in the backup file and written back on restore only
+  when the server does not have them. Chat attachments stay in chat (not part of backups).
+- Tests: `tools/sync-test` (11 checks), emulator checks "sync: …".

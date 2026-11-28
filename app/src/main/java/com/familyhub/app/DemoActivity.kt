@@ -165,6 +165,15 @@ class DemoActivity : FragmentActivity() {
                                 androidx.compose.runtime.LaunchedEffect(route) { com.familyhub.app.data.remote.MemoryRepository.seedDemo(route.removePrefix("memory:")) }
                                 com.familyhub.app.ui.modules.MemoryDetailScreen(env, route.removePrefix("memory:"))
                             }
+                            // Offline with two changes waiting, then the Data & backup screen's sync row.
+                            route == "sync_offline" -> {
+                                androidx.compose.runtime.LaunchedEffect(Unit) { com.familyhub.app.data.remote.SyncStatus.showForDemo(false, 2) }
+                                Column(Modifier.fillMaxSize().padding(16.dp)) { com.familyhub.app.ui.common.SyncBadge() }
+                            }
+                            route == "sync_saved" -> {
+                                androidx.compose.runtime.LaunchedEffect(Unit) { com.familyhub.app.data.remote.SyncStatus.showForDemo(true, 0) }
+                                Column(Modifier.fillMaxSize().padding(16.dp)) { com.familyhub.app.ui.common.SyncBadge(always = true) }
+                            }
                             // The Family Admin's access sheet for one member.
                             route == "access_sheet" -> com.familyhub.app.ui.modules.MemberAccessSheet(
                                 com.familyhub.app.data.model.FamilyMember(uid = "ravi", name = "Ravi", perms = mapOf("health" to "none", "finance" to "view")),

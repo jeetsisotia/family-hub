@@ -122,6 +122,9 @@ fun HomeDashboardScreen(
             }
         }
 
+        // Offline or changes still on their way to the server (hidden when everything is saved).
+        item { com.familyhub.app.ui.common.SyncBadge() }
+
         item {
             // Universal search: one tap opens search across every section.
             com.familyhub.app.core.theme.GlassSearchBar(

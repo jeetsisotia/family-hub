@@ -186,7 +186,18 @@ fun ModuleScreen(
     val isFinance = def.kind == "finance"
     androidx.activity.compose.BackHandler(enabled = selected.isNotEmpty()) { selected = emptySet() }
 
-    fun save(map: Map<String, Any?>, existing: Rec?) {
+    // Someone else saved this record while the form was open: ask before overwriting their change.
+    data class Conflict(val mine: Map<String, Any?>, val opened: Rec, val live: Rec, val fields: List<String>)
+    var conflict by remember { mutableStateOf<Conflict?>(null) }
+
+    fun save(map: Map<String, Any?>, existing: Rec?, force: Boolean = false) {
+        if (!force && existing != null) {
+            val live = all.firstOrNull {
+                it.str("id") == existing.str("id") && (it[com.familyhub.app.data.remote.PRIVATE_FLAG] == true) == (existing[com.familyhub.app.data.remote.PRIVATE_FLAG] == true)
+            }
+            val fields = com.familyhub.app.data.remote.SyncMath.conflict(existing, live, uid)
+            if (live != null && fields.isNotEmpty()) { conflict = Conflict(map, existing, live, fields); return }
+        }
         val data = HashMap<String, Any?>(map)
         for ((k, v) in def.constants) {
             if (!data.containsKey(k)) data[k] = v
@@ -464,6 +475,29 @@ fun ModuleScreen(
             )
         }
 
+        conflict?.let { c ->
+            val labels = c.fields.map { k -> def.fields.firstOrNull { it.key == k }?.label ?: k }
+            val who = c.live.str("updatedByName").ifBlank { "Someone" }
+            com.familyhub.app.core.theme.GlassDialog(
+                onDismissRequest = { conflict = null },
+                title = { Text("Changed while you were editing") },
+                text = { Text("$who saved this entry after you opened it (${labels.joinToString(", ")}). Saving yours as it is would undo their change.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        conflict = null
+                        val merged = com.familyhub.app.data.remote.SyncMath.merge(c.opened, c.mine, c.live)
+                            .filterKeys { it != "id" && it != com.familyhub.app.data.remote.PRIVATE_FLAG }
+                        save(merged, c.live, force = true)
+                    }) { Text("Keep both changes") }
+                },
+                dismissButton = {
+                    Row {
+                        TextButton(onClick = { conflict = null; save(c.mine, c.live, force = true) }) { Text("Use mine") }
+                        TextButton(onClick = { conflict = null }) { Text("Cancel") }
+                    }
+                }
+            )
+        }
         if (viewOnly) com.familyhub.app.core.theme.GlassNotificationCard(
             title = "View only",
             subtitle = "A Family Admin gave you view-only access to ${com.familyhub.app.family.Permissions.label(section ?: "")}.",

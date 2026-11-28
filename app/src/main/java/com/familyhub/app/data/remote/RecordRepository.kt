@@ -46,13 +46,18 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
 
     private fun listen(ref: Query, private: Boolean, tag: String): Flow<List<Rec>> = callbackFlow<List<Rec>> {
         var sent = false
-        val reg = ref.addSnapshotListener { snap, e ->
+        val syncKey = tag + "#" + System.identityHashCode(this)
+        // Metadata changes included so the sync status sees when offline changes reach the server.
+        val reg = ref.addSnapshotListener(com.google.firebase.firestore.MetadataChanges.INCLUDE) { snap, e ->
             if (e != null) {
                 Log.w("RecordRepository", "$tag listener failed", e)
                 // Never leave screens waiting forever; an empty list is better than a spinner.
                 if (!sent) trySend(emptyList())
                 return@addSnapshotListener
             }
+            SyncStatus.reportPending(syncKey, snap?.documents.orEmpty().count { it.metadata.hasPendingWrites() })
+            // A change only in sync state (not in the data) does not need to redraw the screens.
+            if (sent && snap != null && snap.documentChanges.isEmpty()) return@addSnapshotListener
             val list = snap?.documents.orEmpty().map { d ->
                 val m = HashMap<String, Any?>()
                 d.data?.let { m.putAll(it) }
@@ -63,7 +68,7 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
             sent = true
             trySend(list)
         }
-        awaitClose { reg.remove() }
+        awaitClose { reg.remove(); SyncStatus.reportPending(syncKey, 0) }
     }
 
     private fun emptyFlow(): Flow<List<Rec>> = callbackFlow<List<Rec>> {

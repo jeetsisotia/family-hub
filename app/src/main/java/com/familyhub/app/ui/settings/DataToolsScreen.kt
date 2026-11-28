@@ -65,7 +65,10 @@ private fun fromJson(v: Any?): Any? = when (v) {
     else -> v
 }
 
-data class Backup(val familyName: String, val createdAt: Long, val data: Map<String, List<Rec>>, val photos: Map<String, String> = emptyMap()) {
+data class MemPhoto(val memoryId: String, val private: Boolean, val parts: List<String>)
+
+data class Backup(val familyName: String, val createdAt: Long, val data: Map<String, List<Rec>>, val photos: Map<String, String> = emptyMap(),
+                  val memoryPhotos: Map<String, MemPhoto> = emptyMap()) {
     val count get() = data.values.sumOf { it.size }
 }
 
@@ -80,7 +83,15 @@ private fun parseBackup(text: String): Backup {
     // Pictures kept on the phone (receipts, payment proofs), by their reference.
     val photos = HashMap<String, String>()
     o.optJSONObject("photos")?.let { p -> p.keys().forEach { k -> photos[k] = p.optString(k) } }
-    return Backup(o.optString("familyName"), o.optLong("createdAt"), data, photos)
+    val mem = HashMap<String, MemPhoto>()
+    o.optJSONObject("memoryPhotos")?.let { m ->
+        m.keys().forEach { k ->
+            val e = m.optJSONObject(k) ?: return@forEach
+            val arr = e.optJSONArray("parts") ?: return@forEach
+            mem[k] = MemPhoto(e.optString("memoryId"), e.optBoolean("private"), (0 until arr.length()).map { arr.optString(it) })
+        }
+    }
+    return Backup(o.optString("familyName"), o.optLong("createdAt"), data, photos, mem)
 }
 
 /**
@@ -112,7 +123,7 @@ fun DataToolsScreen(env: AppEnv) {
     var confirmPurge by remember { mutableStateOf<Pair<String, Rec>?>(null) }
     var confirmEmpty by remember { mutableStateOf(false) }
 
-    fun backupJson(): String {
+    fun backupJson(memoryPhotos: JSONObject = JSONObject()): String {
         val cols = JSONObject()
         raw.forEach { (c, l) -> cols.put(c, JSONArray().also { a -> l.forEach { a.put(toJson(it)) } }) }
         // Pictures saved on this phone that the entries refer to go into the file too, so a backup moved to a
@@ -123,7 +134,7 @@ fun DataToolsScreen(env: AppEnv) {
         return JSONObject()
             .put("app", "FamilyHub").put("version", 3).put("createdAt", System.currentTimeMillis())
             .put("familyId", env.familyId).put("familyName", env.family.name).put("byUid", env.uid)
-            .put("collections", cols).put("photos", photos).toString()
+            .put("collections", cols).put("photos", photos).put("memoryPhotos", memoryPhotos).toString()
     }
 
     /** Entries of one kind (one section of the app), deleted ones included. */
@@ -177,10 +188,20 @@ fun DataToolsScreen(env: AppEnv) {
             }
             raw = fresh
             try {
-                val text = backupJson()
+                // Memory photos are kept in Firestore parts; the backup carries them so a restore brings them back.
+                val memPhotos = JSONObject()
+                for (r in fresh["items"].orEmpty().filter { it["type"] == "memory" }) {
+                    val priv = r[PRIVATE_FLAG] == true
+                    for (p in com.familyhub.app.data.remote.MemoryRepository.photos(r)) {
+                        val parts = com.familyhub.app.data.remote.MemoryRepository.fetchParts(env.familyId, env.uid, priv, p)
+                        memPhotos.put(p.id, JSONObject().put("memoryId", r["id"]).put("private", priv).put("parts", JSONArray(parts)))
+                    }
+                }
+                val text = backupJson(memPhotos)
                 withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray()) } ?: error("Could not open the file") }
                 val n = raw.values.sumOf { it.size }
-                message = "Backup saved (${plural(n, "entry", "entries")}). It includes your Only me records, so keep it somewhere safe."
+                message = "Backup saved (${plural(n, "entry", "entries")}" + (if (memPhotos.length() > 0) ", ${plural(memPhotos.length(), "memory photo", "memory photos")}" else "") +
+                    "). It includes your Only me records, so keep it somewhere safe."
                 busy = false
                 if (reset != null) runReset(reset)
             } catch (e: Exception) {
@@ -220,7 +241,7 @@ fun DataToolsScreen(env: AppEnv) {
                 )
             },
             confirmButton = {
-                TextButton(enabled = shared + mine > 0 || b.photos.isNotEmpty(), onClick = {
+                TextButton(enabled = shared + mine > 0 || b.photos.isNotEmpty() || b.memoryPhotos.isNotEmpty(), onClick = {
                     restoreFile = null
                     busy = true
                     scope.launch {
@@ -245,9 +266,24 @@ fun DataToolsScreen(env: AppEnv) {
                                 env.repo.putScoped(env.familyId, env.uid, c, id, r, r[PRIVATE_FLAG] == true); ok++
                             } catch (e: Exception) { failed++ }
                         }
+                        // Memory photos whose parts are missing on the server are written back (never over existing ones).
+                        var memPics = 0
+                        for ((photoId, mp) in b.memoryPhotos) {
+                            try {
+                                if (com.familyhub.app.data.remote.MemoryRepository.restoreParts(env.familyId, env.uid, mp.private, mp.memoryId, photoId, mp.parts)) memPics++
+                            } catch (e: Exception) { failed++ }
+                        }
+                        // Check on the server that every restored entry is really there before saying it is done.
+                        val restoredIds = toAdd.mapValues { (_, l) -> l.mapNotNull { it["id"] as? String }.toSet() }.filterValues { it.isNotEmpty() }
+                        val verify = try {
+                            val after = restoredIds.keys.associateWith { c -> env.repo.fetchFromServer(env.familyId, env.uid, c).mapNotNull { it["id"] as? String }.toSet() }
+                            val missing = com.familyhub.app.data.remote.SyncMath.missingAfterRestore(restoredIds, after).values.sumOf { it.size }
+                            if (missing == 0) " Verified on the server." else " $missing not found on the server yet; try Restore again."
+                        } catch (e: Exception) { " Could not check the server yet (offline?); they will sync when you're online." }
                         busy = false
                         message = "Restored ${plural(ok, "entry", "entries")}" + (if (pics > 0) " and ${plural(pics, "picture", "pictures")}" else "") +
-                            if (failed > 0) "; $failed could not be restored." else "."
+                            (if (memPics > 0) " and ${plural(memPics, "memory photo", "memory photos")}" else "") +
+                            (if (failed > 0) "; $failed could not be restored." else ".") + verify
                         reload++
                     }
                 }) { Text("Restore", fontWeight = FontWeight.Bold) }
@@ -356,6 +392,14 @@ fun DataToolsScreen(env: AppEnv) {
     Column(Modifier.fillMaxSize()) {
         ScreenTopBar(title = "Data & backup", onBack = env.onBack)
         LazyColumn(contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item {
+                com.familyhub.app.ui.common.SyncBadge(always = true)
+                Text(
+                    "Changes you make offline are kept on this phone and sent when you're back online. If someone else " +
+                        "changed an entry while you were editing it, the app asks before saving over their change.",
+                    style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp)
+                )
+            }
             item {
                 Text(
                     if (env.isAdmin) "You are ${if (env.isOwner) "the Super Admin" else "a Family Admin"} of ${env.family.name}."

@@ -64,6 +64,26 @@ object MemoryRepository {
         return ChatMedia.join((0 until p.parts).map { n -> col.document(ChatMedia.partId(p.id, n)).get().await().getString("data") })
     }
 
+    /** The stored parts of a photo as they are (for backups). */
+    suspend fun fetchParts(familyId: String, uid: String, private: Boolean, p: Photo): List<String> {
+        if (DemoChats.active(familyId)) return emptyList()
+        val col = partsCol(familyId, uid, private)
+        return (0 until p.parts).map { n -> col.document(ChatMedia.partId(p.id, n)).get(com.google.firebase.firestore.Source.SERVER).await().getString("data").orEmpty() }
+    }
+
+    /** Writes a backed-up photo's parts if the server does not have them. Returns true when something was written. */
+    suspend fun restoreParts(familyId: String, uid: String, private: Boolean, memoryId: String, photoId: String, parts: List<String>): Boolean {
+        if (parts.isEmpty() || parts.any { it.isEmpty() }) return false
+        val col = partsCol(familyId, uid, private)
+        if (col.document(ChatMedia.partId(photoId, 0)).get(com.google.firebase.firestore.Source.SERVER).await().exists()) return false
+        val batch = db.batch()
+        parts.forEachIndexed { n, data ->
+            batch.set(col.document(ChatMedia.partId(photoId, n)), mapOf("ownerUid" to uid, "memoryId" to memoryId, "data" to data, "at" to FieldValue.serverTimestamp()))
+        }
+        batch.commit().await()
+        return true
+    }
+
     /** Removes a photo's bytes (the person who added it, or an admin). */
     suspend fun deletePhoto(familyId: String, uid: String, private: Boolean, p: Photo) {
         if (DemoChats.active(familyId)) { demoFiles.remove(p.id); return }
