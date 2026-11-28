@@ -348,6 +348,7 @@ jobs:
           # ---- Group calls (screens only; real calls need two phones) and the Calls screen ----
           srch group_ringing none grp_ring; seen 'started a group call' grp_ring "group call: incoming invitation names who started it"
           seen 'Join' grp_ring "group call: Join and Decline buttons"
+          grep -q 'with you, Demo User' shots/grp_ring.xml && echo "CHECK group call: invitation does not list me twice: FAIL" || echo "CHECK group call: invitation does not list me twice: PASS"
           srch group_call none grp_call; seen '3 in the call' grp_call "group call: how many are in the call"
           seen 'Ringing…' grp_call "group call: someone not yet answered shows Ringing"
           seen 'Reconnecting…' grp_call "group call: a dropped connection shows Reconnecting"
@@ -359,7 +360,9 @@ jobs:
           seen 'days with no spending' chal "challenges: no-spend days worked out from Finance"
           seen 'I saved' chal "challenges: one tap to record this week's saving"
           srch dark:challenges none chal_dark; seen 'Challenge progress' chal_dark "challenges: dark theme"
-          srch settings none set_w; adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 400; sleep 2; screen_text set_w2; shot demo_settings_widgets
+          adb shell am start -W -n $PKG/.DemoActivity --es route settings >/dev/null 2>&1; sleep 8
+          for i in 1 2 3; do adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 400; sleep 1; done
+          sleep 2; screen_text set_w2; shot demo_settings_widgets; adb shell am force-stop $PKG
           seen 'Private widgets' set_w2 "settings: private widgets switch"
           askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
           askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
