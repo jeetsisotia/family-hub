@@ -52,21 +52,22 @@ service cloud.firestore {
         t in homeTypes() || t in famTypes() || t in memTypes();
     }
     // Item kinds this person may see or change, as one list, so a "type in [...]" query can be checked against it.
-    function lvl(familyId, section, edit) { return edit ? canEdit(familyId, section) : canSee(familyId, section); }
-    function allowedTypes(familyId, edit) {
-      return (lvl(familyId, 'finance', edit) ? finTypes() : [])
-        .concat(lvl(familyId, 'calendar', edit) ? calTypes() : [])
-        .concat(lvl(familyId, 'tasks', edit) ? taskTypes() : [])
-        .concat(lvl(familyId, 'documents', edit) ? docTypes() : [])
-        .concat(lvl(familyId, 'health', edit) ? healthTypes() : [])
-        .concat(lvl(familyId, 'home', edit) ? homeTypes() : [])
-        .concat(lvl(familyId, 'family', edit) ? famTypes() : [])
-        .concat(lvl(familyId, 'memories', edit) ? memTypes() : []);
+    // p is the person's access map, read once (keeps the rule well under the evaluation limit).
+    function okLvl(v, edit) { return edit ? v == 'edit' : v != 'none'; }
+    function typesFor(p, edit) {
+      return (okLvl(p.get('finance', 'edit'), edit) ? finTypes() : [])
+        .concat(okLvl(p.get('calendar', 'edit'), edit) ? calTypes() : [])
+        .concat(okLvl(p.get('tasks', 'edit'), edit) ? taskTypes() : [])
+        .concat(okLvl(p.get('documents', 'edit'), edit) ? docTypes() : [])
+        .concat(okLvl(p.get('health', 'edit'), edit) ? healthTypes() : [])
+        .concat(okLvl(p.get('home', 'edit'), edit) ? homeTypes() : [])
+        .concat(okLvl(p.get('family', 'edit'), edit) ? famTypes() : [])
+        .concat(okLvl(p.get('memories', 'edit'), edit) ? memTypes() : []);
     }
     // Kinds not in any section yet stay open to people with no "None" section (as before), never to restricted ones.
-    function itemOk(familyId, t, edit) {
-      return t in allowedTypes(familyId, edit) || (!knownItem(t) && unrestricted(familyId));
-    }
+    function itemOkP(p, t, edit) { return t in typesFor(p, edit) || (!knownItem(t) && !('none' in p.values())); }
+    function itemOk(familyId, t, edit) { return isFamilyAdmin(familyId) || itemOkP(myPerms(familyId), t, edit); }
+    function itemReadP(p, t) { return !('none' in p.values()) || t in typesFor(p, false); }
 
     // Admin flag and role are unchanged by this write.
     function keepsRole() {
@@ -160,7 +161,7 @@ service cloud.firestore {
       match /items/{docId} {
         // Each kind of item belongs to a section (Finance, Health, Documents…); someone with no access to a
         // section loads the others by type ("type in [...]"), so their queries never touch it.
-        allow read: if isFamilyMember(familyId) && (unrestricted(familyId) || resource.data.get('type', '') in allowedTypes(familyId, false));
+        allow read: if isFamilyMember(familyId) && (isFamilyAdmin(familyId) || itemReadP(myPerms(familyId), resource.data.get('type', '')));
         allow create: if isFamilyMember(familyId) && itemOk(familyId, request.resource.data.get('type', ''), true);
         allow update: if isFamilyMember(familyId) && itemOk(familyId, resource.data.get('type', ''), true) &&
           itemOk(familyId, request.resource.data.get('type', ''), true);

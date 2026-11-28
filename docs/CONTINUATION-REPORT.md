@@ -171,5 +171,5 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
 - **Still needs the user:** publish `firebase/firestore.rules` in the Firebase console (Google sign-in).
 - p78 fix: first rules run (Firestore rules tests, run 46113495523) showed a whole-list items read was wrongly allowed for a
   restricted member in the emulator (99/100). Rules now compare the item kind with one computed list of allowed kinds
-  (`allowedTypes`), which the query checker can prove for `type in [...]` and refuse for unfiltered reads. Also fixed a
+  (`typesFor`, built from the access map read once), which the query checker can prove for `type in [...]` and refuse for unfiltered reads. Also fixed a
   compile error (nullable section) found by Build APK run 46113493586.
