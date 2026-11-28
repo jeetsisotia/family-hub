@@ -399,8 +399,14 @@ jobs:
           srch sync_offline none sync_off; seen '2 changes will sync' sync_off "sync: offline notice with waiting changes"
           srch sync_saved none sync_ok; seen 'All changes saved' sync_ok "sync: all changes saved"
           adb shell am start -W -n $PKG/.DemoActivity --es route settings >/dev/null 2>&1; sleep 8
-          for i in 1 2 3; do adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 400; sleep 1; done
-          sleep 2; screen_text set_w2; shot demo_settings_widgets; adb shell am force-stop $PKG
+          # Scroll down in small steps until the widgets section is on screen (Settings grows as sections are added).
+          : > shots/set_w2.xml
+          for i in 1 2 3 4 5 6 7 8; do
+            adb shell input swipe $((SW / 2)) $((SH * 7 / 10)) $((SW / 2)) $((SH * 4 / 10)) 400; sleep 1
+            adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml shots/set_w2.xml >/dev/null 2>&1
+            grep -q 'Private widgets' shots/set_w2.xml && break
+          done
+          shot demo_settings_widgets; adb shell am force-stop $PKG
           seen 'Private widgets' set_w2 "settings: private widgets switch"
           askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
           askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
@@ -551,6 +557,9 @@ jobs:
             echo "Install: download the APK on your phone and open it. Android installs it only over the same signed app."
             echo "Checks: emulator run passed with no crash (Build APK run ${GITHUB_RUN_ID})."
           } > notes.txt
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "build-$N" "$GITHUB_SHA"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/build-$N"
           gh release create "build-$N" "FamilyHub-2.1.$N.apk" --repo "$GITHUB_REPOSITORY" \
-            --title "FamilyHub 2.1.$N" --notes-file notes.txt --target "$GITHUB_SHA" --latest
+            --title "FamilyHub 2.1.$N" --notes-file notes.txt --verify-tag --latest
           echo "RESULT: published build-$N"
