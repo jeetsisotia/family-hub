@@ -191,6 +191,7 @@ jobs:
             return 1
           }
           seen() { grep -q "$1" "shots/$2.xml" && echo "CHECK $3: PASS" || echo "CHECK $3: FAIL"; }
+          notseen() { if [ -s "shots/$2.xml" ] && ! grep -q "$1" "shots/$2.xml"; then echo "CHECK $3: PASS"; else echo "CHECK $3: FAIL"; fi; }
           ASK="Change_the_category_of_Swiggy_order_from_Meghana_Foods_to_Shopping"
           recat() { adb shell am start -W -n $PKG/.DemoActivity --es route ai_recat --es store "$1" --es ask "$2" >/dev/null 2>&1; sleep "$3"; }
           echo "==== AI category change (test database) ===="
@@ -360,6 +361,15 @@ jobs:
           seen 'days with no spending' chal "challenges: no-spend days worked out from Finance"
           seen 'I saved' chal "challenges: one tap to record this week's saving"
           srch dark:challenges none chal_dark; seen 'Challenge progress' chal_dark "challenges: dark theme"
+          # ---- Per-member section access (28 Nov) ----
+          srch access_sheet none acc_sheet; seen 'Access for Ravi' acc_sheet "access: admin sheet for one member"
+          seen 'View only' acc_sheet "access: None / View only / Full choices"
+          seen 'enforce this' acc_sheet "access: sheet says the rules enforce it"
+          srch limited:medicines none acc_none; seen 'No access' acc_none "access: a None section shows No access"
+          srch limited:subscriptions none acc_view; seen 'view-only access to Finance' acc_view "access: view-only Finance says so"
+          srch limited:subscriptions none acc_view2; notseen 'content-desc="Add"' acc_view2 "access: view-only hides the Add button"
+          srch "limited:chat:dm_asha_demo-user" none acc_chat; seen 'not allowed you to send' acc_chat "access: view-only chat cannot send"
+          srch subscriptions none acc_full; seen 'content-desc="Add"' acc_full "access: full access keeps the Add button"
           adb shell am start -W -n $PKG/.DemoActivity --es route settings >/dev/null 2>&1; sleep 8
           for i in 1 2 3; do adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 400; sleep 1; done
           sleep 2; screen_text set_w2; shot demo_settings_widgets; adb shell am force-stop $PKG

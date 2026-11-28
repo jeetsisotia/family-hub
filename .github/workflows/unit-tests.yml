@@ -71,6 +71,8 @@ jobs:
           run "Universal search (search-test)" $W/search.jar
           (cd tools/call-test && kotlinc $A/calling/GroupCallMath.kt GroupCallTest.kt -include-runtime -d $W/call.jar 2>&1 | grep -v warning || true)
           run "Group calls (call-test)" $W/call.jar
+          (cd tools/perms-test && kotlinc $A/family/Permissions.kt PermsTest.kt -include-runtime -d $W/perms.jar 2>&1 | grep -v warning || true)
+          run "Section access (perms-test)" $W/perms.jar $PWD/firebase/firestore.rules
 
           (cd tools/health-test && kotlinc $A/health/HealthMath.kt $A/core/ai/AiLimiter.kt HealthTest.kt -include-runtime -d $W/health.jar 2>&1 | grep -v warning || true)
           run "Health and AI limits (health-test)" $W/health.jar
