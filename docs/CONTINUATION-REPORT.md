@@ -319,7 +319,7 @@ Reported: Samsung Galaxy Note 8, Play Protect "App blocked to protect your devic
     offline notice — 7/7 PASS, no crash.
   - Main emulator: 126 PASS, 2 FAIL, no crash; release `build-118` published. "Several matches" and "Google chip" now PASS.
   - Failures: (a) import of shared SMS — the result text was below the visible part of the screen (the list showed only
-    the top); fixed in p89 by showing the result right under the buttons. (b) Typing indicator — the screenshot shows
+    the top); fixed in p89–p90 by showing the result at the top of the screen. (b) Typing indicator — the screenshot shows
     "Asha is typing…", but two screen reads (8 s and 5 s after opening) did not include that line, so this is **not
     resolved**; it stays on the phone checklist (open a chat while the other person types).
   - Unit tests run 46131189787 (b495f56): Success, all suites incl. the new shared-SMS checks.

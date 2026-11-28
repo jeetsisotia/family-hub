@@ -353,6 +353,9 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // The result of a scan, share or paste comes first, so it is seen without scrolling.
+            if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
+            message?.let { m -> item { Text(m, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) } }
             item {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -410,9 +413,6 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     }
                 }
             }
-            // The result of a scan, share or paste, right under the buttons so it is seen without scrolling.
-            if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
-            message?.let { m -> item { Text(m, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) } }
             item {
                 OutlinedButton(onClick = { env.navigate("statement_import") }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Rounded.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
