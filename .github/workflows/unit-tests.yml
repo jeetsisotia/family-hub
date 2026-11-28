@@ -63,7 +63,7 @@ jobs:
           run "Phase 1: timeline, document expiry, recurring payments (phase1-test)" $W/phase1.jar
           (cd tools/phase2-test && kotlinc $A/family/Phase2Logic.kt Phase2Test.kt -include-runtime -d $W/phase2.jar 2>&1 | grep -v warning || true)
           run "Phase 2: shopping lists, calendar, subscriptions, maintenance (phase2-test)" $W/phase2.jar
-          (cd tools/phase3-test && kotlinc $A/money/Phase3Logic.kt $A/money/Ledger.kt $A/money/RecurringFinder.kt Phase3Test.kt -include-runtime -d $W/phase3.jar 2>&1 | grep -v warning || true)
+          (cd tools/phase3-test && kotlinc $A/money/Phase3Logic.kt $A/money/Challenges.kt $A/money/Ledger.kt $A/money/RecurringFinder.kt Phase3Test.kt -include-runtime -d $W/phase3.jar 2>&1 | grep -v warning || true)
           run "Phase 3: goals, budget plan, insights, reports (phase3-test)" $W/phase3.jar
           (cd tools/phase4-test && kotlinc $A/family/Phase4Logic.kt $A/family/DocExpiry.kt $A/family/Phase2Logic.kt Phase4Test.kt -include-runtime -d $W/phase4.jar 2>&1 | grep -v warning || true)
           run "Phase 4: planner, reminder suggestions, shopping lists (phase4-test)" $W/phase4.jar

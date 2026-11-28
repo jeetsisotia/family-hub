@@ -353,6 +353,14 @@ jobs:
           seen 'Reconnecting…' grp_call "group call: a dropped connection shows Reconnecting"
           seen 'Fair connection' grp_call "group call: network quality shown"
           srch calls none calls_grp; seen 'Start a group call' calls_grp "calls: start a group call button"
+          # ---- Savings challenges and the widget privacy setting ----
+          srch challenges none chal; seen 'Challenge progress' chal "challenges: progress card"
+          seen 'behind plan' chal "challenges: 52-week shows how far behind plan"
+          seen 'days with no spending' chal "challenges: no-spend days worked out from Finance"
+          seen 'I saved' chal "challenges: one tap to record this week's saving"
+          srch dark:challenges none chal_dark; seen 'Challenge progress' chal_dark "challenges: dark theme"
+          srch settings none set_w; adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 400; sleep 2; screen_text set_w2; shot demo_settings_widgets
+          seen 'Private widgets' set_w2 "settings: private widgets switch"
           askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
           askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
           seen 'Clash' ask_week "planner: the clash is pointed out"
