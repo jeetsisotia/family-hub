@@ -385,7 +385,7 @@ jobs:
           srch form:settle none split_form; seen 'How to split' split_form "split: form has How to split"
           srch travel none trip_head; seen 'Starts in 2' trip_head "travel: countdown to the next trip"
           seen '2 of 4' trip_head "travel: packing progress"
-          seen 'Asha, Ravi' trip_head "travel: who is going"
+          seen 'Going: Asha, Ravi' trip_head "travel: who is going"
           # ---- Memories: photos, reactions, comments (28 Nov) ----
           srch memories none mem_list; seen 'On this day' mem_list "memories: on this day from earlier years"
           seen 'Goa trips (1)' mem_list "memories: albums with counts"
