@@ -620,7 +620,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
                                 onReact = { e -> scope.launch { try { ChatRepository.react(env.familyId, chatId, m.id, env.uid, if (m.reactions[env.uid] == e) null else e) } catch (x: Exception) { } } },
                                 myUid = env.uid,
                                 handles = handles,
-                                attachment = m.attachment?.takeIf { !m.deletedForAll }?.let { a -> @Composable { fg: Color -> AttachmentView(env.familyId, chatId, a, fg) { viewing = it } } },
+                                familyId = env.familyId, chatId = chatId, onOpenPhoto = { viewing = it },
                                 onVote = { option ->
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     scope.launch {
@@ -840,7 +840,9 @@ private fun Bubble(
     onLong: () -> Unit, onSwipeReply: () -> Unit, onRetry: () -> Unit, onReact: (String) -> Unit, myUid: String,
     handles: List<String> = emptyList(),
     onVote: (Int) -> Unit = {},
-    attachment: (@Composable (Color) -> Unit)? = null
+    familyId: String = "",
+    chatId: String = "",
+    onOpenPhoto: (ChatRepository.Attachment) -> Unit = {}
 ) {
     var drag by remember { mutableFloatStateOf(0f) }
     val emojiOnly = !m.deletedForAll && m.pollOptions.isEmpty() && isEmojiOnly(m.text)
@@ -889,7 +891,7 @@ private fun Bubble(
                     m.deletedForAll -> Text("This message was deleted", color = fg.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium)
                     emojiOnly -> Text(m.text, fontSize = 44.sp, lineHeight = 52.sp)
                     m.pollOptions.size >= 2 -> PollBody(m, fg, myUid, onVote)
-                    attachment != null -> attachment(fg)
+                    m.attachment != null -> AttachmentView(familyId, chatId, m.attachment, fg, onOpenPhoto)
                     else -> Text(mentionText(m.text, handles), color = fg, style = MaterialTheme.typography.bodyLarge)
                 }
                 Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {

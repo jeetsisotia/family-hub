@@ -62,6 +62,7 @@ object CallManager {
     private var timeoutJob: Job? = null
     private var disconnectJob: Job? = null
     private val dismissed = mutableSetOf<String>()
+    private var ringJob: kotlinx.coroutines.Job? = null
 
     /** Starts watching this person's calls. Called when the app has a signed-in person in a family. */
     fun attach(context: Context, familyId: String, uid: String, name: String) {
@@ -75,6 +76,20 @@ object CallManager {
                 onRecords(list)
             }
         }
+        // "Asha is calling" notification while it rings (heads-up, or full screen when the phone is locked).
+        if (ringJob == null) ringJob = scope.launch {
+            var ringingId = ""
+            _ui.collect { u ->
+                val ctx = appContext ?: return@collect
+                if (u.phase == CallPhase.INCOMING && u.callId != ringingId) {
+                    ringingId = u.callId
+                    com.familyhub.app.work.Notifier.ringing(ctx, "${u.peerName.ifBlank { "A family member" }} is calling", if (u.video) "Video call · open Family Hub to answer" else "Voice call · open Family Hub to answer")
+                } else if (u.phase != CallPhase.INCOMING && ringingId.isNotEmpty()) {
+                    ringingId = ""
+                    com.familyhub.app.work.Notifier.stopRinging(ctx)
+                }
+            }
+        }
     }
 
     fun detach() {
@@ -84,8 +99,15 @@ object CallManager {
 
     private fun onRecords(list: List<CallRecord>) {
         val cur = _ui.value
+        appContext?.let { ctx ->
+            // Missed calls (rang while away or unanswered): one notification each.
+            val now = System.currentTimeMillis()
+            list.filter { it.calleeUid == myUid && it.state in setOf("missed", "cancelled", "busy") && now - it.clientAt < 86_400_000L }
+                .forEach { MissedCalls.notify(ctx, it.id, it.callerName, group = false) }
+        }
+        val inGroup = GroupCallManager.ui.value.phase == GroupPhase.IN_CALL
         // A call that rings for me and I am free.
-        if (cur.phase == CallPhase.IDLE || cur.phase == CallPhase.ENDED) {
+        if ((cur.phase == CallPhase.IDLE || cur.phase == CallPhase.ENDED) && !inGroup) {
             val now = System.currentTimeMillis()
             val ring = list.firstOrNull {
                 it.calleeUid == myUid && it.state == "ringing" && it.id !in dismissed && now - it.clientAt < 60_000
@@ -98,8 +120,8 @@ object CallManager {
                 return
             }
         }
-        // Someone else is calling while I am busy.
-        if (cur.phase != CallPhase.IDLE && cur.phase != CallPhase.ENDED) {
+        // Someone else is calling while I am busy (in this kind of call or a group call).
+        if ((cur.phase != CallPhase.IDLE && cur.phase != CallPhase.ENDED) || inGroup) {
             val now = System.currentTimeMillis()
             list.firstOrNull { it.calleeUid == myUid && it.state == "ringing" && it.id != cur.callId && it.id !in dismissed && now - it.clientAt < 60_000 }
                 ?.let { dismissed += it.id; scope.launch { try { repo.setState(familyId, it.id, "busy") } catch (_: Exception) { } } }

@@ -3,6 +3,7 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
     <!-- Read bank and card alerts to suggest expenses (only when you tap Scan SMS or turn on alerts). -->
     <uses-permission android:name="android.permission.READ_SMS" />

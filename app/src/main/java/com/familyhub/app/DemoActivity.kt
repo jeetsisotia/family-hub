@@ -144,6 +144,24 @@ class DemoActivity : FragmentActivity() {
                             route == "assistant_new" -> AssistantScreen(env)
                             // One question only, for the planner checks.
                             route == "ask" -> AssistantScreen(env, autoAsk = ask)
+                            // Group call screens with made-up people (no connection), for the screenshots.
+                            route == "group_ringing" || route == "group_call" -> {
+                                val names = mapOf("asha" to "Asha", DemoData.UID to "Demo User", "ravi" to "Ravi", "dadi" to "Dadi")
+                                androidx.compose.runtime.LaunchedEffect(route) {
+                                    com.familyhub.app.calling.GroupCallManager.showForDemo(
+                                        if (route == "group_ringing") com.familyhub.app.calling.GroupUi(
+                                            com.familyhub.app.calling.GroupPhase.RINGING, "demo-g", "asha", "Asha", true, names, listOf("asha", DemoData.UID, "ravi"), listOf("asha")
+                                        ) else com.familyhub.app.calling.GroupUi(
+                                            com.familyhub.app.calling.GroupPhase.IN_CALL, "demo-g", DemoData.UID, "Demo User", false, names,
+                                            listOf(DemoData.UID, "asha", "ravi", "dadi"), listOf(DemoData.UID, "asha", "dadi"),
+                                            peerStates = mapOf("asha" to "connected", "dadi" to "reconnecting"),
+                                            quality = mapOf("asha" to com.familyhub.app.calling.GroupCallMath.Quality.GOOD, "dadi" to com.familyhub.app.calling.GroupCallMath.Quality.FAIR),
+                                            speaking = "asha", startedAt = System.currentTimeMillis() - 65_000
+                                        )
+                                    )
+                                }
+                                com.familyhub.app.ui.calls.GroupCallOverlay(env)
+                            }
                             // Universal search with a query typed in, for the search checks.
                             route == "search_q" -> com.familyhub.app.ui.search.UniversalSearchScreen(env, initialQuery = ask.orEmpty())
                             route == "assistant_tidy" -> AssistantScreen(

@@ -237,6 +237,58 @@ service cloud.firestore {
         }
       }
 
+      // Group calls (up to 4 people, each pair connected directly). Only invited people can see a call; each
+      // person adds or removes only themselves from "joined"; the host, or anyone once nobody is left, ends it.
+      // A pair's connection details can be read only by those two people.
+      match /groupcalls/{callId} {
+        function gcActive(uid) {
+          return get(/databases/$(database)/documents/families/$(familyId)/members/$(uid)).data.status == 'ACTIVE';
+        }
+        function invited() { return isFamilyMember(familyId) && request.auth.uid in resource.data.memberUids; }
+        allow get: if invited();
+        allow list: if isFamilyMember(familyId) && request.auth.uid in resource.data.memberUids;
+        allow create: if isFamilyMember(familyId) &&
+          request.resource.data.keys().hasOnly(['hostUid', 'hostName', 'type', 'memberUids', 'names', 'joined', 'state', 'clientAt']) &&
+          request.resource.data.hostUid == request.auth.uid &&
+          request.resource.data.memberUids is list &&
+          request.resource.data.memberUids.size() >= 2 && request.resource.data.memberUids.size() <= 4 &&
+          request.resource.data.memberUids[0] == request.auth.uid &&
+          request.resource.data.memberUids.toSet().size() == request.resource.data.memberUids.size() &&
+          gcActive(request.resource.data.memberUids[1]) &&
+          (request.resource.data.memberUids.size() < 3 || gcActive(request.resource.data.memberUids[2])) &&
+          (request.resource.data.memberUids.size() < 4 || gcActive(request.resource.data.memberUids[3])) &&
+          request.resource.data.joined == [request.auth.uid] &&
+          request.resource.data.state == 'open' &&
+          request.resource.data.type in ['audio', 'video'] &&
+          request.resource.data.names is map && request.resource.data.names.size() <= 4;
+        allow update: if invited() && (
+          // Joining or leaving: only "joined" changes, and only by adding or removing myself.
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['joined']) &&
+            request.resource.data.joined.toSet().difference(resource.data.joined.toSet()).hasOnly([request.auth.uid]) &&
+            resource.data.joined.toSet().difference(request.resource.data.joined.toSet()).hasOnly([request.auth.uid]) &&
+            (!(request.auth.uid in request.resource.data.joined) || resource.data.state == 'open')) ||
+          // Ending: the host at any time; anyone else only when nobody else is still in the call.
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'endedAt']) &&
+            request.resource.data.state == 'ended' &&
+            (request.auth.uid == resource.data.hostUid || resource.data.joined.toSet().difference([request.auth.uid].toSet()).size() == 0))
+        );
+        allow delete: if false;
+
+        match /signal/{sigId} {
+          function gc() { return get(/databases/$(database)/documents/families/$(familyId)/groupcalls/$(callId)).data; }
+          allow read: if isFamilyMember(familyId) && (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to);
+          allow create, update: if isFamilyMember(familyId) &&
+            request.resource.data.keys().hasOnly(['from', 'to', 'type', 'sdp', 'nonce', 'at']) &&
+            request.resource.data.from == request.auth.uid &&
+            request.resource.data.from in gc().memberUids && request.resource.data.to in gc().memberUids &&
+            request.resource.data.to != request.auth.uid &&
+            request.resource.data.type in ['offer', 'answer'] &&
+            sigId == request.resource.data.from + '__' + request.resource.data.to + '__' + request.resource.data.type &&
+            request.resource.data.sdp is string && request.resource.data.sdp.size() <= 20000;
+          allow delete: if isFamilyMember(familyId) && (request.auth.uid == resource.data.from || request.auth.uid == resource.data.to);
+        }
+      }
+
       // One-to-one calls (Beta). A call can be read only by its two people, admins included. The connection
       // details (offer and answer) are separate small documents, so the call list stays light. State changes
       // follow one path: ringing -> accepted / declined / busy / cancelled / missed, accepted -> ended.

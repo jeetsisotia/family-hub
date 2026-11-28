@@ -276,6 +276,54 @@ test('chat typing: each person sets only their own "typing" time; only people in
   await assertSucceeds(deleteDoc(doc(as('member'), `families/${F}/chats/family/typing/member`)));
 });
 
+// ---------- group calls (28 Nov) ----------
+const gcBase = { hostUid: 'member', hostName: 'M', type: 'video', memberUids: ['member', 'admin', 'owner'], names: { member: 'M', admin: 'A', owner: 'O' }, joined: ['member'], state: 'open', clientAt: 1 };
+const gcPath = `families/${F}/groupcalls/g1`;
+const startGc = () => setDoc(doc(as('member'), gcPath), gcBase);
+test('group call: a member can start one with up to 3 other active members', async () => {
+  await assertSucceeds(startGc());
+  await assertFails(setDoc(doc(as('member'), `families/${F}/groupcalls/g2`), { ...gcBase, memberUids: ['member', 'admin', 'owner', 'x', 'y'] }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/groupcalls/g3`), { ...gcBase, memberUids: ['member', 'pending'] }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/groupcalls/g4`), { ...gcBase, hostUid: 'owner' }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/groupcalls/g5`), { ...gcBase, joined: ['member', 'admin'] }));
+  await assertFails(setDoc(doc(as('stranger'), `families/${F}/groupcalls/g6`), { ...gcBase, hostUid: 'stranger', memberUids: ['stranger', 'member'], joined: ['stranger'] }));
+});
+test('group call: only invited people can see it', async () => {
+  await startGc();
+  await assertSucceeds(getDoc(doc(as('admin'), gcPath)));
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), `families/${F}/members/other`), { uid: 'other', status: 'ACTIVE' }); });
+  await assertFails(getDoc(doc(as('other'), gcPath)));
+  await assertFails(getDoc(doc(as('stranger'), gcPath)));
+});
+test('group call: each person joins or leaves only themselves', async () => {
+  await startGc();
+  const g = (u) => doc(as(u), gcPath);
+  await assertSucceeds(updateDoc(g('admin'), { joined: ['member', 'admin'] }));
+  await assertFails(updateDoc(g('admin'), { joined: ['member', 'admin', 'owner'] }));
+  await assertFails(updateDoc(g('admin'), { joined: ['admin'] }));
+  await assertSucceeds(updateDoc(g('admin'), { joined: ['member'] }));
+  await assertFails(updateDoc(g('admin'), { joined: ['member', 'admin'], state: 'open', type: 'audio' }));
+});
+test('group call: the host can end it; others only when nobody else is left', async () => {
+  await startGc();
+  await assertSucceeds(updateDoc(doc(as('admin'), gcPath), { joined: ['member', 'admin'] }));
+  await assertFails(updateDoc(doc(as('admin'), gcPath), { state: 'ended', endedAt: 2 }));
+  await assertSucceeds(updateDoc(doc(as('member'), gcPath), { joined: ['admin'] }));
+  await assertSucceeds(updateDoc(doc(as('admin'), gcPath), { state: 'ended', endedAt: 3 }));
+  await assertFails(updateDoc(doc(as('owner'), gcPath), { joined: ['admin', 'owner'] }));
+});
+test('group call: connection details are private to the pair', async () => {
+  await startGc();
+  const sig = { from: 'member', to: 'admin', type: 'offer', sdp: 'v=0', nonce: 'n1', at: 1 };
+  await assertSucceeds(setDoc(doc(as('member'), `${gcPath}/signal/member__admin__offer`), sig));
+  await assertSucceeds(getDoc(doc(as('admin'), `${gcPath}/signal/member__admin__offer`)));
+  await assertFails(getDoc(doc(as('owner'), `${gcPath}/signal/member__admin__offer`)));
+  await assertFails(setDoc(doc(as('member'), `${gcPath}/signal/admin__member__offer`), { ...sig, from: 'admin', to: 'member' }));
+  await assertFails(setDoc(doc(as('member'), `${gcPath}/signal/member__owner__offer`), { ...sig, to: 'owner' , extra: 1 }));
+  await assertFails(setDoc(doc(as('member'), `${gcPath}/signal/x`), sig));
+  await assertFails(setDoc(doc(as('member'), `${gcPath}/signal/member__stranger__offer`), { ...sig, to: 'stranger' }));
+});
+
 test('chat: a poll needs 2 to 6 answers', async () => {
   const base = { senderUid: 'member', senderName: 'M', text: 'Dinner?', at: 2, clientAt: 2 };
   await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/family/messages/p1`), { ...base, pollOptions: ['Pizza', 'Dosa'] }));

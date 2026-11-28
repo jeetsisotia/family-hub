@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -128,6 +129,7 @@ private fun stateText(c: CallRecord, me: String): Pair<String, Boolean> {
 @Composable
 fun CallsScreen(env: AppEnv) {
     val history by CallManager.history.collectAsState()
+    val groupHistory by com.familyhub.app.calling.GroupCallManager.history.collectAsState()
     val ui by CallManager.ui.collectAsState()
     val start = rememberCallStarter { video, uid, name -> CallManager.startCall(uid, name, video) }
     val fmt = remember { SimpleDateFormat("d MMM, h:mm a", Locale.getDefault()) }
@@ -146,6 +148,16 @@ fun CallsScreen(env: AppEnv) {
                     }
                 }
             }
+            item {
+                // Group call: up to 4 people, each phone connected directly to the others.
+                var showGroup by remember { mutableStateOf(false) }
+                val gUi by com.familyhub.app.calling.GroupCallManager.ui.collectAsState()
+                Button(
+                    onClick = { showGroup = true }, enabled = !busy && gUi.phase == com.familyhub.app.calling.GroupPhase.IDLE && others.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)
+                ) { Icon(Icons.Rounded.Groups, null); Spacer(Modifier.width(8.dp)); Text("Start a group call") }
+                if (showGroup) GroupCallStartDialog(env) { showGroup = false }
+            }
             item { Text("Call someone", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp)) }
             if (others.isEmpty()) item { Text("No other active family members yet.", style = MaterialTheme.typography.bodyMedium) }
             items(others, key = { it.uid }) { m ->
@@ -160,7 +172,22 @@ fun CallsScreen(env: AppEnv) {
                 }
             }
             item { Text("Recent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp)) }
-            if (history.isEmpty()) item { Text("No calls yet.", style = MaterialTheme.typography.bodyMedium) }
+            val groups = groupHistory.take(10)
+            if (history.isEmpty() && groups.isEmpty()) item { Text("No calls yet.", style = MaterialTheme.typography.bodyMedium) }
+            items(groups, key = { "g" + it.id }) { g ->
+                val missed = g.hostUid != env.uid && env.uid !in g.joined && g.state == "ended"
+                GlassCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Groups, null, tint = if (missed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(g.names.filterKeys { it != env.uid }.values.joinToString(", ").ifBlank { "Group call" }, fontWeight = FontWeight.Medium, maxLines = 1)
+                            Text((if (g.video) "Group video · " else "Group voice · ") + (if (g.hostUid == env.uid) "you started it" else "started by ${g.hostName}") + " · " + fmt.format(java.util.Date(g.clientAt)),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
             items(history, key = { it.id }) { c ->
                 val (label, missed) = stateText(c, env.uid)
                 val name = c.otherName(env.uid).ifBlank { "Family member" }

@@ -41,6 +41,8 @@ object Notifier {
     const val CH_CALLS = "calls"
     const val CH_SAFETY = "safety_alerts"
     const val CH_LOCATION = "location_sharing"
+    const val CH_RING = "incoming_calls"
+    const val CH_MISSED = "missed_calls"
 
     fun ensureChannels(ctx: Context) {
         if (Build.VERSION.SDK_INT < 26) return
@@ -63,6 +65,46 @@ object Notifier {
         nm.createNotificationChannel(
             NotificationChannel(CH_LOCATION, "Location sharing", NotificationManager.IMPORTANCE_LOW)
         )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_RING, "Incoming calls", NotificationManager.IMPORTANCE_HIGH)
+        )
+        nm.createNotificationChannel(
+            NotificationChannel(CH_MISSED, "Missed calls", NotificationManager.IMPORTANCE_DEFAULT)
+        )
+    }
+
+    private const val RING_ID = 4310
+
+    /** "Asha is calling": shown while a call rings and Family Hub is running (open or in the background). */
+    fun ringing(ctx: Context, title: String, text: String, slot: Int = 0) {
+        if (!canPost(ctx)) return
+        ensureChannels(ctx)
+        val n = androidx.core.app.NotificationCompat.Builder(ctx, CH_RING)
+            .setSmallIcon(android.R.drawable.sym_call_incoming)
+            .setContentTitle(title).setContentText(text)
+            .setCategory(androidx.core.app.NotificationCompat.CATEGORY_CALL)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true).setAutoCancel(true)
+            .setContentIntent(openApp(ctx, "calls", 4311))
+            .setFullScreenIntent(openApp(ctx, "calls", 4312), true)
+            .build()
+        runCatching { androidx.core.app.NotificationManagerCompat.from(ctx).notify(RING_ID + slot, n) }
+    }
+
+    fun stopRinging(ctx: Context, slot: Int = 0) { runCatching { androidx.core.app.NotificationManagerCompat.from(ctx).cancel(RING_ID + slot) } }
+
+    /** A missed call (one-to-one or group), opening the Calls screen. */
+    fun missedCall(ctx: Context, id: Int, title: String, text: String) {
+        if (!canPost(ctx)) return
+        ensureChannels(ctx)
+        val n = androidx.core.app.NotificationCompat.Builder(ctx, CH_MISSED)
+            .setSmallIcon(android.R.drawable.sym_call_missed)
+            .setContentTitle(title).setContentText(text)
+            .setCategory("missed_call")
+            .setAutoCancel(true)
+            .setContentIntent(openApp(ctx, "calls", 4320 + (id and 0xFF)))
+            .build()
+        runCatching { androidx.core.app.NotificationManagerCompat.from(ctx).notify(4400 + (id and 0x3FF), n) }
     }
 
     fun canPost(ctx: Context): Boolean =

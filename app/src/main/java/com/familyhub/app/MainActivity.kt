@@ -635,12 +635,14 @@ class MainActivity : FragmentActivity() {
                     }
                     // Voice and video calls (Beta): they ring and run above every screen while the app is open.
                     LaunchedEffect(activeFamilyId, uid, myStatus, profile.name) {
-                        if (activeFamilyId.isNotBlank() && uid.isNotBlank() && myStatus == "ACTIVE")
+                        if (activeFamilyId.isNotBlank() && uid.isNotBlank() && myStatus == "ACTIVE") {
                             com.familyhub.app.calling.CallManager.attach(context, activeFamilyId, uid, profile.name.ifBlank { "Family member" })
-                        else com.familyhub.app.calling.CallManager.detach()
+                            com.familyhub.app.calling.GroupCallManager.attach(context, activeFamilyId, uid, profile.name.ifBlank { "Family member" })
+                        } else com.familyhub.app.calling.CallManager.detach()
                     }
                     DisposableEffect(uid) { onDispose { com.familyhub.app.calling.CallManager.detach() } }
                     com.familyhub.app.ui.calls.CallOverlay(family?.let { envFor(it) })
+                    com.familyhub.app.ui.calls.GroupCallOverlay(family?.let { envFor(it) })
                 }
 
                 // Fingerprint / screen-lock gate, if the person turned on the app lock.
