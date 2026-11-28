@@ -45,6 +45,7 @@ jobs:
       - name: Build Debug APK
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+          FH_BUILD_NUMBER: ${{ github.run_number }}
         run: gradle assembleDebug --no-daemon --stacktrace
 
 
@@ -370,6 +371,12 @@ jobs:
           srch limited:subscriptions none acc_view2; notseen 'content-desc="Add"' acc_view2 "access: view-only hides the Add button"
           srch "limited:chat:dm_asha_demo-user" none acc_chat; seen 'not allowed you to send' acc_chat "access: view-only chat cannot send"
           srch subscriptions none acc_full; seen 'content-desc="Add"' acc_full "access: full access keeps the Add button"
+          # ---- Update checker (28 Nov) ----
+          srch update_available none upd_new; seen 'Update available: FamilyHub 2.1.999' upd_new "updates: newer release shown with its version"
+          seen 's new' upd_new "updates: release notes shown"
+          seen 'Download update' upd_new "updates: Download update button (person starts it)"
+          seen 'same key as this app' upd_new "updates: says Android checks the signature"
+          srch update_current none upd_cur; seen 'up to date' upd_cur "updates: up to date when no newer build"
           adb shell am start -W -n $PKG/.DemoActivity --es route settings >/dev/null 2>&1; sleep 8
           for i in 1 2 3; do adb shell input swipe $((SW / 2)) $((SH * 8 / 10)) $((SW / 2)) $((SH * 2 / 10)) 400; sleep 1; done
           sleep 2; screen_text set_w2; shot demo_settings_widgets; adb shell am force-stop $PKG
@@ -476,3 +483,41 @@ jobs:
           git add -A
           git commit -qm "Demo screenshots from ${GITHUB_SHA::7}"
           git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" demo-screenshots
+
+  # After the emulator run finds no crash, publish the APK as a GitHub Release ("build-<number>").
+  # The app's update checker reads the latest release; the person downloads and installs it themselves.
+  # The APK is signed with the fixed CI key, so Android accepts it only as an update of the same app.
+  publish-release:
+    needs: smoke-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: family-hub-apk
+          path: apk
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          N: ${{ github.run_number }}
+        run: |
+          set -e
+          cp apk/app-debug.apk "FamilyHub-2.1.$N.apk"
+          {
+            echo "FamilyHub 2.1.$N (build $N), commit ${GITHUB_SHA::7}."
+            echo
+            echo "Changes:"
+            git log -8 --format='- %s' | grep -v -E '^- (Add files via upload|Apply code bundle)$' | head -6
+            echo
+            echo "Install: download the APK on your phone and open it. Android installs it only over the same signed app."
+            echo "Checks: emulator run passed with no crash (Build APK run ${GITHUB_RUN_ID})."
+          } > notes.txt
+          gh release create "build-$N" "FamilyHub-2.1.$N.apk" --repo "$GITHUB_REPOSITORY" \
+            --title "FamilyHub 2.1.$N" --notes-file notes.txt --target "$GITHUB_SHA" --latest
+          echo "RESULT: published build-$N"
