@@ -345,6 +345,14 @@ jobs:
           tap_desc "Photos, voice messages and files" chat_gal; sleep 3; shot demo_chat_gallery; screen_text chat_gal2
           seen 'Show when I' chat_gal2 "chat: shared media with the typing privacy switch"
           adb shell am force-stop $PKG
+          # ---- Group calls (screens only; real calls need two phones) and the Calls screen ----
+          srch group_ringing none grp_ring; seen 'started a group call' grp_ring "group call: incoming invitation names who started it"
+          seen 'Join' grp_ring "group call: Join and Decline buttons"
+          srch group_call none grp_call; seen '3 in the call' grp_call "group call: how many are in the call"
+          seen 'Ringing…' grp_call "group call: someone not yet answered shows Ringing"
+          seen 'Reconnecting…' grp_call "group call: a dropped connection shows Reconnecting"
+          seen 'Fair connection' grp_call "group call: network quality shown"
+          srch calls none calls_grp; seen 'Start a group call' calls_grp "calls: start a group call button"
           askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
           askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
           seen 'Clash' ask_week "planner: the clash is pointed out"
