@@ -105,6 +105,10 @@ Free STUN only (Jeet's choice): no relay server, so some mobile networks cannot 
 
 Savings challenges (module `challenges`, items type `challenge`, Finance hub): 52-week (week n saves n × base; total 1,378 × base), same amount every day or week, and no-spend days worked out from Finance. On track / behind plan, one tap "I saved ₹X for Week n" (goal-style contribution history). Home screen widgets (`widget/HomeWidgets.kt`): Family overview (overdue first, due this week) and Shopping list (still to buy); the app writes a summary on the phone after data changes; health items never shown; Settings → Private widgets shows counts only. Not done: configurable per-module permissions (would change rules for every collection; left for a session with Jeet), update checker (needs a GitHub Release to point at; publishing was ruled out). Rules test fix: one test built its batch from two Firestore instances.
 
+### 28 Nov status and blocker
+
+Rules: firebase/firestore.rules adds chat parts, typing and group calls; 92 rules tests pass (run #11). NOT DEPLOYED: both browsers need Jeet to sign in to Google again (Firebase console). Jeet: Firebase console → Firestore → Rules → paste firebase/firestore.rules → Publish (keep the current text as a backup first). Emulator: build #102 85 PASS / 2 known check faults / no crash (cut off at 35 min; limit raised to 55).
+
 ### Phone tests to give at the end (collect here)
 
 1. Mukul-style category change on your own data, in both AI screens.

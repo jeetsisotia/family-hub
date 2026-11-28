@@ -870,3 +870,14 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - One set of glass pieces now covers dialogs (with a real blur behind on Android 12+), bottom sheets, menus, filter chips, text fields and the add button on every screen.
 - Search on Home finds anything in FamilyHub: payments, bills, documents, events, people, shopping and more. It suggests as you type, remembers recent searches, can listen to your voice, and filters by section.
 - Dark mode is a deep charcoal instead of pure black.
+
+**28 Nov (Jeet away; "complete all phases")**
+- **Chat:** photos, voice messages (with waveform and 1×/1.5×/2× speed) and documents up to about 4.5 MB, a full-screen photo viewer, a "Photos, voice and files" sheet, "typing…" (can be switched off) and forwarding attachments. Files are stored in Firestore parts that only the chat's members can read (free plan, no Cloud Storage). Video is not supported.
+- **Calls:**
+  - Group calls of up to 4 people: Join/Decline, who is speaking, connection quality, reconnecting and retries; the host can end the call for everyone.
+  - A ringing notification while Family Hub is running, and missed-call notifications.
+  - Free STUN servers only.
+- **Savings challenges:** 52-week, a fixed amount every day or week, and no-spend days counted from Finance.
+- **Home screen widgets:** Family overview and Shopping list, with a "Private widgets" switch.
+- **Needs Jeet:** publish the new Firestore rules (firebase/firestore.rules; 92 rules tests pass). Until then, attachments, typing and group calls are refused on real phones.
+- **Not done:** per-module permissions, the update checker, video messages, and calls that ring when the app is closed (needs a paid server).
