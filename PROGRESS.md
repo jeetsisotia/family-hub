@@ -883,3 +883,5 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - **Not done:** per-module permissions, the update checker, video messages, and calls that ring when the app is closed (needs a paid server).
 
 - 28 Nov (p77): Per-member section access (None / View only / Full) — rules, app loading, admin sheet, tests.
+- 28 Nov (p78–p79): access rules fixed and verified (rules tests 100/100).
+- 28 Nov (p80): Update checker + GitHub Releases per passing build.

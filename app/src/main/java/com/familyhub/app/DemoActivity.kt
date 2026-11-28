@@ -145,6 +145,22 @@ class DemoActivity : FragmentActivity() {
                                 }
                             }
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
+                            // Settings → App updates with a newer release found (made-up release, no network).
+                            route == "update_available" || route == "update_current" -> {
+                                androidx.compose.runtime.LaunchedEffect(route) {
+                                    val r = com.familyhub.app.update.UpdateChecker.Release(
+                                        tag = "build-999", name = "FamilyHub 2.1.999", notes = "Per-member section access\nUpdate checker",
+                                        publishedAt = "2026-11-28", apkName = "FamilyHub-2.1.999.apk",
+                                        apkUrl = "https://github.com/jeetsisotia/family-hub/releases", apkBytes = 31_500_000, sha256 = "ab12cd34",
+                                        pageUrl = com.familyhub.app.update.UpdateChecker.RELEASES_PAGE
+                                    )
+                                    com.familyhub.app.update.UpdateChecker.showForDemo(
+                                        if (route == "update_available") com.familyhub.app.update.UpdateChecker.State.Available(r)
+                                        else com.familyhub.app.update.UpdateChecker.State.UpToDate(r.copy(tag = "build-1"))
+                                    )
+                                }
+                                Column(Modifier.fillMaxSize().padding(16.dp)) { com.familyhub.app.update.UpdateSection() }
+                            }
                             // The Family Admin's access sheet for one member.
                             route == "access_sheet" -> com.familyhub.app.ui.modules.MemberAccessSheet(
                                 com.familyhub.app.data.model.FamilyMember(uid = "ravi", name = "Ravi", perms = mapOf("health" to "none", "finance" to "view")),

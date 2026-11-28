@@ -326,6 +326,8 @@ class MainActivity : FragmentActivity() {
                     // The family's creator is its Super Admin; they can make others Family Admins.
                     val isOwner = family?.ownerUid == uid || currentMember.role == FamilyRole.OWNER
                     val isAdmin = isOwner || currentMember.isAdmin
+                    // Looks for a newer release at most every 12 hours; nothing is downloaded unless the person asks.
+                    LaunchedEffect(Unit) { com.familyhub.app.update.UpdateChecker.checkIfDue(context) }
                     // What this person may see; record loading and screens follow it (the rules enforce it too).
                     com.familyhub.app.family.AccessState.set(if (members.any { it.uid == uid }) currentMember.perms else emptyMap(), isAdmin)
                     // Admins keep the family's invite code working (needed for joining by code or QR).

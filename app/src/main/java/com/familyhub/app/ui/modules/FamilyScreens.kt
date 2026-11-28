@@ -513,6 +513,7 @@ fun SettingsScreen(
                     )
                 }
             }
+            item { com.familyhub.app.update.UpdateSection() }
             item {
                 com.familyhub.app.core.theme.GroupedSection(title = "Family") {
                     com.familyhub.app.core.theme.GroupedRow("Name", value = family.name, divider = true)

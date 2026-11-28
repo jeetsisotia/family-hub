@@ -17,8 +17,10 @@ android {
         applicationId = "com.familyhub.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "2.0.0"
+        // CI sets the build number, so each release can update the previous one (Android needs a higher number).
+        val ciBuild = System.getenv("FH_BUILD_NUMBER")?.toIntOrNull()
+        versionCode = ciBuild ?: 1
+        versionName = if (ciBuild != null) "2.1.$ciBuild" else "2.0.0"
 
         val webClientId = project.findProperty("GOOGLE_WEB_CLIENT_ID")?.toString()
             ?: System.getenv("GOOGLE_WEB_CLIENT_ID")

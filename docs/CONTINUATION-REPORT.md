@@ -173,3 +173,19 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
   restricted member in the emulator (99/100). Rules now compare the item kind with one computed list of allowed kinds
   (`typesFor`, built from the access map read once), which the query checker can prove for `type in [...]` and refuse for unfiltered reads. Also fixed a
   compile error (nullable section) found by Build APK run 46113493586.
+- Verified: Firestore rules tests run 46114298444 (commit cc637bd) — 100/100, all 8 "perms:" tests pass, including:
+  a restricted member's unfiltered items read is refused and `type in [allowed kinds]` is allowed.
+  Unit tests run 46113637255: "Section access (perms-test): all passed".
+
+## 28 Nov — Update checker with GitHub Releases (bundle p80)
+
+- Build APK now sets `versionCode` = Build APK run number and `versionName` = `2.1.<run>` (env `FH_BUILD_NUMBER`).
+- New job `publish-release` (after the emulator job passes with no crash) creates release `build-<run>` with
+  `FamilyHub-2.1.<run>.apk`, short notes from recent commit subjects, and marks it latest. Uses the workflow's own
+  token; no secrets in the APK or the release.
+- App: Settings → **App updates** shows this version, checks `releases/latest` (at most every 12 h at start, or on
+  "Check for updates"), shows version, date, size, notes and SHA-256, and a **Download update** button that opens the
+  file in the browser. Nothing installs silently: Android asks, and accepts the APK only if it is signed with the same
+  key (the fixed CI key) as the installed app.
+- Tests: `tools/update-test` (11 checks), emulator checks "updates: …".
+- Note: builds installed before this change report build 1, so the first release is offered to them as an update.
