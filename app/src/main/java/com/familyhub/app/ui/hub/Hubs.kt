@@ -73,7 +73,7 @@ object Hubs {
             HubItem("loans_home", "Loans & EMIs", Icons.Rounded.RequestQuote),
             HubItem("due_calendar", "Due calendar", Icons.Rounded.EventNote),
             HubItem("transfer", "Transfer", Icons.Rounded.SwapHoriz),
-            HubItem("import", "Scan SMS & Gmail", Icons.Rounded.MarkEmailRead),
+            HubItem("import", "Import bank alerts", Icons.Rounded.MarkEmailRead),
             HubItem("insights", "Insights", Icons.Rounded.PieChart),
             HubItem("budget_planner", "Budget planner", Icons.Rounded.AccountBalanceWallet),
             HubItem("money_intel", "Money insights", Icons.Rounded.Lightbulb),

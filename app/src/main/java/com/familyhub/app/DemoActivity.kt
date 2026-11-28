@@ -115,6 +115,13 @@ class DemoActivity : FragmentActivity() {
                                 )
                             )
                             route == "import" -> com.familyhub.app.ui.money.ImportScreen(env, demoTexts = DemoData.SAMPLE_SMS)
+                            // Text shared from a Messages app (Share → Family Hub), the way bank SMS now reach the app.
+                            route == "import_shared" -> {
+                                androidx.compose.runtime.LaunchedEffect(Unit) {
+                                    com.familyhub.app.ui.money.SharedText.pending.value = DemoData.SAMPLE_SMS.take(2).joinToString("\n\n")
+                                }
+                                com.familyhub.app.ui.money.ImportScreen(env)
+                            }
                             route == "home" || route == "home_scrolled" -> Column(Modifier.fillMaxSize()) {
                                 val homeList = androidx.compose.foundation.lazy.rememberLazyListState()
                                 val alerts = androidx.compose.runtime.remember(env.data) {

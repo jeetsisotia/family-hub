@@ -1,5 +1,6 @@
 import com.familyhub.app.money.TxnParser
 import com.familyhub.app.money.StatementImport
+import com.familyhub.app.money.SmsText
 
 var failures = 0
 fun check(name: String, cond: Boolean, detail: Any? = null) {
@@ -33,5 +34,17 @@ fun main() {
     check("refund entry lowers spending and is not income", e2["isRefund"] == true && e2["notExpense"] == true && e2["type"] == "INCOME", e2)
     val sal = TxnParser.parse("Rs.85,000.00 credited to A/c XX1234 on 01-11-26 by NEFT from ACME PVT LTD. Avl Bal Rs 1,30,210.00", "VM-HDFCBK", now, "SMS")
     check("salary credit is not a refund", sal != null && sal.isCredit && !sal.isRefund, sal)
+    // Shared or pasted bank SMS (the app has no SMS-reading permission).
+    val two = "Rs.450.00 debited from A/c XX1234 on 24-11-26 to VPA swiggy@icici (UPI Ref No 432112345678). Not you? Call 18002586161 - HDFC Bank\n\n" +
+        "INR 2,199.00 spent on ICICI Bank Card XX4321 on 23-Nov-26 at AMAZON PAY IN. Avl Lmt: INR 97,801.00. If not you, call 1800 2662"
+    val sh = SmsText.parse(two, now)
+    check("shared: two messages separated by a blank line", sh.txns.size == 2 && sh.txns.map { it.amount }.toSet() == setOf(450.0, 2199.0), sh.txns)
+    val oneLineEach = two.replace("\n\n", "\n")
+    check("shared: one message per line also split", SmsText.parse(oneLineEach, now).txns.size == 2)
+    check("shared: same SMS shared again has the same key", SmsText.parse(two, now).txns.map { it.key } == SmsText.parse(two, now + 86_400_000L).txns.map { it.key })
+    check("shared: extra spaces don't change the key", SmsText.keyOf("Rs 5  paid  ") == SmsText.keyOf("rs 5 paid"))
+    val mixed = SmsText.parse("Hi, see you at 6?\n\nYour OTP is 123456", now)
+    check("shared: chat text and OTPs are not transactions", mixed.txns.isEmpty() && mixed.unread == 2, mixed)
+    check("shared: a multi-line single SMS stays one message", SmsText.messages("Rs.450.00 debited from A/c XX1234\non 24-11-26 to VPA swiggy@icici").size == 1)
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

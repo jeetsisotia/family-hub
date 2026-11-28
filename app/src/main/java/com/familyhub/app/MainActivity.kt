@@ -105,6 +105,16 @@ class MainActivity : FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         intent.getStringExtra(EXTRA_ROUTE)?.let { pendingRoute.value = it }
+        takeSharedText(intent)
+    }
+
+    /** Bank SMS shared from another app (Share → Family Hub) open the import screen with that text. */
+    private fun takeSharedText(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_SEND || intent.type?.startsWith("text/") != true) return
+        val text = intent.getStringExtra(Intent.EXTRA_TEXT)?.take(com.familyhub.app.money.SmsText.MAX_CHARS) ?: return
+        if (text.isBlank()) return
+        com.familyhub.app.ui.money.SharedText.pending.value = text
+        pendingRoute.value = "import"
     }
 
     @Inject lateinit var authRepository: AuthRepository
@@ -127,7 +137,10 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (savedInstanceState == null) intent?.getStringExtra(EXTRA_ROUTE)?.let { pendingRoute.value = it }
+        if (savedInstanceState == null) {
+            intent?.getStringExtra(EXTRA_ROUTE)?.let { pendingRoute.value = it }
+            takeSharedText(intent)
+        }
         setContent {
             FamilyHubTheme {
                 val context = LocalContext.current

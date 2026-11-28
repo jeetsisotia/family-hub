@@ -286,3 +286,27 @@ Without it, section access, memory photos and comments are refused or not enforc
 7. Airplane mode: change a shopping item → Home shows "Offline · 1 change will sync"; back online → disappears.
 8. Two phones edit the same entry; the second to save is asked "Keep both changes / Use mine / Cancel".
 9. Settings → Data & backup → Back up (includes memory photos) → Restore says "Verified on the server".
+
+## 28 Nov — Play Protect block, SMS permission, Note 8 (bundle p88)
+
+Reported: Samsung Galaxy Note 8, Play Protect "App blocked to protect your device" when installing 2.1.116.
+- **Likely cause:** `READ_SMS` in a downloaded APK (Google's guidance lists it for exactly this block).
+  Details and before/after permission table: `docs/PLAY_PROTECT_INVESTIGATION.md`.
+- **Your decisions (28 Nov):** remove READ_SMS and replace it with Share/Paste; keep SEND_SMS for safety texts;
+  keep auto-publishing a release for each build that passes the checks.
+- Changes: `SmsReader` removed; new `money/SmsText.kt` (shared/pasted text → transactions, bills, accounts; stable key
+  per message); MainActivity accepts `ACTION_SEND text/plain` and opens the import screen; import screen has
+  **Paste SMS**; the daily SMS checks in `ReminderWorker` removed (Gmail check kept); hub label "Import bank alerts".
+- CI: "Permission and signature audit" fails the build if the merged APK has SMS-reading, notification-listener or
+  accessibility permissions, prints the permission list, APK SHA-256 and certificate, and fails if the certificate
+  differs from the published 2.1.116. New job `android9-check` installs and opens the main screens on Android 9 (API 28).
+- **The three emulator failures:**
+  1. *"several matches: a card to pick"* — the screenshot shows the cards, but the long question pushes the first
+     card's Change button below the visible part. The check now scrolls the conversation a little before reading.
+  2. *"Google chip on one line at 360dp"* — test fault: the helper closes the app after its screenshot, so the text was
+     read from the home screen. The screenshot shows the Google chip on one line. The check now reads while the screen is open.
+  3. *"chat: typing indicator"* — the screenshot shows "Asha is typing…" but the screen read did not contain it. The
+     check now prints what it read and reads once more; the typing line is also a polite live region (TalkBack reads it).
+- Tests: `tools/import-test` +6 checks for shared/pasted SMS (all pass locally).
+- Docs: PLAY_PROTECT_INVESTIGATION, ANDROID_COMPATIBILITY, FIREBASE_SECURITY_REVIEW, PRODUCTION_READINESS,
+  PHONE_TEST_CHECKLIST (new); INSTALL, LIMITATIONS, AI-SETUP updated.

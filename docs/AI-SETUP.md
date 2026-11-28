@@ -110,3 +110,12 @@ How it works now, in **both** AI screens (FamilyHub actions and the Gemini chat)
 - If Gemini itself suggests a category change (kind `recategorize`), the app replaces it with cards for the real entries found on the phone.
 - In the Gemini chat, "add …" requests use the same action format, with only today's date and the family members' names sent to the model.
 - Firestore rules are unchanged; new rules tests cover this exact write (an approved member may; pending members, strangers and signed-out users may not; "Only me" entries only by their owner).
+
+## Security check (28 Nov 2026)
+- No Gemini or other AI key in the source or APK (searched for `AIza…` keys: only the Firebase key in
+  `google-services.json`, which is a public project identifier).
+- AI actions show a card and run only after you tap it; they are re-checked just before running (membership, Finance
+  editing, and section access: none/view-only sections are refused).
+- "Only me" records of other people are never in the assistant's data; Gmail access is read-only and only on request.
+- PR #2 (moving Gemini to Cloud Functions) is **closed and not merged**: it needs the paid Blaze plan. AI Logic stays off.
+- If a key was ever pasted into a public place, revoke it in Google AI Studio → API keys.

@@ -5,7 +5,7 @@
 | Integration | Works today for | Needed before anyone else can use it | Cost |
 |---|---|---|---|
 | **Gmail (read-only)** | Google accounts added as **test users** on the project's OAuth consent screen (Google Cloud console → APIs & Services → OAuth consent screen). Up to 100 test users. While the project is in "Testing", Google may ask you to allow Gmail access again about every 7 days. | `gmail.readonly` is a *restricted* scope. Publishing it to the public needs Google's OAuth app verification and a yearly independent security assessment (CASA). | The assessment is usually paid |
-| **SMS reading** | Any phone where the APK is installed directly. On some Android versions you first need **App info → ⋮ → Allow restricted settings**. | On Google Play, `READ_SMS` is only allowed for approved uses. "SMS-based money management" is one of them, but it needs a permissions declaration and Google's review, which can be refused. | Free |
+| **SMS reading** | Removed in 2.1.117: Google Play Protect blocks downloaded apps that declare `READ_SMS`. Bank SMS are added by **Share → Family Hub** or **Paste SMS**; Gmail alerts are still scanned. | On Google Play, `READ_SMS` is only allowed for approved uses. "SMS-based money management" is one of them, but it needs a permissions declaration and Google's review, which can be refused. | Free |
 | **Health Connect** | Any phone with Health Connect (built into Android 14 and later; an app from the Play Store on Android 9 to 13) | For a Play Store release: the Health Connect declaration form in Play Console, plus a privacy policy | Free |
 | **Google sign-in** | APKs signed with the CI key, whose SHA-1 is registered in Firebase | A Play Store release key: add its SHA-1 (and the Play App Signing SHA-1) in Firebase → Project settings | Free |
 | **AI assistant (Gemini)** | Each person who adds their **own** Google AI Studio key in AI settings (kept encrypted with the Android Keystore on that phone, never synced, backed up or logged). No key is built into the APK. Money questions work without a key. | A shared family key would need a secure server (not free on Firebase), so it is not built. | Free tier of each person's key, with daily limits |
@@ -18,7 +18,7 @@
 ### Money
 - **Balances depend on what is recorded.** An account is exact only if its opening balance is right and every entry since then has been added or imported. Use **Match** on the account screen to line it up with the bank's balance.
 - **SMS formats vary by bank.** The reader handles the common formats (UPI, card spends, credits, card payments, balances and limits). An unusual message may be missed or marked "unclear" for you to check.
-- **Scanning is not instant.** It runs when you tap Scan, and the daily background check looks for bills and dues. Payments do not appear the moment the SMS arrives.
+- **Bank SMS are not read automatically.** The app has no SMS-reading permission; you share or paste the messages you want added. The daily background check still looks at Gmail alerts (if connected) for bills and dues.
 - **Statement import** reads CSV and .xlsx files. Old .xls files and PDFs are not read; save them as .xlsx or CSV first.
 - **Card minimum due** is 5% of the bill (at least ₹200) unless the bank's alert gives the exact minimum.
 - **Spending is in rupees.** There are no multi-currency accounts.

@@ -6,8 +6,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
-    <!-- Read bank and card alerts to suggest expenses (only when you tap Scan SMS or turn on alerts). -->
-    <uses-permission android:name="android.permission.READ_SMS" />
+    <!-- No SMS-reading permission: bank SMS reach the app only when you share or paste them (see docs/PLAY_PROTECT_INVESTIGATION.md). -->
+    <!-- Calendar: upcoming bills and renewals, only when you tap Calendar on the import screen. -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_DISTANCE" />
@@ -96,6 +96,12 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Messages app → select bank SMS → Share → Family Hub: opens the import screen with that text. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
             <!-- Long-press the app icon: "SOS" opens the SOS screen. -->
             <meta-data

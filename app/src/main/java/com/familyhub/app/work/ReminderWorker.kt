@@ -9,7 +9,6 @@ import com.familyhub.app.data.remote.PRIVATE_FLAG
 import com.familyhub.app.data.remote.Rec
 import com.familyhub.app.health.StepService
 import com.familyhub.app.health.StepTracker
-import com.familyhub.app.money.SmsReader
 import com.familyhub.app.ui.modules.AlertItem
 import com.familyhub.app.data.model.FamilyMember
 import com.familyhub.app.ui.modules.allAlerts
@@ -39,11 +38,9 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
     companion object {
         const val KEY_REFRESH_ONLY = "refreshOnly"
         private const val NOTIFICATION_ID = 1001
-        private const val SMS_NOTIFICATION_ID = 1002
         private const val BUDGET_NOTIFICATION_ID = 1003
         private const val ALERTS_NOTIFICATION_ID = 1004
         private const val PREFS = "family_hub_worker"
-        private const val KEY_SMS_CHECKED = "smsCheckedAt"
         private val COLLECTIONS = listOf("items", "events", "expenses", "tasks", "trips")
     }
 
@@ -99,7 +96,6 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
                     .filter { daysUntil(it.dateMillis) in -3..3 }
                     .sortedBy { it.dateMillis }
                 if (soon.isNotEmpty()) notifyDue(soon)
-                checkBankSms(data["expenses"].orEmpty())
                 checkNewAlerts(data)
                 val familyBudget = if (familyId.isBlank()) 0.0 else
                     db.collection("families").document(familyId).get().await().getDouble("monthlyBudget") ?: 0.0
@@ -191,15 +187,12 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         val known = data.values.flatten().mapNotNull { it["sourceKey"] as? String }.toSet()
         val told = prefs.getStringSet("alertsNotified", emptySet()).orEmpty()
         val found = ArrayList<com.familyhub.app.money.ParsedAlert>()
-        if (SmsReader.canRead(ctx)) {
-            found += SmsReader.scan(ctx, since).alerts.filter { it.kind !in setOf("card", "account") }
-        }
         if (prefs.getBoolean("gmailConnected", false)) {
             try {
                 val token = com.familyhub.app.money.GmailReader.silentToken(ctx)
                 if (token != null) found += com.familyhub.app.money.GmailReader.fetchAlerts(token, 3, 40)
             } catch (e: Exception) {
-                // Gmail is optional; SMS results still count.
+                // Gmail is optional.
             }
         }
         prefs.edit().putLong("alertsCheckedAt", now).apply()
@@ -223,28 +216,4 @@ class ReminderWorker(appContext: Context, params: WorkerParameters) : CoroutineW
         (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(ALERTS_NOTIFICATION_ID, n)
     }
 
-    /** Counts bank alerts received since the last check that are not in Finance yet. */
-    private fun checkBankSms(expenses: List<Rec>) {
-        val ctx = applicationContext
-        if (!SmsReader.canRead(ctx) || !Notifier.canPost(ctx)) return
-        val prefs = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val now = System.currentTimeMillis()
-        val since = prefs.getLong(KEY_SMS_CHECKED, now - 2 * 86_400_000L)
-        prefs.edit().putLong(KEY_SMS_CHECKED, now).apply()
-        val known = expenses.mapNotNull { it["sourceKey"] as? String }.toSet()
-        val fresh = SmsReader.read(ctx, since).filter { it.key !in known && !it.isTransfer }
-        if (fresh.isEmpty()) return
-        Notifier.ensureChannels(ctx)
-        val spent = fresh.filter { !it.isCredit }.sumOf { it.amount }
-        val text = if (spent > 0) "₹%,.0f spent in %d new transaction(s). Tap to review and add.".format(spent, fresh.size)
-        else "${fresh.size} new transaction(s) found. Tap to review and add."
-        val n = NotificationCompat.Builder(ctx, Notifier.CH_GENERAL)
-            .setSmallIcon(android.R.drawable.ic_menu_agenda)
-            .setContentTitle("New bank transactions")
-            .setContentText(text)
-            .setContentIntent(Notifier.openApp(ctx, "import", SMS_NOTIFICATION_ID))
-            .setAutoCancel(true)
-            .build()
-        (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(SMS_NOTIFICATION_ID, n)
-    }
 }

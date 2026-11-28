@@ -36,7 +36,6 @@ import com.familyhub.app.money.CalendarReader
 import com.familyhub.app.money.ParsedAlert
 import com.familyhub.app.money.ParsedTxn
 import com.familyhub.app.money.PhoneEvent
-import com.familyhub.app.money.SmsReader
 import com.familyhub.app.money.StatementImport
 import com.familyhub.app.ui.AppEnv
 import com.familyhub.app.ui.common.*
@@ -69,6 +68,11 @@ private fun addIgnored(ctx: Context, keys: Collection<String>) {
     p.edit().putStringSet(KEY_IGNORED, all).apply()
 }
 
+/** Text shared to Family Hub from another app (Share → Family Hub), waiting for this screen to open. */
+object SharedText {
+    val pending = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+}
+
 /**
  * Finds bank and card transactions in SMS or Gmail and adds the ones you pick to Finance.
  * Nothing is added until you tap Add. Already-added transactions are recognised and skipped.
@@ -97,8 +101,8 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     val category = remember { mutableStateMapOf<String, String>() }
     var expanded by remember { mutableStateOf<String?>(null) }
     var gmailToken by remember { mutableStateOf<String?>(null) }
-    var smsAllowed by remember { mutableStateOf(SmsReader.canRead(context)) }
-    var smsDenied by remember { mutableStateOf(false) }
+    var showPaste by remember { mutableStateOf(false) }
+    var pasted by remember { mutableStateOf("") }
     var alerts by remember { mutableStateOf<List<ParsedAlert>>(emptyList()) }
     var events by remember { mutableStateOf<List<PhoneEvent>>(emptyList()) }
     val alertSel = remember { mutableStateMapOf<String, Boolean>() }
@@ -157,18 +161,23 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
         }
     }
 
-    fun scanSms() {
-        busy = true
-        message = null
-        scope.launch {
-            val scan = withContext(Dispatchers.IO) { SmsReader.scan(context, System.currentTimeMillis() - days * DAY_MS) }
-            accept(scan.txns, "SMS")
-            acceptAlerts(scan.alerts, "SMS")
-            if (scan.alerts.isNotEmpty()) {
-                message = (message ?: "") + " Also found " + com.familyhub.app.ui.common.plural(scan.alerts.size, "bill, renewal or account", "bills, renewals or accounts") + "."
-            }
-            busy = false
-        }
+    /** Bank SMS the person shared from their Messages app or pasted (the app cannot read the SMS inbox). */
+    fun readSharedText(text: String) {
+        val r = com.familyhub.app.money.SmsText.parse(text, System.currentTimeMillis())
+        accept(r.txns, "SMS")
+        acceptAlerts(r.alerts, "SMS")
+        message = when {
+            r.txns.isEmpty() && r.alerts.isEmpty() -> "No bank transactions or bills found in that text."
+            else -> (message ?: "") + (if (r.alerts.isNotEmpty()) " Also found " + com.familyhub.app.ui.common.plural(r.alerts.size, "bill, renewal or account", "bills, renewals or accounts") + "." else "")
+        } + if (r.unread > 0) " ${com.familyhub.app.ui.common.plural(r.unread, "message")} could not be read." else ""
+    }
+
+    // Text shared to Family Hub (Messages → Share → Family Hub) opens here.
+    val shared by SharedText.pending.collectAsState()
+    LaunchedEffect(shared) {
+        val t = shared ?: return@LaunchedEffect
+        SharedText.pending.value = null
+        readSharedText(t)
     }
 
     // Sample messages for the automatic emulator test (the emulator has no bank SMS).
@@ -184,12 +193,6 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                 else AlertParser.parse(t, "VM-HDFCBK", now - i * 3_600_000L, "SMS", "demo$i")
             } + AlertParser.accounts(txns), "SMS")
         }
-    }
-
-    val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
-        smsAllowed = ok
-        smsDenied = !ok
-        if (ok) scanSms()
     }
 
     fun scanGmail(token: String) {
@@ -264,8 +267,6 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
 
     // One tap: SMS, the phone's calendars (Google calendars synced from Gmail included) and Gmail if connected.
     val allPermissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { res ->
-        smsAllowed = SmsReader.canRead(context)
-        if (smsAllowed) scanSms() else smsDenied = res[Manifest.permission.READ_SMS] == false
         if (CalendarReader.canRead(context)) scanCalendar()
         val t = gmailToken
         if (t != null) scanGmail(t) else scope.launch {
@@ -276,11 +277,10 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     fun scanEverything() {
         scanningAll = true
         section = "Bills & renewals"
-        val need = listOf(Manifest.permission.READ_SMS, Manifest.permission.READ_CALENDAR)
+        val need = listOf(Manifest.permission.READ_CALENDAR)
             .filter { context.checkSelfPermission(it) != android.content.pm.PackageManager.PERMISSION_GRANTED }
         if (need.isNotEmpty()) allPermissions.launch(need.toTypedArray())
         else {
-            scanSms()
             scanCalendar()
             val t = gmailToken
             if (t != null) scanGmail(t) else scope.launch {
@@ -348,7 +348,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenTopBar(title = "Scan SMS & Gmail", onBack = env.onBack, compact = true)
+        ScreenTopBar(title = "Import bank alerts", onBack = env.onBack, compact = true)
         LazyColumn(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -357,8 +357,9 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                 GlassCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
-                            "Family Hub reads bank and card alerts on this phone, finds the amounts and places, " +
-                                "and lets you choose which to add. Messages are read on the phone and are not uploaded.",
+                            "Family Hub finds the amounts and places in bank and card alerts and lets you choose which to add. " +
+                                "It cannot read your SMS inbox: share bank SMS from your Messages app (select them → Share → Family Hub) " +
+                                "or paste them. Gmail alerts can be scanned after you connect Gmail.",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text("Look back", style = MaterialTheme.typography.labelLarge)
@@ -376,7 +377,7 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                 Button(onClick = { scanEverything() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Rounded.TravelExplore, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Scan everything: SMS, Gmail and calendar")
+                    Text("Scan Gmail and calendar")
                 }
             }
             item {
@@ -392,14 +393,12 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                         Text("Calendar", maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
-                        onClick = {
-                            if (SmsReader.canRead(context)) scanSms() else smsPermission.launch(Manifest.permission.READ_SMS)
-                        },
+                        onClick = { showPaste = !showPaste },
                         enabled = !busy,
                         contentPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("SMS", maxLines = 1, softWrap = false)
+                        Text("Paste SMS", maxLines = 1, softWrap = false)
                     }
                     FilledTonalButton(
                         onClick = { val t = gmailToken; if (t != null) scanGmail(t) else connectGmail() },
@@ -418,22 +417,23 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     Text("Import a bank statement or Axio export (CSV / Excel)", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (smsDenied) {
+            if (showPaste) {
                 item {
                     GlassCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("SMS permission is off", fontWeight = FontWeight.SemiBold)
+                            Text("Paste bank SMS", fontWeight = FontWeight.SemiBold)
                             Text(
-                                "Open App info → Permissions → SMS → Allow. If Android says it is a restricted setting, " +
-                                    "first tap the ⋮ menu on App info and choose \"Allow restricted settings\".",
+                                "Copy one or more bank or card messages and paste them here (leave a blank line between messages). " +
+                                    "Or, in your Messages app, select them and tap Share → Family Hub.",
                                 style = MaterialTheme.typography.bodySmall
                             )
-                            TextButton(onClick = {
-                                context.startActivity(
-                                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + context.packageName))
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            }) { Text("Open App info") }
+                            com.familyhub.app.core.theme.GlassInputField(
+                                value = pasted, onValueChange = { pasted = it.take(com.familyhub.app.money.SmsText.MAX_CHARS) },
+                                placeholder = { Text("Paste messages here") }, maxLines = 8, modifier = Modifier.fillMaxWidth()
+                            )
+                            Button(enabled = pasted.isNotBlank() && !busy, onClick = { readSharedText(pasted); pasted = ""; showPaste = false }) {
+                                Text("Find transactions")
+                            }
                         }
                     }
                 }

@@ -1,5 +1,7 @@
 package com.familyhub.app.ui.chat
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.liveRegion
 import com.familyhub.app.core.theme.GlassBottomSheet
 import com.familyhub.app.core.theme.GlassDialog
 import com.familyhub.app.core.theme.GlassInputField
@@ -567,7 +569,10 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
         if (typingNames.isNotEmpty()) Text(
             com.familyhub.app.data.remote.ChatMedia.typingLine(typingNames),
             style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 20.dp, bottom = 2.dp)
+            // A polite live region, so TalkBack also says who is typing.
+            modifier = Modifier.padding(start = 20.dp, bottom = 2.dp).semantics {
+                liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Polite
+            }
         )
         if (searching) {
             GlassInputField(

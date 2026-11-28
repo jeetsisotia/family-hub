@@ -33,7 +33,7 @@ The app asks for each permission only when you use the feature that needs it.
 | Permission | What it is for | If you say no |
 |---|---|---|
 | Notifications | Reminders for bills, EMIs, card dues, medicines and events | You get no reminders. Everything still shows in the app. |
-| SMS | Reads bank and card alerts on this phone to suggest entries. Nothing is added until you confirm it. | Add entries by hand, or import statements and Gmail alerts |
+| SMS (sending only) | Sends SOS, safe-arrival and low-battery texts to your emergency contacts, only after you turn these on | The safety texts are not sent; SOS can still call |
 | Gmail (read-only) | Finds bank alert emails and statements. Only the subject and short preview are read. | Same as above |
 | Health Connect | Steps, distance, calories, exercise, sleep, heart rate and weight from Google Fit, Samsung Health or a watch | Health shows only what you log yourself |
 | Physical activity | Counts steps with the phone's own sensor | No step count from this phone |
@@ -41,7 +41,9 @@ The app asks for each permission only when you use the feature that needs it.
 | Location | Only when you share your location from the SOS screen | The SOS message is sent without a location |
 | Phone | Only when the SOS button calls your emergency contact after its countdown | SOS opens the dialer instead |
 
-If Android greys out the SMS switch, open **Settings → Apps → Family Hub → ⋮ → Allow restricted settings** and try again. Android does this for some apps installed from a file.
+Family Hub cannot read your SMS inbox. To add bank SMS, open your Messages app, select the bank messages, tap **Share → Family Hub**, or copy them and use **Finance → Import bank alerts → Paste SMS**. (From 2.1.117 the SMS-reading permission was removed: Google Play Protect blocks downloaded apps that ask for it. See `docs/PLAY_PROTECT_INVESTIGATION.md`.)
+
+If Android greys out the SMS switch for the safety texts, open **Settings → Apps → Family Hub → ⋮ → Allow restricted settings** and try again.
 
 ## 5. For the developer: building and changing the app
 

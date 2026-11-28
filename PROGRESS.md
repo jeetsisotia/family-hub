@@ -890,3 +890,4 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - 28 Nov (p83): Sync status, edit-conflict protection, restore verification, memory photos in backups.
 - 28 Nov (p84): Security review — test screen locked to adb, release gate on check results; review notes in docs.
 - 28 Nov (p85–p86): CI fixes, releases publishing (build-114, build-116), travel summary fix. Phone checklist in CONTINUATION-REPORT.
+- 28 Nov (p88): READ_SMS removed (Play Protect block) → Share/Paste bank SMS; CI permission + signature audit; Android 9 job; 3 emulator checks fixed.
