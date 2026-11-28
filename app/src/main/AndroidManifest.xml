@@ -132,9 +132,11 @@
             android:theme="@style/Theme.FamilyHub" />
 
         <!-- Sample-data screens used only by the automatic emulator test after each build. -->
+        <!-- Only the test shell (adb, which holds DUMP) may open it; other apps on the phone cannot. -->
         <activity
             android:name=".DemoActivity"
             android:exported="true"
+            android:permission="android.permission.DUMP"
             android:excludeFromRecents="true"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.FamilyHub" />

@@ -229,3 +229,23 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
 - Attachment backup: memory photos (Firestore parts) are included in the backup file and written back on restore only
   when the server does not have them. Chat attachments stay in chat (not part of backups).
 - Tests: `tools/sync-test` (11 checks), emulator checks "sync: …".
+
+## 28 Nov — Security and speed review (bundle p84)
+
+Checked:
+- **Secrets:** no private keys, tokens or AI keys in the repo or APK. `app/google-services.json` holds the Firebase
+  web API key, which is a public project identifier by Firebase's design (access is decided by the security rules).
+  Recommended (owner action, optional): in Google Cloud → APIs & Services → Credentials, restrict that key to the
+  Android app `com.familyhub.app` with the CI signing SHA-1.
+- **Rules:** no `if true` rules; every family path needs membership; new paths (memoryParts, memoryNotes) are
+  size-limited, owner-fixed and section-gated; members cannot change their own access or admin flag.
+- **Fixed — test screen exposure:** `DemoActivity` (sample-data screens for the emulator checks) was exported, so any
+  app on the phone could open it and change in-process test state. It now requires `android.permission.DUMP`, which
+  only the adb shell holds — other apps cannot open it.
+- **Fixed — release gate:** a release is published only if the emulator run had no crash **and** at least 90 screen
+  checks passed with at most 5 failures (checks are now also written to `checks.txt` in the results).
+- **Backups:** AI keys, Google tokens and AI chats are already excluded from Android cloud backup/device transfer.
+- **Updates:** the app only opens `https://github.com/...` download links; Android verifies the signature on install.
+- **Speed:** listeners include metadata changes for the sync notice but skip redraws when only sync state changed;
+  restricted members load items with ≤30-kind `in` queries (one listener per 30 kinds); memory photos load on demand
+  and come from Firestore's on-phone cache after the first view.
