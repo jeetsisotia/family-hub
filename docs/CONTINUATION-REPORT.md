@@ -166,7 +166,10 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
 - App: hidden sections disappear from More, hubs and Home; a None screen shows "No access"; View only hides Add,
   blocks editing and shows a banner; chat composer is replaced by a view-only note; AI actions are refused for sections
   the person cannot edit. "Only me" records are always the person's own.
-- Known limit: item kinds the app does not list yet have no section and stay visible to everyone in the family,
-  but a restricted member will not load them until they are added to a section.
+- Item kinds not yet in a section stay open to members with no "None" section; a restricted member cannot read or add them.
 - Tests: `tools/perms-test` (21 checks incl. app/rules kind lists agree), rules tests "perms: …", emulator checks "access: …".
 - **Still needs the user:** publish `firebase/firestore.rules` in the Firebase console (Google sign-in).
+- p78 fix: first rules run (Firestore rules tests, run 46113495523) showed a whole-list items read was wrongly allowed for a
+  restricted member in the emulator (99/100). Rules now compare the item kind with one computed list of allowed kinds
+  (`allowedTypes`), which the query checker can prove for `type in [...]` and refuse for unfiltered reads. Also fixed a
+  compile error (nullable section) found by Build APK run 46113493586.

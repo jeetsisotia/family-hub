@@ -10,8 +10,8 @@ import kotlinx.coroutines.flow.StateFlow
 object AccessState {
     data class Access(val perms: Map<String, String> = emptyMap(), val admin: Boolean = true) {
         val restricted get() = Permissions.restricted(perms, admin)
-        fun canSee(section: String) = Permissions.canSee(perms, section, admin)
-        fun canEdit(section: String) = Permissions.canEdit(perms, section, admin)
+        fun canSee(section: String?) = Permissions.canSee(perms, section, admin)
+        fun canEdit(section: String?) = Permissions.canEdit(perms, section, admin)
         fun canSeeItem(collection: String, type: String?) = Permissions.canSee(perms, Permissions.sectionOf(collection, type), admin)
         fun canEditItem(collection: String, type: String?) = Permissions.canEdit(perms, Permissions.sectionOf(collection, type), admin)
     }

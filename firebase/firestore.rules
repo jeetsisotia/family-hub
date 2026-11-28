@@ -51,16 +51,21 @@ service cloud.firestore {
       return t in finTypes() || t in calTypes() || t in taskTypes() || t in docTypes() || t in healthTypes() ||
         t in homeTypes() || t in famTypes() || t in memTypes();
     }
+    // Item kinds this person may see or change, as one list, so a "type in [...]" query can be checked against it.
+    function lvl(familyId, section, edit) { return edit ? canEdit(familyId, section) : canSee(familyId, section); }
+    function allowedTypes(familyId, edit) {
+      return (lvl(familyId, 'finance', edit) ? finTypes() : [])
+        .concat(lvl(familyId, 'calendar', edit) ? calTypes() : [])
+        .concat(lvl(familyId, 'tasks', edit) ? taskTypes() : [])
+        .concat(lvl(familyId, 'documents', edit) ? docTypes() : [])
+        .concat(lvl(familyId, 'health', edit) ? healthTypes() : [])
+        .concat(lvl(familyId, 'home', edit) ? homeTypes() : [])
+        .concat(lvl(familyId, 'family', edit) ? famTypes() : [])
+        .concat(lvl(familyId, 'memories', edit) ? memTypes() : []);
+    }
+    // Kinds not in any section yet stay open to people with no "None" section (as before), never to restricted ones.
     function itemOk(familyId, t, edit) {
-      return (t in finTypes() && (edit ? canEdit(familyId, 'finance') : canSee(familyId, 'finance'))) ||
-        (t in calTypes() && (edit ? canEdit(familyId, 'calendar') : canSee(familyId, 'calendar'))) ||
-        (t in taskTypes() && (edit ? canEdit(familyId, 'tasks') : canSee(familyId, 'tasks'))) ||
-        (t in docTypes() && (edit ? canEdit(familyId, 'documents') : canSee(familyId, 'documents'))) ||
-        (t in healthTypes() && (edit ? canEdit(familyId, 'health') : canSee(familyId, 'health'))) ||
-        (t in homeTypes() && (edit ? canEdit(familyId, 'home') : canSee(familyId, 'home'))) ||
-        (t in famTypes() && (edit ? canEdit(familyId, 'family') : canSee(familyId, 'family'))) ||
-        (t in memTypes() && (edit ? canEdit(familyId, 'memories') : canSee(familyId, 'memories'))) ||
-        !knownItem(t);
+      return t in allowedTypes(familyId, edit) || (!knownItem(t) && unrestricted(familyId));
     }
 
     // Admin flag and role are unchanged by this write.
@@ -155,7 +160,7 @@ service cloud.firestore {
       match /items/{docId} {
         // Each kind of item belongs to a section (Finance, Health, Documents…); someone with no access to a
         // section loads the others by type ("type in [...]"), so their queries never touch it.
-        allow read: if isFamilyMember(familyId) && (unrestricted(familyId) || itemOk(familyId, resource.data.get('type', ''), false));
+        allow read: if isFamilyMember(familyId) && (unrestricted(familyId) || resource.data.get('type', '') in allowedTypes(familyId, false));
         allow create: if isFamilyMember(familyId) && itemOk(familyId, request.resource.data.get('type', ''), true);
         allow update: if isFamilyMember(familyId) && itemOk(familyId, resource.data.get('type', ''), true) &&
           itemOk(familyId, request.resource.data.get('type', ''), true);
