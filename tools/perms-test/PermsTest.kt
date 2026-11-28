@@ -36,6 +36,6 @@ fun main(args: Array<String>) {
             check("rules and app agree on $sec kinds", inRules == inApp, "rules=$inRules app=$inApp")
         }
     }
-    println(if (failures == 0) "RESULT: all passed" else "RESULT: $failures failed")
+    println(if (failures == 0) "ALL PASSED" else "FAILED: $failures")
     if (failures > 0) kotlin.system.exitProcess(1)
 }

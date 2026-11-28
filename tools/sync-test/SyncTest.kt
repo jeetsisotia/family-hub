@@ -20,6 +20,6 @@ fun main() {
     check("status: offline with waiting changes", S.text(false, 1).startsWith("Offline · 1 change will sync") && S.level(false, 1) == S.Level.OFFLINE_PENDING)
     check("status: offline", S.level(false, 0) == S.Level.OFFLINE)
     check("restore check finds what the server lacks", S.missingAfterRestore(mapOf("items" to setOf("a", "b"), "tasks" to setOf("t")), mapOf("items" to setOf("a"), "tasks" to setOf("t"))) == mapOf("items" to setOf("b")))
-    println(if (failures == 0) "RESULT: all passed" else "RESULT: $failures failed")
+    println(if (failures == 0) "ALL PASSED" else "FAILED: $failures")
     if (failures > 0) kotlin.system.exitProcess(1)
 }

@@ -18,6 +18,6 @@ fun main() {
     check("notes drop blank and attribution lines", n == "Line 1\n- change A\n- change B", n)
     check("notes are kept short", U.notes((1..30).joinToString("\n") { "l$it" }).lines().size == 12)
     check("checksum without its prefix", U.checksum("sha256:abc") == "abc" && U.checksum("") == null && U.checksum(null) == null)
-    println(if (failures == 0) "RESULT: all passed" else "RESULT: $failures failed")
+    println(if (failures == 0) "ALL PASSED" else "FAILED: $failures")
     if (failures > 0) kotlin.system.exitProcess(1)
 }

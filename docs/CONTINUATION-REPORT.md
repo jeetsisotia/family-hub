@@ -175,7 +175,7 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
   compile error (nullable section) found by Build APK run 46113493586.
 - Verified: Firestore rules tests run 46114298444 (commit cc637bd) — 100/100, all 8 "perms:" tests pass, including:
   a restricted member's unfiltered items read is refused and `type in [allowed kinds]` is allowed.
-  Unit tests run 46113637255: "Section access (perms-test): all passed".
+  Unit tests: perms-test passed its 21 checks (the suite printed a different end line than the workflow expects; fixed in p85 so the job reports it correctly).
 
 ## 28 Nov — Update checker with GitHub Releases (bundle p80)
 
@@ -249,3 +249,12 @@ Checked:
 - **Speed:** listeners include metadata changes for the sync notice but skip redraws when only sync state changed;
   restricted members load items with ≤30-kind `in` queries (one listener per 30 kinds); memory photos load on demand
   and come from Firestore's on-phone cache after the first view.
+
+## 28 Nov — CI fixes (bundle p85)
+
+- New unit suites now end with "ALL PASSED", the line the Unit tests job looks for (they passed but the job counted them as failed).
+- Build APK run 46114490678 (p80, build 109): no crash, 103 checks passed, 4 failed (3 known check-only + the
+  Settings widgets check, which now scrolls in small steps until the section is on screen). Its release step was
+  refused by GitHub ("Resource not accessible by integration", HTTP 403 on creating the release) although the job had
+  Contents: write. The release step now pushes the `build-N` tag with git first (the same way the screenshots
+  branch is pushed, which works) and then creates the release from that tag.

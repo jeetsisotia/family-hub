@@ -33,6 +33,6 @@ fun main() {
     check("no payer, skipped", Split.balances(listOf(Expense("y", 50.0, "")), ppl).skipped == listOf("y"))
     val many = Split.balances((1..7).map { Expense("m$it", 10.0 * it, ppl[it % 3]) }, ppl)
     check("settlements never exceed people − 1", Split.settlements(many.net).size <= 2)
-    println(if (failures == 0) "RESULT: all passed" else "RESULT: $failures failed")
+    println(if (failures == 0) "ALL PASSED" else "FAILED: $failures")
     if (failures > 0) kotlin.system.exitProcess(1)
 }

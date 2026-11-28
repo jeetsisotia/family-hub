@@ -24,6 +24,6 @@ fun main() {
     check("reactions: one per person, fixed order", M.reactionCounts(mapOf("u1" to "😂", "u2" to "❤️", "u3" to "😂")) == listOf("❤️" to 1, "😂" to 2))
     check("comments are trimmed and limited", M.cleanComment("  hi  ") == "hi" && M.cleanComment("   ") == null && M.cleanComment("x".repeat(900))!!.length == 500)
     check("at most 12 photos per memory", M.canAddPhotos(10, 2) && !M.canAddPhotos(11, 2))
-    println(if (failures == 0) "RESULT: all passed" else "RESULT: $failures failed")
+    println(if (failures == 0) "ALL PASSED" else "FAILED: $failures")
     if (failures > 0) kotlin.system.exitProcess(1)
 }
