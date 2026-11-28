@@ -267,3 +267,22 @@ Checked:
 
 - The trip summary had four numbers side by side; on a phone the last one (packing) was pushed off screen.
   Now two numbers (trip, budget) and the rest as lines: when, who is going, packed N of M.
+- Verified final: Build APK run 46124368436 (build 116, commit 7dd7d53): no crash, 122 checks passed, 3 known
+  check-only failures; release **FamilyHub 2.1.116** published. Travel packing check passes.
+
+## Phone checklist (build 2.1.116)
+
+Before testing: **publish `firebase/firestore.rules` in the Firebase console** (keep a copy of the current rules first).
+Without it, section access, memory photos and comments are refused or not enforced on the real database.
+
+1. Install `FamilyHub-2.1.116.apk` from GitHub Releases over the current app (same signature; data stays). Sign in.
+2. Settings → App updates: shows 2.1.116 and "You're up to date".
+3. Family → a member's ⋮ → Access…: set Health = None, Finance = View only, Save. On that member's phone:
+   Health gone from menus, Finance shows "View only" with no Add button, Chat still works.
+4. Finance → Settle up: add a shared expense "Exact amounts" (e.g. "Asha 500, Ravi 300"), a Trip name; check
+   "who pays whom", tap Record payment, balances update.
+5. Travel: a trip with travellers and a packing list ([x] for packed) shows the countdown and packed count.
+6. Memories: open a memory → Add photos (2–3), react ❤️, write a comment; see it on another family phone.
+7. Airplane mode: change a shopping item → Home shows "Offline · 1 change will sync"; back online → disappears.
+8. Two phones edit the same entry; the second to save is asked "Keep both changes / Use mine / Cancel".
+9. Settings → Data & backup → Back up (includes memory photos) → Restore says "Verified on the server".

@@ -216,3 +216,14 @@ Gaps found and fixed in one bundle: spending on one category in the assistant, t
 ## 10. Release
 
 See `CONTINUATION-REPORT.md` → State for the final commit, build number and artifact (`family-hub-apk`).
+
+## 28 Nov — All phases (p77–p86), evidence
+
+| Area | Evidence |
+|---|---|
+| Section access rules | Firestore rules tests run 46114298444 — 100/100 (8 "perms:" tests) |
+| Memories rules | Firestore rules tests run 46115083621 — Success ("memories:" tests) |
+| Unit suites (perms, update, split, memory, sync + all earlier) | Unit tests run 46118334148 (af5a884) — Success |
+| Emulator, final | Build APK run 46124368436 (7dd7d53) — no crash, 122 PASS, 3 known check-only FAIL |
+| Release | build-116 published by CI (FamilyHub-2.1.116.apk); first release build-114 |
+| Not yet verified on the real database | Rules not published to Firebase (needs owner sign-in) |
