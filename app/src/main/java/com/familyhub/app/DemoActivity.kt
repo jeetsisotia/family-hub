@@ -465,6 +465,15 @@ object DemoData {
             rec("title" to "Yoga", "category" to "Family", "startTimeMillis" to now - 3 * d, "time" to "07:00", "ownerName" to "Demo User",
                 "recurrence" to "WEEKLY", "isDeleted" to false)
         )
+        // Shared costs for Settle up: equal, exact and shares, one Jaipur trip.
+        fun settleItems(t: Long) = listOf(
+            rec("type" to "settle", "title" to "Hotel", "amountInr" to 9000.0, "paidBy" to "Asha", "trip" to "Jaipur",
+                "splitMode" to com.familyhub.app.money.Split.EQUAL, "settled" to false, "createdAt" to t - 2 * d),
+            rec("type" to "settle", "title" to "Dinner", "amountInr" to 1500.0, "paidBy" to "Ravi", "trip" to "Jaipur",
+                "splitMode" to com.familyhub.app.money.Split.EXACT, "splitDetail" to "Asha 500, Ravi 400, Demo User 600", "settled" to false, "createdAt" to t - d),
+            rec("type" to "settle", "title" to "Groceries", "amountInr" to 600.0, "paidBy" to "Demo User",
+                "splitMode" to com.familyhub.app.money.Split.SHARES, "splitDetail" to "Asha 1, Demo User 2", "settled" to false, "createdAt" to t - 3 * d)
+        )
         fun challengeItems(t: Long) = listOf(
             rec("type" to "challenge", "title" to "Holiday fund", "kind" to com.familyhub.app.money.Challenges.WEEK52, "stepInr" to 50.0,
                 "startMillis" to t - 25 * d, "savedInr" to 300.0, "done" to false, "isDeleted" to false),
@@ -500,7 +509,9 @@ object DemoData {
         (tasks[2] as MutableMap<String, Any?>).let { it["isCompleted"] = true; it["completedAt"] = now - 3_600_000L; it["completedByName"] = "Ravi" }
         events.forEach { r -> (r as MutableMap<String, Any?>).let { it["createdAt"] = now - 26 * 3_600_000L; it["createdByName"] = "Asha" } }
         val trips = listOf(
-            rec("destination" to "Jaipur", "startDateMillis" to now + 20 * d, "endDateMillis" to now + 23 * d)
+            rec("destination" to "Jaipur", "startDateMillis" to now + 20 * d, "endDateMillis" to now + 23 * d,
+                "estimatedBudgetInr" to 40000.0, "travellers" to "Asha, Ravi, Demo User",
+                "packingNotes" to "[x] Tickets\n[x] Chargers\nSunscreen\nCamera")
         )
         val members = listOf(
             FamilyMember(uid = UID, familyId = FAMILY, name = "Demo User", bloodGroup = "B+", heightCm = 165.0, weightKg = 63.1,
@@ -525,7 +536,7 @@ object DemoData {
             members = members,
             memberNames = members.map { it.name },
             isOwner = true,
-            data = mapOf("items" to items + docs + p2Items + challengeItems(now), "events" to events + p2Events, "expenses" to expenses, "tasks" to tasks + p2Shop, "trips" to trips),
+            data = mapOf("items" to items + docs + p2Items + challengeItems(now) + settleItems(now), "events" to events + p2Events, "expenses" to expenses, "tasks" to tasks + p2Shop, "trips" to trips),
             repo = repo,
             familyRepository = families,
             scope = scope,

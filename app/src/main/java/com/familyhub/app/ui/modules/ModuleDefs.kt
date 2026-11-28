@@ -244,7 +244,7 @@ val ShoppingModule = ModuleDef(
 val TravelModule = ModuleDef(
     route = "travel", title = "Travel", icon = Icons.Rounded.FlightTakeoff,
     collection = "trips",
-    titleKey = "destination", subtitleKeys = listOf("transportDetails", "hotelDetails"),
+    titleKey = "destination", subtitleKeys = listOf("travellers", "transportDetails", "hotelDetails"),
     fields = listOf(
         FieldDef("destination", "Destination", required = true),
         FieldDef("startDateMillis", "Starts on", FieldType.DATE, required = true),
@@ -253,11 +253,14 @@ val TravelModule = ModuleDef(
         FieldDef("hotelDetails", "Hotel bookings", FieldType.MULTILINE),
         FieldDef("estimatedBudgetInr", "Trip budget (₹)", FieldType.NUMBER),
         FieldDef("itineraryNotes", "Itinerary", FieldType.MULTILINE),
-        FieldDef("packingNotes", "Packing list", FieldType.MULTILINE)
+        FieldDef("travellers", "Who is going (names)"),
+        FieldDef("documentsNeeded", "Documents to carry (passport, visa, tickets…)", FieldType.MULTILINE),
+        FieldDef("packingNotes", "Packing list (one per line; start a line with [x] when packed)", FieldType.MULTILINE)
     ),
     amountKey = "estimatedBudgetInr",
     dateKeys = listOf(DateKey("startDateMillis", "Starts"), DateKey("endDateMillis", "Ends")),
-    alertOverdue = false, alertDays = 14
+    alertOverdue = false, alertDays = 14,
+    kind = "travel"
 )
 
 val VaultModule = ModuleDef(
@@ -472,12 +475,17 @@ val SettleModule = ModuleDef(
         FieldDef("title", "What was it for", required = true),
         FieldDef("amountInr", "Amount (₹)", FieldType.NUMBER, required = true),
         FieldDef("paidBy", "Paid by", FieldType.MEMBER, required = true),
+        FieldDef("splitWith", "Split with (names, comma-separated; empty = everyone)"),
+        FieldDef("splitMode", "How to split", FieldType.CHOICE, com.familyhub.app.money.Split.MODES),
+        FieldDef("splitDetail", "Amount, % or shares per person (e.g. Asha 500, Ravi 300)",
+            showIf = { (it["splitMode"] as? String).orEmpty().let { m -> m.isNotBlank() && m != com.familyhub.app.money.Split.EQUAL } }),
+        FieldDef("trip", "Trip (optional, to split trip costs)"),
         FieldDef("notes", "Notes", FieldType.MULTILINE)
     ),
     amountKey = "amountInr", doneKey = "settled", doneLabel = "Settled",
     newestFirst = true, autoCreatedAt = true, alerts = false,
     constants = mapOf("settled" to false),
-    emptyText = "Add shared expenses. The app works out who owes whom, split equally.",
+    emptyText = "Add shared expenses: split equally, by exact amounts, % or shares. The app works out the fewest payments.",
     kind = "settle"
 )
 

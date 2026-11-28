@@ -1,5 +1,6 @@
 package com.familyhub.app.ui.modules
 
+import androidx.compose.foundation.horizontalScroll
 import com.familyhub.app.core.theme.GlassDialog
 import com.familyhub.app.core.theme.GlassFilterChip
 import com.familyhub.app.core.theme.GlassFloatingActionButton
@@ -330,7 +331,17 @@ fun ModuleScreen(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 10.dp)) {
                         overview?.invoke()
-                        ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget)
+                        ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget,
+                            onRecordPayment = if (viewOnly) null else { t, trip ->
+                                save(
+                                    mapOf(
+                                        "title" to "Payment: ${t.from} → ${t.to}", "amountInr" to t.amount, "paidBy" to t.from,
+                                        "splitWith" to t.to, "splitMode" to com.familyhub.app.money.Split.EXACT,
+                                        "splitDetail" to "${t.to} ${t.amount}", "trip" to trip, "isPayment" to true
+                                    ),
+                                    null
+                                )
+                            })
                         if (def.kind == "finance" && onOpen != null) {
                             com.familyhub.app.ui.hub.HubTiles(com.familyhub.app.ui.hub.Hubs.money.items, onOpen)
                         }
@@ -651,7 +662,8 @@ private fun ModuleHeader(
     monthlyBudget: Double,
     isOwner: Boolean,
     memberNames: List<String>,
-    onSaveBudget: (Double) -> Unit
+    onSaveBudget: (Double) -> Unit,
+    onRecordPayment: ((com.familyhub.app.money.Split.Transfer, String) -> Unit)? = null
 ) {
     when (def.kind) {
         "finance" -> FinanceHeader(records, monthlyBudget, isOwner, onSaveBudget)
@@ -669,7 +681,8 @@ private fun ModuleHeader(
                 SummaryCard(listOf("Per month" to money(monthly), "Per year" to money(monthly * 12)))
             }
         }
-        "settle" -> SettleHeader(records, memberNames)
+        "settle" -> SettleHeader(records, memberNames, onRecordPayment)
+        "travel" -> TripHeader(records)
         "food" -> if (records.isNotEmpty()) {
             val s = com.familyhub.app.health.HealthMath.foodSummary(
                 records.mapNotNull { r -> r.lng("dateMillis")?.let { com.familyhub.app.health.HealthMath.FoodEntry(it, r.num("kcal")) } },
@@ -874,47 +887,79 @@ private fun FinanceHeader(
     }
 }
 
+/** Settle up: balances from every open shared expense (equal, exact, % or shares), the fewest payments, per trip. */
 @Composable
-private fun SettleHeader(records: List<Rec>, memberNames: List<String>) {
+private fun SettleHeader(records: List<Rec>, memberNames: List<String>, onRecord: ((com.familyhub.app.money.Split.Transfer, String) -> Unit)?) {
+    val S = com.familyhub.app.money.Split
     val open = records.filter { !it.bool("settled") }
-    val payers = open.map { it.str("paidBy") }.filter { it.isNotBlank() }
-    val people = (memberNames + payers).filter { it.isNotBlank() }.distinct()
-    if (open.isEmpty() || people.size < 2) {
-        if (records.isNotEmpty()) {
-            GlassCard(shape = RoundedCornerShape(22.dp)) {
-                Text(
-                    text = "Everyone is settled up.",
-                    modifier = Modifier.padding(16.dp),
-                    fontWeight = FontWeight.SemiBold
-                )
+    val trips = open.map { it.str("trip").trim() }.filter { it.isNotBlank() }.distinct().sorted()
+    var trip by remember { mutableStateOf("") }
+    val shown = if (trip.isBlank()) open else open.filter { it.str("trip").trim().equals(trip, ignoreCase = true) }
+    val people = (memberNames + shown.map { it.str("paidBy") } + shown.flatMap { S.names(it.str("splitWith")) })
+        .map { it.trim() }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }
+    if (records.isEmpty()) return
+    val expenses = shown.map { r ->
+        S.Expense(
+            id = r.str("id"), amount = r.num("amountInr") ?: 0.0, paidBy = r.str("paidBy"),
+            with = S.names(r.str("splitWith"), people), mode = r.str("splitMode").ifBlank { S.EQUAL },
+            detail = r.str("splitDetail"), group = r.str("trip")
+        )
+    }
+    val b = S.balances(expenses, people)
+    val transfers = S.settlements(b.net)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (trips.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            com.familyhub.app.core.theme.GlassFilterChip(selected = trip.isBlank(), onClick = { trip = "" }, label = { Text("All") })
+            trips.forEach { t -> com.familyhub.app.core.theme.GlassFilterChip(selected = trip == t, onClick = { trip = t }, label = { Text(t) }) }
+        }
+        SummaryCard(
+            stats = listOf("Shared spending" to money(b.total), "Payments to settle" to "${transfers.size}"),
+            footer = buildString {
+                if (transfers.isEmpty()) append("Everyone is settled up.")
+                b.net.entries.sortedByDescending { it.value }.forEach { (who, v) ->
+                    if (isNotEmpty()) append("\n")
+                    append(if (v > 0) "$who gets back ${money(v)}" else "$who owes ${money(-v)}")
+                }
+                if (b.skipped.isNotEmpty()) append("\n${b.skipped.size} expense(s) skipped: their amounts, % or shares don't add up.")
+            }
+        )
+        transfers.forEach { t ->
+            GlassCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("${t.from} pays ${t.to} ${money(t.amount)}", modifier = Modifier.weight(1f), fontWeight = FontWeight.Medium)
+                    if (onRecord != null) TextButton(onClick = { onRecord(t, trip) }) { Text("Record payment") }
+                }
             }
         }
-        return
     }
-    val total = open.sumOf { it.num("amountInr") ?: 0.0 }
-    val share = total / people.size
-    val balance = HashMap<String, Double>()
-    for (p in people) balance[p] = -share
-    for (r in open) {
-        val p = r.str("paidBy")
-        if (p.isNotBlank()) balance[p] = (balance[p] ?: 0.0) + (r.num("amountInr") ?: 0.0)
+}
+
+/** Travel: the next trip with a countdown, and how its shared spending compares with its budget. */
+@Composable
+private fun TripHeader(records: List<Rec>) {
+    val now = System.currentTimeMillis()
+    val day = 86_400_000L
+    val next = records.filter { (it.lng("endDateMillis") ?: 0L) >= now - day }.minByOrNull { it.lng("startDateMillis") ?: Long.MAX_VALUE } ?: return
+    val start = next.lng("startDateMillis") ?: return
+    val end = next.lng("endDateMillis") ?: start
+    val days = ((start - startOfDay(now)) / day).toInt()
+    val status = when {
+        now in start..(end + day) -> "Happening now · day ${((startOfDay(now) - startOfDay(start)) / day + 1)} of ${((startOfDay(end) - startOfDay(start)) / day + 1)}"
+        days == 0 -> "Starts today"
+        days == 1 -> "Starts tomorrow"
+        else -> "Starts in $days days"
     }
-    val creditors = balance.filter { it.value > 0.5 }.map { it.key to it.value }.sortedByDescending { it.second }.toMutableList()
-    val debtors = balance.filter { it.value < -0.5 }.map { it.key to -it.value }.sortedByDescending { it.second }.toMutableList()
-    val lines = mutableListOf<String>()
-    var i = 0
-    var j = 0
-    while (i < debtors.size && j < creditors.size) {
-        val pay = minOf(debtors[i].second, creditors[j].second)
-        lines.add("${debtors[i].first} owes ${creditors[j].first} ${money(pay)}")
-        debtors[i] = debtors[i].first to (debtors[i].second - pay)
-        creditors[j] = creditors[j].first to (creditors[j].second - pay)
-        if (debtors[i].second < 0.5) i++
-        if (creditors[j].second < 0.5) j++
-    }
+    val budget = next.num("estimatedBudgetInr")
+    val packing = next.str("packingNotes").lines().map { it.trim() }.filter { it.isNotBlank() }
+    val packed = packing.count { it.startsWith("[x]", ignoreCase = true) || it.startsWith("✓") }
     SummaryCard(
-        stats = listOf("Open expenses" to money(total), "Share each" to money(share)),
-        footer = lines.joinToString("\n").ifBlank { "Everyone is settled up." }
+        stats = listOfNotNull(
+            "Next trip" to next.str("destination"),
+            "When" to status,
+            budget?.let { "Budget" to money(it) },
+            if (packing.isNotEmpty()) "Packed" to "$packed of ${packing.size}" else null
+        ),
+        footer = "Add shared trip costs in Finance → Settle up with this trip's name to split them and see who owes whom."
     )
 }
 

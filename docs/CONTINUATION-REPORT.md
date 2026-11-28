@@ -189,3 +189,15 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
   key (the fixed CI key) as the installed app.
 - Tests: `tools/update-test` (11 checks), emulator checks "updates: …".
 - Note: builds installed before this change report build 1, so the first release is offered to them as an update.
+
+## 28 Nov — Travel planner and expense splitting (bundle p81)
+
+- New `money/Split.kt` (pure, paise-exact): split **Equally** (all or chosen people), **Exact amounts**, **Percentages**
+  (must total 100) or **Shares**; balances over open expenses; the fewest payments to settle (≤ people − 1);
+  a recorded payment is just an expense paid by the debtor and owed fully by the creditor, so balances update.
+  Expenses whose amounts/percentages don't add up are skipped and the count is shown, never guessed.
+- Settle up: new fields Split with / How to split / per-person detail / Trip. Header shows shared spending, each
+  person's net, trip filter chips, and a "Record payment" button per suggested payment (hidden for view-only access).
+- Travel: Who is going, Documents to carry, packing list with [x] ticks; header with the next trip's countdown or
+  "day N of M", budget and packing progress.
+- Tests: `tools/split-test` (16 checks), emulator checks "split: …" and "travel: …".

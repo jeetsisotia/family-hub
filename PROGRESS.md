@@ -885,3 +885,4 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - 28 Nov (p77): Per-member section access (None / View only / Full) — rules, app loading, admin sheet, tests.
 - 28 Nov (p78–p79): access rules fixed and verified (rules tests 100/100).
 - 28 Nov (p80): Update checker + GitHub Releases per passing build.
+- 28 Nov (p81): Expense splitting (equal / exact / % / shares, fewest payments, record payment, per trip) and trip planner header.
