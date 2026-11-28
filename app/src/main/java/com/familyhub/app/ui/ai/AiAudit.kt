@@ -63,6 +63,24 @@ fun checkActionAllowed(env: AppEnv, a: AiAction) {
     if (me != null && me.status != "ACTIVE") throw IllegalStateException("Your membership is not active.")
     val money = a.kind in MONEY_KINDS || (a.kind == "delete_dups" && a.collection == "expenses")
     if (money && me != null && !me.canEditFinance) throw IllegalStateException("Finance editing is turned off for you. Ask a family admin.")
+    // Section access set by a Family Admin ("Only me" entries are always the person's own).
+    if (!a.private) {
+        val section = actionSection(a) ?: return
+        val access = com.familyhub.app.family.AccessState.now
+        if (!access.canEdit(section)) throw IllegalStateException(
+            "You have " + (if (access.canSee(section)) "view-only" else "no") + " access to " +
+                com.familyhub.app.family.Permissions.label(section) + ". Ask a Family Admin.")
+    }
+}
+
+/** The access section an AI action changes, or null when it changes nothing in a section. */
+fun actionSection(a: AiAction): String? = when {
+    a.kind in MONEY_KINDS || (a.kind == "delete_dups" && a.collection == "expenses") -> "finance"
+    a.kind == "shopping" || a.kind == "task" -> "tasks"
+    a.kind == "event" -> "calendar"
+    a.kind == "reminder" || a.kind == "note" -> "tasks"
+    a.collection.isNotBlank() -> com.familyhub.app.family.Permissions.sectionOf(a.collection, null)
+    else -> null
 }
 
 /** The last AI actions on this phone (AI settings). */

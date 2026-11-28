@@ -135,6 +135,16 @@ fun ModuleScreen(
     preview: List<Rec>? = null,
     previewState: String? = null
 ) {
+    // Section access set by a Family Admin (the security rules enforce the same levels).
+    val access by com.familyhub.app.family.AccessState.flow.collectAsState()
+    val section = com.familyhub.app.family.Permissions.sectionOf(def.collection, def.typeValue)
+    if (!access.canSee(section)) {
+        NoAccessScreen(def.title, onBack)
+        return
+    }
+    val viewOnly = !access.canEdit(section)
+    /** "Only me" records are always the person's own to change. */
+    fun mayChange(rec: Rec?) = !viewOnly || rec?.get(com.familyhub.app.data.remote.PRIVATE_FLAG) == true
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     // Family records plus my own "Only me" records of this kind.
@@ -217,6 +227,7 @@ fun ModuleScreen(
     }
 
     fun remove(rec: Rec) {
+        if (!mayChange(rec)) { error = VIEW_ONLY_TEXT; return }
         scope.launch {
             try {
                 val soft = def.softDeleteKey
@@ -229,6 +240,7 @@ fun ModuleScreen(
     }
 
     fun setFields(rec: Rec, fields: Map<String, Any?>) {
+        if (!mayChange(rec)) { error = VIEW_ONLY_TEXT; return }
         scope.launch {
             try {
                 repo.setFieldsScoped(familyId, uid, def.collection, rec, fields + ("updatedAt" to System.currentTimeMillis()))
@@ -382,8 +394,8 @@ fun ModuleScreen(
                         rec = rec,
                         first = index == 0,
                         last = index == shown.lastIndex,
-                        onClick = { editing = rec; showForm = true },
-                        onToggle = { checked -> toggle(rec, checked) },
+                        onClick = { if (mayChange(rec)) { editing = rec; showForm = true } else error = VIEW_ONLY_TEXT },
+                        onToggle = { checked -> if (mayChange(rec)) toggle(rec, checked) else error = VIEW_ONLY_TEXT },
                         onDelete = { toDelete = rec },
                         onCall = { phone ->
                             try {
@@ -404,7 +416,7 @@ fun ModuleScreen(
                 rec = sheetRec,
                 all = records,
                 onDismiss = { sheetKey = null },
-                onEdit = { sheetKey = null; editing = sheetRec; showForm = true },
+                onEdit = { sheetKey = null; if (mayChange(sheetRec)) { editing = sheetRec; showForm = true } else error = VIEW_ONLY_TEXT },
                 onSet = { r, f -> setFields(r, f) },
                 onDelete = { sheetKey = null; remove(sheetRec) },
                 // Remembered merchant categories are the person's own private records (in their backup too).
@@ -431,7 +443,12 @@ fun ModuleScreen(
             )
         }
 
-        if (selected.isEmpty()) GlassFloatingActionButton(
+        if (viewOnly) com.familyhub.app.core.theme.GlassNotificationCard(
+            title = "View only",
+            subtitle = "A Family Admin gave you view-only access to ${com.familyhub.app.family.Permissions.label(section ?: "")}.",
+            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+        )
+        if (selected.isEmpty() && !viewOnly) GlassFloatingActionButton(
             onClick = { editing = null; showForm = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
             shape = RoundedCornerShape(22.dp),
@@ -1246,6 +1263,31 @@ private fun FinanceShortcuts(onOpen: (String) -> Unit) {
                         modifier = Modifier.size(16.dp)
                     )
                 }
+            )
+        }
+    }
+}
+
+
+private const val VIEW_ONLY_TEXT = "You have view-only access here. Ask a Family Admin if you need to make changes."
+
+/** Shown when a Family Admin set this section to None for the person. */
+@Composable
+fun NoAccessScreen(title: String, onBack: (() -> Unit)?) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        com.familyhub.app.ui.common.ScreenTopBar(title = title, onBack = onBack)
+        Column(
+            modifier = Modifier.fillMaxSize().padding(32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(Icons.Rounded.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("No access", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                "A Family Admin has not given you access to $title. Ask them if you need it.",
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
         }
     }

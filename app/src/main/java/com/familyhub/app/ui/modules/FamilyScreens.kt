@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -149,9 +150,13 @@ fun FamilyScreen(
     /** Super Admin or Family Admin: approves and removes members. */
     isAdmin: Boolean = isOwner,
     /** Only the Super Admin (the family's creator) makes or unmakes Family Admins. */
-    onSetAdmin: (String, Boolean) -> Unit = { _, _ -> }
+    onSetAdmin: (String, Boolean) -> Unit = { _, _ -> },
+    /** Family Admins choose None / View only / Full for each section, per member. */
+    onSetAccess: (String, Map<String, String>) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
+    var accessFor by remember { mutableStateOf<FamilyMember?>(null) }
+    accessFor?.let { who -> MemberAccessSheet(who, onDismiss = { accessFor = null }) { perms -> accessFor = null; onSetAccess(who.uid, perms) } }
     fun isSuper(m: FamilyMember) = m.uid == family.ownerUid || m.role == FamilyRole.OWNER
     fun roleLabel(m: FamilyMember) = when {
         isSuper(m) -> "Super Admin"
@@ -313,6 +318,14 @@ fun FamilyScreen(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                             maxLines = 1
                         )
+                        if (m.perms.isNotEmpty() && !m.isAdmin && !isSuper(m)) {
+                            Text(
+                                "Access: " + com.familyhub.app.family.Permissions.summary(m.perms),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.tertiary,
+                                maxLines = 2
+                            )
+                        }
                         // Details the member chose to share from their profile.
                         val extra = listOfNotNull(
                             m.bloodGroup.takeIf { it.isNotBlank() }?.let { "Blood $it" },
@@ -347,6 +360,10 @@ fun FamilyScreen(
                                 if (isOwner) DropdownMenuItem(
                                     text = { Text(if (m.isAdmin) "Remove as Family Admin" else "Make Family Admin") },
                                     onClick = { menu = false; confirmAdmin = m }
+                                )
+                                if (isAdmin && !m.isAdmin) DropdownMenuItem(
+                                    text = { Text("Access…") },
+                                    onClick = { menu = false; accessFor = m }
                                 )
                                 if (canRemove) DropdownMenuItem(
                                     text = { Text("Remove from family", color = MaterialTheme.colorScheme.error) },
@@ -528,3 +545,47 @@ fun SettingsScreen(
     }
 }
 
+
+
+/** Per-section access for one member: None hides the section, View only allows reading, Full allows changes. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+fun MemberAccessSheet(member: FamilyMember, onDismiss: () -> Unit, onSave: (Map<String, String>) -> Unit) {
+    val P = com.familyhub.app.family.Permissions
+    val labels = mapOf(P.NONE to "None", P.VIEW to "View only", P.EDIT to "Full")
+    val choice = remember(member.uid) {
+        androidx.compose.runtime.mutableStateMapOf<String, String>().apply {
+            P.SECTIONS.forEach { put(it.key, member.perms[it.key] ?: P.EDIT) }
+        }
+    }
+    com.familyhub.app.core.theme.GlassBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp)
+                .verticalScroll(androidx.compose.foundation.rememberScrollState())
+        ) {
+            Text("Access for ${member.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                "None hides a section from ${member.name}. View only lets them read it without changing anything. " +
+                    "The family's security rules enforce this, not just the app. Family Admins always have full access.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            P.SECTIONS.forEach { sec ->
+                Text(sec.label, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 10.dp, bottom = 4.dp))
+                com.familyhub.app.core.theme.SegmentedControl(
+                    options = P.LEVELS.map { labels.getValue(it) },
+                    selected = labels.getValue(choice[sec.key] ?: P.EDIT),
+                    onSelect = { picked -> choice[sec.key] = labels.entries.first { it.value == picked }.key }
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                androidx.compose.material3.TextButton(onClick = { P.SECTIONS.forEach { choice[it.key] = P.EDIT } }) { Text("Full access everywhere") }
+                Spacer(modifier = Modifier.width(8.dp))
+                androidx.compose.material3.Button(onClick = { onSave(choice.filterValues { it != P.EDIT }) }) { Text("Save access") }
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}

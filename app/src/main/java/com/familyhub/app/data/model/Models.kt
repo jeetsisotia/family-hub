@@ -62,7 +62,9 @@ data class FamilyMember(
     // Shared activity numbers for family comparison.
     val stepsToday: Long? = null,
     val stepsDate: String = "",
-    val stepsWeek: Long? = null
+    val stepsWeek: Long? = null,
+    /** Section access set by a Family Admin: section key → "none" or "view". Missing means full access. */
+    val perms: Map<String, String> = emptyMap()
 )
 
 data class FamilyEvent(

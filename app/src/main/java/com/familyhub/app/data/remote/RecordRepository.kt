@@ -2,6 +2,10 @@ package com.familyhub.app.data.remote
 
 import android.util.Log
 import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.FieldPath
+import com.google.firebase.firestore.Query
+import com.familyhub.app.family.AccessState
+import com.familyhub.app.family.Permissions
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
@@ -9,6 +13,11 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,7 +44,7 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
     private fun userRef(uid: String) = firestore.collection("users").document(uid)
     private fun privateCol(uid: String, collection: String) = userRef(uid).collection(collection)
 
-    private fun listen(ref: CollectionReference, private: Boolean, tag: String): Flow<List<Rec>> = callbackFlow<List<Rec>> {
+    private fun listen(ref: Query, private: Boolean, tag: String): Flow<List<Rec>> = callbackFlow<List<Rec>> {
         var sent = false
         val reg = ref.addSnapshotListener { snap, e ->
             if (e != null) {
@@ -62,8 +71,40 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
         awaitClose { }
     }
 
+    /**
+     * Family records of a collection. A person whose access has a "None" section only asks for what they may see:
+     * whole sections they cannot see are skipped, and family items are loaded by kind (the security rules refuse a
+     * whole-list read for them). Everyone else reads the collection as before.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun observeRecords(familyId: String, collection: String): Flow<List<Rec>> =
-        if (familyId.isBlank()) emptyFlow() else listen(col(familyId, collection), false, collection)
+        if (familyId.isBlank()) emptyFlow()
+        else AccessState.flow.map { it }.distinctUntilChanged().flatMapLatest { a ->
+            when {
+                !a.restricted -> listen(col(familyId, collection), false, collection)
+                !Permissions.canLoadCollection(a.perms, collection, a.admin) -> flowOf(emptyList<Rec>())
+                collection != "items" -> listen(col(familyId, collection), false, collection)
+                else -> {
+                    val parts = Permissions.chunks(Permissions.visibleItemTypes(a.perms, a.admin))
+                    if (parts.isEmpty()) flowOf(emptyList<Rec>())
+                    else combine(parts.mapIndexed { i, types ->
+                        listen(col(familyId, collection).whereIn(FieldPath.of("type"), types), false, "$collection by kind $i")
+                    }) { lists -> lists.flatMap { it } }
+                }
+            }
+        }
+
+    /** Family records the server has now, honouring the same access as [observeRecords]. */
+    private suspend fun familyFromServer(familyId: String, collection: String): List<com.google.firebase.firestore.DocumentSnapshot> {
+        val server = com.google.firebase.firestore.Source.SERVER
+        val a = AccessState.now
+        if (!a.restricted) return col(familyId, collection).get(server).await().documents
+        if (!Permissions.canLoadCollection(a.perms, collection, a.admin)) return emptyList()
+        if (collection != "items") return col(familyId, collection).get(server).await().documents
+        return Permissions.chunks(Permissions.visibleItemTypes(a.perms, a.admin)).flatMap { types ->
+            col(familyId, collection).whereIn(FieldPath.of("type"), types).get(server).await().documents
+        }
+    }
 
     fun observePrivate(uid: String, collection: String): Flow<List<Rec>> =
         if (uid.isBlank()) emptyFlow() else listen(privateCol(uid, collection), true, "private $collection")
@@ -81,7 +122,7 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
             m as Rec
         }
         val server = com.google.firebase.firestore.Source.SERVER
-        val fam = if (familyId.isBlank()) emptyList() else rows(col(familyId, collection).get(server).await().documents, false)
+        val fam = if (familyId.isBlank()) emptyList() else rows(familyFromServer(familyId, collection), false)
         val mine = if (uid.isBlank()) emptyList() else rows(privateCol(uid, collection).get(server).await().documents, true)
         return fam + mine
     }
@@ -232,6 +273,11 @@ class RecordRepository @Inject constructor(private val firestore: FirebaseFirest
     /** Makes a member a Family Admin, or takes it away (the Super Admin only). */
     suspend fun setMemberAdmin(familyId: String, memberUid: String, admin: Boolean) {
         familyRef(familyId).collection("members").document(memberUid).update("isAdmin", admin).await()
+    }
+
+    /** Saves a member's section access (only Family Admins may; the rules check it). */
+    suspend fun setMemberAccess(familyId: String, memberUid: String, perms: Map<String, String>) {
+        familyRef(familyId).collection("members").document(memberUid).update(Permissions.memberFields(perms)).await()
     }
 
     /** Writes a private record with a fixed id (for example one step-count record per day). */

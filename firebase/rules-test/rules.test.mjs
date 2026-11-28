@@ -226,6 +226,74 @@ test('chat: anyone in the chat may set only their own reaction', async () => {
   await assertSucceeds(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.owner': '👍' }));
   await assertFails(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.member': '👍' }));
 });
+// ---------- section permissions (28 Nov) ----------
+async function restrict(uid, perms) {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const db = ctx.firestore();
+    await setDoc(doc(db, `families/${F}/members/${uid}`), { uid, status: 'ACTIVE', perms });
+    await setDoc(doc(db, `families/${F}/items/doc1`), { type: 'document', title: 'Passport' });
+    await setDoc(doc(db, `families/${F}/items/h1`), { type: 'health', title: 'BP' });
+    await setDoc(doc(db, `families/${F}/items/sub1`), { type: 'subscription', title: 'Netflix' });
+  });
+}
+test('perms: nobody restricted → everything works as before (whole collections)', async () => {
+  await restrict('member', {});
+  await assertSucceeds(getDocs(collection(as('member'), `families/${F}/items`)));
+  await assertSucceeds(getDocs(collection(as('member'), `families/${F}/expenses`)));
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/items/new1`), { type: 'health', title: 'x' }));
+});
+test('perms: "None" for Health hides health items, even by id', async () => {
+  await restrict('member', { health: 'none' });
+  await assertFails(getDoc(doc(as('member'), `families/${F}/items/h1`)));
+  await assertSucceeds(getDoc(doc(as('member'), `families/${F}/items/doc1`)));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/items/h2`), { type: 'health', title: 'x' }));
+});
+test('perms: a restricted person cannot read the whole items list, but can load allowed kinds', async () => {
+  await restrict('member', { health: 'none' });
+  await assertFails(getDocs(collection(as('member'), `families/${F}/items`)));
+  await assertSucceeds(getDocs(query(collection(as('member'), `families/${F}/items`), where('type', 'in', ['document', 'subscription', 'vault']))));
+  await assertSucceeds(getDocs(query(collection(as('member'), `families/${F}/items`), where('type', '==', 'document'))));
+  await assertFails(getDocs(query(collection(as('member'), `families/${F}/items`), where('type', 'in', ['document', 'health']))));
+});
+test('perms: "View" lets people read but not change', async () => {
+  await restrict('member', { finance: 'view', documents: 'view' });
+  await assertSucceeds(getDoc(doc(as('member'), `families/${F}/expenses/e1`)));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/expenses/e1`), { title: 'changed' }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/expenses/e2`), { title: 'new', amountInr: 1 }));
+  await assertSucceeds(getDoc(doc(as('member'), `families/${F}/items/doc1`)));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/items/doc1`), { title: 'changed' }));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/items/sub1`), { title: 'changed' }));
+});
+test('perms: an item cannot be moved into a section the person may not edit', async () => {
+  await restrict('member', { health: 'view' });
+  await assertSucceeds(updateDoc(doc(as('member'), `families/${F}/items/doc1`), { title: 'Passport 2' }));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/items/doc1`), { type: 'health' }));
+});
+test('perms: whole sections (Calendar, Finance, Tasks, Travel) follow the same levels', async () => {
+  await restrict('member', { calendar: 'none', travel: 'none' });
+  await assertFails(getDocs(collection(as('member'), `families/${F}/events`)));
+  await assertFails(getDocs(collection(as('member'), `families/${F}/trips`)));
+  await assertSucceeds(getDocs(collection(as('member'), `families/${F}/expenses`)));
+  await assertSucceeds(getDocs(collection(as('member'), `families/${F}/tasks`)));
+});
+test('perms: Chat "None" hides the family chat; "View" reads but cannot send', async () => {
+  await restrict('member', { chat: 'none' });
+  await assertFails(getDoc(doc(as('member'), `families/${F}/chats/family/messages/g1`)));
+  await restrict('member', { chat: 'view' });
+  await assertSucceeds(getDoc(doc(as('member'), `families/${F}/chats/family/messages/g1`)));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/messages/n1`), { senderUid: 'member', senderName: 'M', text: 'hi', at: 1, clientAt: 1 }));
+});
+test('perms: admins always have full access and set access for others; nobody changes their own', async () => {
+  await restrict('admin', { health: 'none' });
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), `families/${F}/members/admin`), { uid: 'admin', status: 'ACTIVE', isAdmin: true, perms: { health: 'none' } }); });
+  await assertSucceeds(getDoc(doc(as('admin'), `families/${F}/items/h1`)));
+  await assertSucceeds(getDocs(collection(as('admin'), `families/${F}/items`)));
+  await restrict('member', { health: 'none' });
+  await assertSucceeds(updateDoc(doc(as('admin'), `families/${F}/members/member`), { perms: { health: 'view' }, canEditFinance: true }));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/members/member`), { perms: {} }));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/members/member`), { canEditFinance: false }));
+});
+
 // ---------- chat attachments and typing (28 Nov) ----------
 const att = { id: 'a1', kind: 'photo', name: 'photo.jpg', mime: 'image/jpeg', size: 1200, parts: 1, w: 10, h: 10 };
 const amsg = { senderUid: 'member', senderName: 'M', text: '📷 Photo', at: 2, clientAt: 2, attachment: att };

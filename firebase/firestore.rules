@@ -32,6 +32,37 @@ service cloud.firestore {
         (isFamilyMember(familyId) && myMemberDoc(familyId).data.get('isAdmin', false) == true);
     }
 
+    // ---------- Section permissions (None / View / Edit per member, set by admins; unset means Edit) ----------
+    // Same lists as app/.../family/Permissions.kt.
+    function myPerms(familyId) { return myMemberDoc(familyId).data.get('perms', {}); }
+    // Nobody restricted anywhere: whole collections may be read (keeps every existing query working).
+    function unrestricted(familyId) { return isFamilyAdmin(familyId) || !('none' in myPerms(familyId).values()); }
+    function canSee(familyId, section) { return isFamilyAdmin(familyId) || myPerms(familyId).get(section, 'edit') != 'none'; }
+    function canEdit(familyId, section) { return isFamilyAdmin(familyId) || myPerms(familyId).get(section, 'edit') == 'edit'; }
+    function finTypes() { return ['subscription', 'loan', 'account', 'card', 'debit_card', 'policy', 'goal', 'challenge', 'category', 'settle', 'budget_limit', 'merchant_rule']; }
+    function calTypes() { return ['birthday']; }
+    function taskTypes() { return ['reminder', 'chore', 'note', 'habit', 'meal']; }
+    function docTypes() { return ['document']; }
+    function healthTypes() { return ['health', 'medicine', 'vital', 'food', 'workout', 'period']; }
+    function homeTypes() { return ['vault', 'maintenance', 'vehicle', 'property']; }
+    function famTypes() { return ['staff', 'emergency', 'notice', 'pet', 'school']; }
+    function memTypes() { return ['memory']; }
+    function knownItem(t) {
+      return t in finTypes() || t in calTypes() || t in taskTypes() || t in docTypes() || t in healthTypes() ||
+        t in homeTypes() || t in famTypes() || t in memTypes();
+    }
+    function itemOk(familyId, t, edit) {
+      return (t in finTypes() && (edit ? canEdit(familyId, 'finance') : canSee(familyId, 'finance'))) ||
+        (t in calTypes() && (edit ? canEdit(familyId, 'calendar') : canSee(familyId, 'calendar'))) ||
+        (t in taskTypes() && (edit ? canEdit(familyId, 'tasks') : canSee(familyId, 'tasks'))) ||
+        (t in docTypes() && (edit ? canEdit(familyId, 'documents') : canSee(familyId, 'documents'))) ||
+        (t in healthTypes() && (edit ? canEdit(familyId, 'health') : canSee(familyId, 'health'))) ||
+        (t in homeTypes() && (edit ? canEdit(familyId, 'home') : canSee(familyId, 'home'))) ||
+        (t in famTypes() && (edit ? canEdit(familyId, 'family') : canSee(familyId, 'family'))) ||
+        (t in memTypes() && (edit ? canEdit(familyId, 'memories') : canSee(familyId, 'memories'))) ||
+        !knownItem(t);
+    }
+
     // Admin flag and role are unchanged by this write.
     function keepsRole() {
       return request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) &&
@@ -86,7 +117,10 @@ service cloud.firestore {
         allow update: if isFamilyOwner(familyId) ||
           (isFamilyAdmin(familyId) && memberUid != familyOwnerUid(familyId) && keepsRole()) ||
           (signedIn() && request.auth.uid == memberUid && keepsRole() &&
-            request.resource.data.status == resource.data.status);
+            request.resource.data.status == resource.data.status &&
+            // Nobody changes their own access.
+            request.resource.data.get('perms', {}) == resource.data.get('perms', {}) &&
+            request.resource.data.get('canEditFinance', true) == resource.data.get('canEditFinance', true));
         // Leaving is always allowed. A Family Admin may remove members who are not admins.
         allow delete: if isFamilyOwner(familyId) || (signedIn() && request.auth.uid == memberUid) ||
           (isFamilyAdmin(familyId) && memberUid != familyOwnerUid(familyId) && resource.data.get('isAdmin', false) == false);
@@ -94,28 +128,37 @@ service cloud.firestore {
 
       // Shared records: members add, edit and move them to Recently deleted; only admins delete for good.
       match /events/{docId} {
-        allow read, create, update: if isFamilyMember(familyId);
+        allow read: if isFamilyMember(familyId) && canSee(familyId, 'calendar');
+        allow create, update: if isFamilyMember(familyId) && canEdit(familyId, 'calendar');
         allow delete: if isFamilyAdmin(familyId);
       }
 
       match /expenses/{docId} {
-        allow read, create, update: if isFamilyMember(familyId);
+        allow read: if isFamilyMember(familyId) && canSee(familyId, 'finance');
+        allow create, update: if isFamilyMember(familyId) && canEdit(familyId, 'finance');
         allow delete: if isFamilyAdmin(familyId);
       }
 
       match /tasks/{docId} {
-        allow read, create, update: if isFamilyMember(familyId);
+        allow read: if isFamilyMember(familyId) && canSee(familyId, 'tasks');
+        allow create, update: if isFamilyMember(familyId) && canEdit(familyId, 'tasks');
         allow delete: if isFamilyAdmin(familyId);
       }
 
       match /trips/{docId} {
-        allow read, create, update: if isFamilyMember(familyId);
+        allow read: if isFamilyMember(familyId) && canSee(familyId, 'travel');
+        allow create, update: if isFamilyMember(familyId) && canEdit(familyId, 'travel');
         allow delete: if isFamilyAdmin(familyId);
       }
 
       // Vault, documents, health, vehicles, loans, subscriptions, accounts, cards and more.
       match /items/{docId} {
-        allow read, create, update: if isFamilyMember(familyId);
+        // Each kind of item belongs to a section (Finance, Health, Documents…); someone with no access to a
+        // section loads the others by type ("type in [...]"), so their queries never touch it.
+        allow read: if isFamilyMember(familyId) && (unrestricted(familyId) || itemOk(familyId, resource.data.get('type', ''), false));
+        allow create: if isFamilyMember(familyId) && itemOk(familyId, request.resource.data.get('type', ''), true);
+        allow update: if isFamilyMember(familyId) && itemOk(familyId, resource.data.get('type', ''), true) &&
+          itemOk(familyId, request.resource.data.get('type', ''), true);
         allow delete: if isFamilyAdmin(familyId);
       }
 
@@ -126,7 +169,7 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/families/$(familyId)/chats/$(chatId));
         }
         function inChat() {
-          return isFamilyMember(familyId) &&
+          return isFamilyMember(familyId) && canSee(familyId, 'chat') &&
             (chatId == 'family' || request.auth.uid in chatDoc().data.get('memberUids', []));
         }
         function activeMember(uid) {
@@ -137,7 +180,7 @@ service cloud.firestore {
         allow get: if isFamilyMember(familyId) && (chatId == 'family' ||
           (resource == null && chatId.matches('dm_.*' + request.auth.uid + '.*')) ||
           (resource != null && request.auth.uid in resource.data.get('memberUids', [])));
-        allow list: if isFamilyMember(familyId) && request.auth.uid in resource.data.memberUids;
+        allow list: if isFamilyMember(familyId) && canSee(familyId, 'chat') && request.auth.uid in resource.data.memberUids;
         allow create: if isFamilyMember(familyId) && (
           (chatId == 'family' && request.resource.data.type == 'group' &&
             request.resource.data.keys().hasOnly(['type', 'title', 'createdByUid', 'lastAt'])) ||
@@ -177,7 +220,7 @@ service cloud.firestore {
               request.auth.uid in getAfter(/databases/$(database)/documents/families/$(familyId)/chats/$(chatId)).data.get('memberUids', []));
           }
           allow read: if inChat();
-          allow create: if inThisChat() &&
+          allow create: if inThisChat() && canEdit(familyId, 'chat') &&
             request.resource.data.senderUid == request.auth.uid &&
             request.resource.data.text is string &&
             request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 4000 &&

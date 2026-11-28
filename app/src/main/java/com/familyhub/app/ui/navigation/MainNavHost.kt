@@ -87,7 +87,10 @@ fun MoreHubGrid(
     hidden: Set<String> = emptySet(),
     onEdit: (() -> Unit)? = null
 ) {
-    val shown = remember(order, hidden) { arrangedDestinations(order).filter { it.route !in hidden } }
+    val access by com.familyhub.app.family.AccessState.flow.collectAsState()
+    val shown = remember(order, hidden, access) {
+        arrangedDestinations(order).filter { it.route !in hidden && com.familyhub.app.ui.hub.routeVisible(it.route, access) }
+    }
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),

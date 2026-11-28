@@ -881,3 +881,5 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - **Home screen widgets:** Family overview and Shopping list, with a "Private widgets" switch.
 - **Needs Jeet:** publish the new Firestore rules (firebase/firestore.rules; 92 rules tests pass). Until then, attachments, typing and group calls are refused on real phones.
 - **Not done:** per-module permissions, the update checker, video messages, and calls that ring when the app is closed (needs a paid server).
+
+- 28 Nov (p77): Per-member section access (None / View only / Full) — rules, app loading, admin sheet, tests.

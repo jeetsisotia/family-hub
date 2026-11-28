@@ -15,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -140,6 +141,26 @@ object Hubs {
     val grouped: Set<String> = listOf(health, money, home, life, reminders).flatMap { h -> h.items.map { it.route } }.toSet()
 }
 
+/** The access section a screen belongs to, so a section set to None disappears from menus. */
+fun routeSection(route: String): String? = ModuleByRoute[route]?.let { com.familyhub.app.family.Permissions.sectionOf(it.collection, it.typeValue) }
+    ?: when (route) {
+        "finance" -> "finance"
+        "calendar" -> "calendar"
+        "documents" -> "documents"
+        "health_hub" -> "health"
+        "chats" -> "chat"
+        "trips", "travel" -> "travel"
+        else -> null
+    }
+
+/** Whether a screen (or a hub with at least one visible screen) is shown to this person. */
+fun routeVisible(route: String, a: com.familyhub.app.family.AccessState.Access = com.familyhub.app.family.AccessState.now): Boolean {
+    if (!a.restricted) return true
+    val hub = listOf(Hubs.health, Hubs.money, Hubs.home, Hubs.life, Hubs.reminders).firstOrNull { it.route == route }
+    if (hub != null) return hub.items.any { routeVisible(it.route, a) }
+    return a.canSee(routeSection(route))
+}
+
 /** A top category on the Home screen, with how many entries it holds for the chosen view. */
 data class HomeCategory(
     val route: String,
@@ -195,7 +216,7 @@ fun arrangedHomeCategories(order: List<String>, hidden: Set<String>): List<HomeC
     return HomeCategories.withIndex()
         .sortedBy { (i, c) -> pos[c.route] ?: (order.size + i) }
         .map { it.value }
-        .filter { it.route !in hidden }
+        .filter { it.route !in hidden && routeVisible(it.route) }
 }
 
 /** Which records a Home view counts: the family's shared ones, or the person's own. */
@@ -252,7 +273,9 @@ fun FitLabel(
 
 /** A hub's screens as one grouped list (icon, name, count), like the iPhone Settings app. */
 @Composable
-fun HubTiles(items: List<HubItem>, onOpen: (String) -> Unit, counts: (String) -> Int? = { null }) {
+fun HubTiles(all: List<HubItem>, onOpen: (String) -> Unit, counts: (String) -> Int? = { null }) {
+    val access by com.familyhub.app.family.AccessState.flow.collectAsState()
+    val items = all.filter { routeVisible(it.route, access) }
     com.familyhub.app.core.theme.GroupedSection {
         items.forEachIndexed { i, item ->
             com.familyhub.app.core.theme.GroupedRow(
@@ -282,13 +305,15 @@ fun HubScreen(hub: Hub, env: AppEnv) {
                 )
             }
             item {
+                val access by com.familyhub.app.family.AccessState.flow.collectAsState()
+                val visible = hub.items.filter { routeVisible(it.route, access) }
                 com.familyhub.app.core.theme.GroupedSection {
-                    hub.items.forEachIndexed { i, item ->
+                    visible.forEachIndexed { i, item ->
                         val count = hubCount(env, item.route)
                         com.familyhub.app.core.theme.GroupedRow(
                             item.title, icon = item.icon, tile = i,
                             value = count?.let { "$it" },
-                            divider = i < hub.items.lastIndex
+                            divider = i < visible.lastIndex
                         ) { env.navigate(item.route) }
                     }
                 }

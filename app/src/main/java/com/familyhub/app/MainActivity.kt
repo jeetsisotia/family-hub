@@ -326,6 +326,8 @@ class MainActivity : FragmentActivity() {
                     // The family's creator is its Super Admin; they can make others Family Admins.
                     val isOwner = family?.ownerUid == uid || currentMember.role == FamilyRole.OWNER
                     val isAdmin = isOwner || currentMember.isAdmin
+                    // What this person may see; record loading and screens follow it (the rules enforce it too).
+                    com.familyhub.app.family.AccessState.set(if (members.any { it.uid == uid }) currentMember.perms else emptyMap(), isAdmin)
                     // Admins keep the family's invite code working (needed for joining by code or QR).
                     LaunchedEffect(family?.id, family?.inviteCode, family?.name, isAdmin) {
                         val f = family
@@ -601,6 +603,16 @@ class MainActivity : FragmentActivity() {
                                                     recordRepository.setMemberAdmin(activeFamilyId, memberUid, admin)
                                                 } catch (e: Exception) {
                                                     Toast.makeText(context, "Could not change: ${e.message}", Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        },
+                                        onSetAccess = { memberUid, perms ->
+                                            scope.launch {
+                                                try {
+                                                    recordRepository.setMemberAccess(activeFamilyId, memberUid, perms)
+                                                    Toast.makeText(context, "Access saved", Toast.LENGTH_SHORT).show()
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "Could not save access: ${e.message}", Toast.LENGTH_LONG).show()
                                                 }
                                             }
                                         },

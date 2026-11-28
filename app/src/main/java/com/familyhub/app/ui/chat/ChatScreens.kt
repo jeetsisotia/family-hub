@@ -167,6 +167,8 @@ private fun chatTitle(c: Chat, env: AppEnv): String =
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(env: AppEnv, onOpen: (String) -> Unit) {
+    val access by com.familyhub.app.family.AccessState.flow.collectAsState()
+    if (!access.canSee("chat")) { com.familyhub.app.ui.modules.NoAccessScreen("Chats", null); return }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val chats by remember(env.familyId, env.uid) { ChatRepository.observeChats(env.familyId, env.uid) }.collectAsState(initial = null)
@@ -402,6 +404,8 @@ private fun ChatRow(env: AppEnv, c: Chat, pinned: Boolean, muted: Boolean, onCli
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
+    val seeAccess by com.familyhub.app.family.AccessState.flow.collectAsState()
+    if (!seeAccess.canSee("chat")) { com.familyhub.app.ui.modules.NoAccessScreen("Chat", onBack); return }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
@@ -674,7 +678,16 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
         }
         if (showEmoji) EmojiPanel(onPick = { e -> text += e; ChatPrefs.useEmoji(context, e) })
         if (sendingFile) LinearProgressIndicator(Modifier.fillMaxWidth())
-        if (recording) {
+        val chatAccess by com.familyhub.app.family.AccessState.flow.collectAsState()
+        if (!chatAccess.canEdit("chat")) {
+            Text(
+                "View only: a Family Admin has not allowed you to send messages.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(16.dp)
+            )
+        } else if (recording) {
             // Recording a voice message: time, live loudness, cancel or send.
             Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { finishRecording(false) }) { Icon(Icons.Rounded.Delete, "Cancel recording", tint = MaterialTheme.colorScheme.error) }

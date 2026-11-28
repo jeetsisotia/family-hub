@@ -152,3 +152,21 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
 1. Check the screenshot of the Due Summary header from the p52/p53 build.
 2. Add demo routes for the Health, Documents and Reminders add forms and screenshot them.
 3. Re-run AI live check when the free quota resets, to retry web search.
+
+## 28 Nov — Per-member section access (bundle p77)
+
+- A Family Admin opens Family → a member's ⋮ menu → **Access…** and picks **None / View only / Full** for each section:
+  Finance, Calendar, Tasks and shopping, Documents, Health, Home and vehicles, Family information, Memories, Travel, Chat.
+- Stored on the member record as `perms` (only the limits; missing means full). `canEditFinance` is kept in step with Finance.
+- **Enforced in `firebase/firestore.rules`**, not only hidden: section reads/writes on events, expenses, tasks, trips and
+  family items (by `type`), chat reading/sending, and members cannot change their own access. Admins always have full access.
+  Backup before this change: `firebase/firestore.rules.backup-2026-11-28-before-permissions`.
+- A member with any "None" loads family items by kind (`type in [...]`, ≤30 per query) because the rules refuse a
+  whole-list read for them; everyone else loads exactly as before.
+- App: hidden sections disappear from More, hubs and Home; a None screen shows "No access"; View only hides Add,
+  blocks editing and shows a banner; chat composer is replaced by a view-only note; AI actions are refused for sections
+  the person cannot edit. "Only me" records are always the person's own.
+- Known limit: item kinds the app does not list yet have no section and stay visible to everyone in the family,
+  but a restricted member will not load them until they are added to a section.
+- Tests: `tools/perms-test` (21 checks incl. app/rules kind lists agree), rules tests "perms: …", emulator checks "access: …".
+- **Still needs the user:** publish `firebase/firestore.rules` in the Firebase console (Google sign-in).

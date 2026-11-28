@@ -67,7 +67,13 @@ class DemoActivity : FragmentActivity() {
         // "dark:" shows the screen in the dark theme, "solid:" with Reduce transparency (not saved).
         val dark = asked.startsWith("dark:")
         val solid = asked.startsWith("solid:")
-        val route = asked.removePrefix("dark:").removePrefix("solid:")
+        val route0 = asked.removePrefix("dark:").removePrefix("solid:")
+        // "limited:" shows the screen as a member a Family Admin restricted (no Health, view-only Finance and Chat).
+        val limited = route0.startsWith("limited:")
+        val route = route0.removePrefix("limited:")
+        com.familyhub.app.family.AccessState.set(
+            if (limited) mapOf("health" to "none", "finance" to "view", "chat" to "view") else emptyMap(), !limited
+        )
         if (solid) {
             com.familyhub.app.core.theme.GlassPrefs.load(this)
             com.familyhub.app.core.theme.GlassPrefs.reduceTransparency.value = true
@@ -139,6 +145,11 @@ class DemoActivity : FragmentActivity() {
                                 }
                             }
                             route == "more" -> MoreHubGrid(onNavigate = {}, onEdit = {})
+                            // The Family Admin's access sheet for one member.
+                            route == "access_sheet" -> com.familyhub.app.ui.modules.MemberAccessSheet(
+                                com.familyhub.app.data.model.FamilyMember(uid = "ravi", name = "Ravi", perms = mapOf("health" to "none", "finance" to "view")),
+                                onDismiss = {}, onSave = {}
+                            )
                             route == "chat_list" -> com.familyhub.app.ui.chat.ChatListScreen(env) { }
                             route.startsWith("chat:") -> com.familyhub.app.ui.chat.ChatScreen(env, route.removePrefix("chat:"), onBack = {})
                             route == "assistant_new" -> AssistantScreen(env)

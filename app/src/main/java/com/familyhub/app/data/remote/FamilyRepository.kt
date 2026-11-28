@@ -202,7 +202,7 @@ class FamilyRepository @Inject constructor(
         val reg = familyRef(familyId).collection("events")
             .whereEqualTo("isDeleted", false)
             .addSnapshotListener { snap, e ->
-                if (e != null) { logListenerError("events", e); return@addSnapshotListener }
+                if (e != null) { logListenerError("events", e); trySend(emptyList()); return@addSnapshotListener }
                 trySend(snap.safeList(FamilyEvent::class.java).sortedBy { it.startTimeMillis })
             }
         awaitClose { reg.remove() }
@@ -218,7 +218,7 @@ class FamilyRepository @Inject constructor(
         val reg = familyRef(familyId).collection("expenses")
             .whereEqualTo("isDeleted", false)
             .addSnapshotListener { snap, e ->
-                if (e != null) { logListenerError("expenses", e); return@addSnapshotListener }
+                if (e != null) { logListenerError("expenses", e); trySend(emptyList()); return@addSnapshotListener }
                 trySend(snap.safeList(FinanceTransaction::class.java).sortedByDescending { it.dateMillis })
             }
         awaitClose { reg.remove() }
@@ -253,7 +253,7 @@ class FamilyRepository @Inject constructor(
         val reg = familyRef(familyId).collection("tasks")
             .orderBy("updatedAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snap, e ->
-                if (e != null) { logListenerError("tasks", e); return@addSnapshotListener }
+                if (e != null) { logListenerError("tasks", e); trySend(emptyList()); return@addSnapshotListener }
                 trySend(snap.safeList(HouseholdTask::class.java))
             }
         awaitClose { reg.remove() }
@@ -269,7 +269,7 @@ class FamilyRepository @Inject constructor(
         val reg = familyRef(familyId).collection("trips")
             .orderBy("startDateMillis", Query.Direction.ASCENDING)
             .addSnapshotListener { snap, e ->
-                if (e != null) { logListenerError("trips", e); return@addSnapshotListener }
+                if (e != null) { logListenerError("trips", e); trySend(emptyList()); return@addSnapshotListener }
                 trySend(snap.safeList(FamilyTrip::class.java))
             }
         awaitClose { reg.remove() }
