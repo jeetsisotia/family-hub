@@ -92,6 +92,11 @@ Bundle p70: `core/theme/GlassComponents.kt` (GlassDialog with real window blur o
 
 Mapping of the brief's names: GlassToolbar = `ScreenTopBar`, GlassNavigationBar = `GlassTabBar`, GlassTabBar = `SegmentedControl`, GlassCard = `GlassCard`.
 
+### Session 28 Nov (Jeet away; "complete all phases"): chat attachments and typing (bundle p72)
+
+Chat already had replies, reactions, edit, delete for everyone/me, forward, copy, star, pin, polls, drafts, in-chat search, Seen, unread counts, offline sending, pin/mute/archive chats, @mentions. Added: photos (shrunk to 1280 px JPEG), voice messages (AAC 24 kbps, up to 3 min, waveform, 1×/1.5×/2×), documents (up to ~4.5 MB), full-screen photo viewer (pinch zoom, share), shared media sheet, "typing…" (written at most every 4 s; switch "Show when I'm typing"), forwarding attachments, delete for everyone also removes the file.
+Spark plan: no Cloud Storage, so files are cut into Base64 parts of 600 KB in `chats/{chat}/parts/{fileId}_{n}` (rules: only people in the chat read; sender writes once; only sender deletes; ≤ 850,000 characters each; ≤ 8 parts; message `attachment` map checked). Each part read costs one Firestore read; received files are cached on the phone. Video is not supported (too large for this approach). Rules backup: `firebase/firestore.rules.backup-2026-11-28-before-attachments`. Tests: rules-test +5, chat-test +19, emulator +12.
+
 ### Phone tests to give at the end (collect here)
 
 1. Mukul-style category change on your own data, in both AI screens.

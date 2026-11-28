@@ -73,8 +73,37 @@ object ChatRepository {
         /** A poll's answers (2 to 6); the text is its question. Empty for ordinary messages. */
         val pollOptions: List<String> = emptyList(),
         /** Poll votes: uid to the chosen answer's position. */
-        val votes: Map<String, Int> = emptyMap()
+        val votes: Map<String, Int> = emptyMap(),
+        /** A photo, voice message or file sent with this message (its bytes are in parts/), or null. */
+        val attachment: Attachment? = null
     )
+
+    /** What was attached: [kind] is photo, voice or file; [parts] pieces hold the bytes (see [ChatMedia]). */
+    data class Attachment(
+        val id: String,
+        val kind: String,
+        val name: String,
+        val mime: String,
+        val size: Long,
+        val parts: Int,
+        val durationMs: Long = 0,
+        val wave: List<Int> = emptyList(),
+        val w: Int = 0,
+        val h: Int = 0
+    )
+
+    private fun toAttachment(v: Any?): Attachment? {
+        val a = v as? Map<*, *> ?: return null
+        val kind = a["kind"] as? String ?: return null
+        val id = a["id"] as? String ?: return null
+        return Attachment(
+            id = id, kind = kind, name = a["name"] as? String ?: "", mime = a["mime"] as? String ?: "",
+            size = (a["size"] as? Number)?.toLong() ?: 0, parts = (a["parts"] as? Number)?.toInt() ?: 1,
+            durationMs = (a["durationMs"] as? Number)?.toLong() ?: 0,
+            wave = (a["wave"] as? List<*>).orEmpty().mapNotNull { (it as? Number)?.toInt() },
+            w = (a["w"] as? Number)?.toInt() ?: 0, h = (a["h"] as? Number)?.toInt() ?: 0
+        )
+    }
 
     private fun millis(v: Any?): Long = when (v) {
         is Timestamp -> v.toDate().time
@@ -115,7 +144,8 @@ object ChatRepository {
             forwarded = d.getBoolean("forwarded") == true,
             reactions = reactions,
             pollOptions = pollOptions,
-            votes = votes
+            votes = votes,
+            attachment = toAttachment(d.get("attachment"))
         )
     }
 
@@ -221,6 +251,76 @@ object ChatRepository {
         return id
     }
 
+    /**
+     * Sends a photo, voice message or file. The bytes go into parts/ and the message (with a short description)
+     * in one batch, so the others never see a message whose file is missing. Works offline like [send].
+     */
+    fun sendAttachment(
+        familyId: String, chatId: String, uid: String, name: String, bytes: ByteArray,
+        kind: String, fileName: String, mime: String, durationMs: Long = 0, wave: List<Int> = emptyList(), w: Int = 0, h: Int = 0,
+        replyTo: Message? = null, onFailed: ((String) -> Unit)? = null
+    ): String {
+        require(kind in ChatMedia.KINDS)
+        val pieces = ChatMedia.split(bytes)
+        val id = UUID.randomUUID().toString()
+        val fileId = id.replace("-", "").take(24)
+        val att = Attachment(fileId, kind, fileName.take(120), mime.take(80), bytes.size.toLong(), pieces.size, durationMs, wave.take(64), w, h)
+        val label = ChatMedia.label(kind, fileName, durationMs)
+        val now = System.currentTimeMillis()
+        if (DemoChats.active(familyId)) {
+            DemoChats.files[fileId] = bytes
+            DemoChats.add(chatId, Message(id, uid, name, label, now, false, null, false, replyTo?.id.orEmpty(), replyTo?.text?.take(160).orEmpty(), replyTo?.senderName.orEmpty(), false, emptyMap(), attachment = att))
+            return id
+        }
+        val attMap = HashMap<String, Any>()
+        attMap["id"] = att.id; attMap["kind"] = att.kind; attMap["name"] = att.name; attMap["mime"] = att.mime
+        attMap["size"] = att.size; attMap["parts"] = att.parts
+        if (durationMs > 0) attMap["durationMs"] = durationMs
+        if (att.wave.isNotEmpty()) attMap["wave"] = att.wave
+        if (w > 0 && h > 0) { attMap["w"] = w; attMap["h"] = h }
+        val msg = HashMap<String, Any?>()
+        msg["senderUid"] = uid; msg["senderName"] = name; msg["text"] = label
+        msg["at"] = FieldValue.serverTimestamp(); msg["clientAt"] = now; msg["attachment"] = attMap
+        if (replyTo != null) { msg["replyToId"] = replyTo.id; msg["replyToText"] = replyTo.text.take(160); msg["replyToName"] = replyTo.senderName }
+        val batch = db.batch()
+        pieces.forEachIndexed { n, data ->
+            batch.set(chat(familyId, chatId).collection("parts").document(ChatMedia.partId(fileId, n)), mapOf("senderUid" to uid, "data" to data, "at" to FieldValue.serverTimestamp()))
+        }
+        batch.set(messages(familyId, chatId).document(id), msg)
+        batch.set(chat(familyId, chatId), mapOf("lastText" to label, "lastSenderUid" to uid, "lastAt" to FieldValue.serverTimestamp()), SetOptions.merge())
+        batch.set(chat(familyId, chatId).collection("reads").document(uid), mapOf("at" to FieldValue.serverTimestamp()))
+        batch.commit().addOnFailureListener { onFailed?.invoke(id) }
+        return id
+    }
+
+    /** The bytes of an attachment, put back together from its parts (Firestore keeps them for offline use). */
+    suspend fun loadAttachment(familyId: String, chatId: String, a: Attachment): ByteArray {
+        if (DemoChats.active(familyId)) return DemoChats.files[a.id] ?: error("Not on this phone")
+        val col = chat(familyId, chatId).collection("parts")
+        val parts = (0 until a.parts).map { n -> col.document(ChatMedia.partId(a.id, n)).get().await().getString("data") }
+        return ChatMedia.join(parts)
+    }
+
+    /** "Typing…": sets this person's typing time (the screen calls it at most every few seconds). */
+    fun setTyping(familyId: String, chatId: String, uid: String) {
+        if (DemoChats.active(familyId)) return
+        chat(familyId, chatId).collection("typing").document(uid).set(mapOf("at" to FieldValue.serverTimestamp()))
+    }
+
+    fun clearTyping(familyId: String, chatId: String, uid: String) {
+        if (DemoChats.active(familyId)) return
+        chat(familyId, chatId).collection("typing").document(uid).delete()
+    }
+
+    /** When each person in the chat last typed (uid to millis). */
+    fun observeTyping(familyId: String, chatId: String): Flow<Map<String, Long>> =
+        if (DemoChats.active(familyId)) DemoChats.typing.map { it[chatId].orEmpty() } else callbackFlow {
+        val reg = chat(familyId, chatId).collection("typing").addSnapshotListener { snap, e ->
+            if (e == null && snap != null) trySend(snap.documents.associate { it.id to millis(it.get("at")) })
+        }
+        awaitClose { reg.remove() }
+    }
+
     /** Sends again a message the server refused; the old copy is left as it was. */
     fun resend(familyId: String, chatId: String, uid: String, name: String, m: Message) =
         send(familyId, chatId, uid, name, m.text, pollOptions = m.pollOptions)
@@ -244,9 +344,13 @@ object ChatRepository {
     }
 
     /** Delete for everyone: the text is removed and the message shows as deleted. */
-    suspend fun deleteForEveryone(familyId: String, chatId: String, id: String) {
+    suspend fun deleteForEveryone(familyId: String, chatId: String, id: String, attachment: Attachment? = null) {
         if (DemoChats.active(familyId)) { DemoChats.change(chatId, id) { it.copy(text = "", deletedForAll = true) }; return }
         messages(familyId, chatId).document(id).update(mapOf("text" to "", "deletedForAll" to true, "editedAt" to FieldValue.serverTimestamp())).await()
+        // The file's bytes are removed too (only the sender may).
+        if (attachment != null) (0 until attachment.parts).forEach { n ->
+            try { chat(familyId, chatId).collection("parts").document(ChatMedia.partId(attachment.id, n)).delete().await() } catch (e: Exception) { }
+        }
     }
 
     /** Adds, changes or (with null) removes this person's reaction. */
@@ -302,6 +406,8 @@ object DemoChats {
     val chats = MutableStateFlow<List<ChatRepository.Chat>>(emptyList())
     val messages = MutableStateFlow<Map<String, List<ChatRepository.Message>>>(emptyMap())
     val reads = MutableStateFlow<Map<String, Map<String, Long>>>(emptyMap())
+    val typing = MutableStateFlow<Map<String, Map<String, Long>>>(emptyMap())
+    val files = mutableMapOf<String, ByteArray>()
 
     fun active(id: String): Boolean = id.isNotBlank() && id == familyId
 
@@ -312,6 +418,34 @@ object DemoChats {
 
     fun change(chatId: String, id: String, edit: (ChatRepository.Message) -> ChatRepository.Message) {
         messages.value = messages.value + (chatId to messages.value[chatId].orEmpty().map { if (it.id == id) edit(it) else it })
+    }
+
+    private fun demoPhoto(): ByteArray {
+        val bmp = android.graphics.Bitmap.createBitmap(640, 480, android.graphics.Bitmap.Config.ARGB_8888)
+        val c = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint()
+        p.shader = android.graphics.LinearGradient(0f, 0f, 0f, 480f, 0xFF4FC3F7.toInt(), 0xFFFFE0B2.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        c.drawRect(0f, 0f, 640f, 480f, p)
+        p.shader = null; p.color = 0xFFFFB74D.toInt(); c.drawCircle(470f, 150f, 70f, p)
+        p.color = 0xFF0288D1.toInt(); c.drawRect(0f, 330f, 640f, 480f, p)
+        val out = java.io.ByteArrayOutputStream()
+        bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, out)
+        return out.toByteArray()
+    }
+
+    /** A 1-second, quiet 440 Hz tone as a WAV file, so the player has something real to play. */
+    private fun demoVoice(): ByteArray {
+        val rate = 8000; val n = rate
+        val data = ByteArray(n * 2)
+        for (i in 0 until n) {
+            val v = (kotlin.math.sin(2 * Math.PI * 440 * i / rate) * 3000).toInt()
+            data[2 * i] = (v and 0xFF).toByte(); data[2 * i + 1] = ((v shr 8) and 0xFF).toByte()
+        }
+        val h = java.nio.ByteBuffer.allocate(44).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        h.put("RIFF".toByteArray()).putInt(36 + data.size).put("WAVE".toByteArray()).put("fmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(rate).putInt(rate * 2).putShort(2).putShort(16)
+            .put("data".toByteArray()).putInt(data.size)
+        return h.array() + data
     }
 
     /** Fills a family chat and one direct chat with sample messages. [others] are (uid, name) pairs. */
@@ -337,7 +471,19 @@ object DemoChats {
         val d3 = m("d3", a, "😊", now - 3 * hour)
         val poll = m("g8", b, "Sunday lunch: what should we cook?", now - 6 * 60_000L)
             .copy(pollOptions = listOf("Biryani", "Chole bhature", "Dosa"), votes = mapOf(a.first to 0, me to 0, b.first to 2))
-        messages.value = mapOf(ChatRepository.FAMILY_CHAT to listOf(g1, g2, g3, g4, g5, g6, g7, poll), dm to listOf(d1, d2, d3))
+        // Attachments for the emulator check: a made-up photo, a short voice clip and a PDF (all generated here).
+        files["demophoto01"] = demoPhoto()
+        files["demovoice01"] = demoVoice()
+        files["demofile01"] = "%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF".toByteArray()
+        val d4 = m("d4", a, ChatMedia.label("photo", "", 0), now - 150 * 60_000L)
+            .copy(attachment = ChatRepository.Attachment("demophoto01", "photo", "beach.jpg", "image/jpeg", files["demophoto01"]!!.size.toLong(), 1, w = 640, h = 480))
+        val d5 = m("d5", self, ChatMedia.label("voice", "", 7_000), now - 140 * 60_000L)
+            .copy(attachment = ChatRepository.Attachment("demovoice01", "voice", "voice.wav", "audio/wav", files["demovoice01"]!!.size.toLong(), 1, 7_000,
+                ChatMedia.wave((0 until 70).map { (kotlin.math.sin(it / 4.0) * 50 + 55).toInt() })))
+        val g9 = m("g9", b, ChatMedia.label("file", "Car insurance 2026.pdf", 0), now - 3 * 60_000L)
+            .copy(attachment = ChatRepository.Attachment("demofile01", "file", "Car insurance 2026.pdf", "application/pdf", 1_240_000, 3))
+        typing.value = mapOf(dm to mapOf(a.first to now + 50_000L))
+        messages.value = mapOf(ChatRepository.FAMILY_CHAT to listOf(g1, g2, g3, g4, g5, g6, g7, poll, g9), dm to listOf(d1, d2, d3, d4, d5))
         reads.value = mapOf(
             ChatRepository.FAMILY_CHAT to mapOf(me to now - 60 * 60_000L, b.first to now - 30 * 60_000L),
             dm to mapOf(me to now - 3 * hour, a.first to now - 3 * hour)

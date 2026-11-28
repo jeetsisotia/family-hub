@@ -75,6 +75,9 @@ object ChatPrefs {
     fun toggleArchived(ctx: Context, id: String) = toggle(ctx, "archived", id)
     fun toggleStarred(ctx: Context, id: String) = toggle(ctx, "starred", id)
     fun hide(ctx: Context, id: String) { if (id !in hidden(ctx)) toggle(ctx, "hidden", id) }
+    /** Whether others see "typing…" while this person types (on by default). */
+    fun shareTyping(ctx: Context): Boolean = prefs(ctx).getBoolean("shareTyping", true)
+    fun setShareTyping(ctx: Context, on: Boolean) = prefs(ctx).edit().putBoolean("shareTyping", on).apply()
     fun draft(ctx: Context, chatId: String): String = prefs(ctx).getString("draft_$chatId", "").orEmpty()
     fun saveDraft(ctx: Context, chatId: String, text: String) = prefs(ctx).edit().putString("draft_$chatId", text).apply()
     fun recentEmojis(ctx: Context): List<String> = prefs(ctx).getString("recentEmoji", "").orEmpty().split('\u0001').filter { it.isNotBlank() }
@@ -421,6 +424,28 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
     val hidden = remember(tick) { ChatPrefs.hidden(context) }
     val starred = remember(tick) { ChatPrefs.starred(context) }
     val failed = remember { mutableStateMapOf<String, Message>() }
+    var viewing by remember { mutableStateOf<ChatRepository.Attachment?>(null) }
+    var showGallery by remember { mutableStateOf(false) }
+    var showAttach by remember { mutableStateOf(false) }
+    var sendingFile by remember { mutableStateOf(false) }
+    val recorder = remember { VoiceRecorder(context) }
+    var recording by remember { mutableStateOf(false) }
+    var recordMs by remember { mutableLongStateOf(0L) }
+    DisposableEffect(chatId) { onDispose { recorder.cancel(); ChatRepository.clearTyping(env.familyId, chatId, env.uid) } }
+    val typingTimes by remember(chatId) { ChatRepository.observeTyping(env.familyId, chatId) }.collectAsState(initial = emptyMap())
+    var clock by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(typingTimes) { while (true) { clock = System.currentTimeMillis(); kotlinx.coroutines.delay(2_000) } }
+    val typingNames = typingTimes.filter { (uid, at) -> uid != env.uid && com.familyhub.app.data.remote.ChatMedia.isTyping(at, clock) }
+        .keys.mapNotNull { uid -> env.members.firstOrNull { it.uid == uid }?.name?.substringBefore(' ')?.ifBlank { null } }
+    // Tell the others "typing…" at most every 4 seconds, if this person allows it.
+    var typingSentAt by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(text) {
+        val now = System.currentTimeMillis()
+        if (text.isNotBlank() && now - typingSentAt > 4_000 && ChatPrefs.shareTyping(context)) {
+            typingSentAt = now
+            runCatching { ChatRepository.setTyping(env.familyId, chatId, env.uid) }
+        }
+    }
     val listState = rememberLazyListState()
     val myName = env.profile.name.ifBlank { "Me" }
     val title = chat?.let { chatTitle(it, env) } ?: if (chatId == ChatRepository.FAMILY_CHAT) env.family.name.ifBlank { "Family" } else "Chat"
@@ -474,12 +499,72 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
         scope.launch { listState.animateScrollToItem(0) }
     }
 
+    fun sendPicked(picked: ChatPick.Picked, kind: String, durationMs: Long = 0, wave: List<Int> = emptyList()) {
+        try {
+            val reply = replyTo
+            val sentAt = System.currentTimeMillis()
+            ChatRepository.sendAttachment(
+                env.familyId, chatId, env.uid, myName, picked.bytes, kind, picked.name, picked.mime, durationMs, wave, picked.w, picked.h, reply
+            ) { id -> failed[id] = Message(id, env.uid, myName, com.familyhub.app.data.remote.ChatMedia.label(kind, picked.name, durationMs), sentAt, true, null, false, "", "", "", false, emptyMap()) }
+            replyTo = null
+            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            scope.launch { listState.animateScrollToItem(0) }
+        } catch (e: Exception) {
+            Toast.makeText(context, e.message ?: "Could not send", Toast.LENGTH_LONG).show()
+        }
+    }
+    fun pickAndSend(read: () -> ChatPick.Picked, kind: () -> String) {
+        sendingFile = true
+        scope.launch {
+            val r = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching { read() } }
+            sendingFile = false
+            r.onSuccess { sendPicked(it, kind()) }.onFailure { Toast.makeText(context, it.message ?: "Could not read it", Toast.LENGTH_LONG).show() }
+        }
+    }
+    val photoPicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) pickAndSend({ ChatPick.photo(context, uri) }, { "photo" })
+    }
+    val filePicker = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            val mime = context.contentResolver.getType(uri).orEmpty()
+            if (mime.startsWith("image/") && !mime.contains("gif")) pickAndSend({ ChatPick.photo(context, uri) }, { "photo" })
+            else pickAndSend({ ChatPick.file(context, uri) }, { "file" })
+        }
+    }
+    fun startRecording() {
+        try { recorder.start(); recording = true; recordMs = 0 }
+        catch (e: Exception) { recording = false; Toast.makeText(context, "Could not start recording: ${e.message}", Toast.LENGTH_LONG).show() }
+    }
+    val micPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { ok ->
+        if (ok) startRecording() else Toast.makeText(context, "Voice messages need the microphone. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
+    }
+    fun finishRecording(send: Boolean) {
+        recording = false
+        if (!send) { recorder.cancel(); return }
+        val r = recorder.stop()
+        if (r == null) { Toast.makeText(context, "Too short. Hold on a little longer.", Toast.LENGTH_SHORT).show(); return }
+        sendPicked(ChatPick.Picked(r.first, "voice.m4a", "audio/mp4"), "voice", r.second, r.third)
+    }
+    LaunchedEffect(recording) {
+        while (recording) {
+            recorder.sample(); recordMs = recorder.elapsed()
+            if (recordMs >= com.familyhub.app.data.remote.ChatMedia.MAX_VOICE_MS) { finishRecording(true); break }
+            kotlinx.coroutines.delay(100)
+        }
+    }
+
     Column(Modifier.fillMaxSize().imePadding()) {
         ScreenTopBar(title = title, onBack = onBack, compact = true) {
             val peer = if (chatId.startsWith("dm_")) env.members.firstOrNull { chat != null && it.uid in chat.memberUids && it.uid != env.uid } else null
             if (peer != null) CallButtons(peer.uid, peer.name)
+            IconButton(onClick = { showGallery = true }) { Icon(Icons.Rounded.PhotoLibrary, "Photos, voice messages and files") }
             IconButton(onClick = { searching = !searching; if (!searching) search = "" }) { Icon(Icons.Rounded.Search, "Search in this chat") }
         }
+        if (typingNames.isNotEmpty()) Text(
+            com.familyhub.app.data.remote.ChatMedia.typingLine(typingNames),
+            style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(start = 20.dp, bottom = 2.dp)
+        )
         if (searching) {
             GlassInputField(
                 value = search, onValueChange = { search = it }, singleLine = true, placeholder = { Text("Search loaded messages") },
@@ -535,6 +620,7 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
                                 onReact = { e -> scope.launch { try { ChatRepository.react(env.familyId, chatId, m.id, env.uid, if (m.reactions[env.uid] == e) null else e) } catch (x: Exception) { } } },
                                 myUid = env.uid,
                                 handles = handles,
+                                attachment = m.attachment?.takeIf { !m.deletedForAll }?.let { a -> @Composable { fg: Color -> AttachmentView(env.familyId, chatId, a, fg) { viewing = it } } },
                                 onVote = { option ->
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     scope.launch {
@@ -587,17 +673,65 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
             }
         }
         if (showEmoji) EmojiPanel(onPick = { e -> text += e; ChatPrefs.useEmoji(context, e) })
-        Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
+        if (sendingFile) LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (recording) {
+            // Recording a voice message: time, live loudness, cancel or send.
+            Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { finishRecording(false) }) { Icon(Icons.Rounded.Delete, "Cancel recording", tint = MaterialTheme.colorScheme.error) }
+                Box(Modifier.size(10.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error))
+                Spacer(Modifier.width(8.dp))
+                Text(com.familyhub.app.data.remote.ChatMedia.durationText(recordMs), style = MaterialTheme.typography.titleSmall)
+                Spacer(Modifier.width(10.dp))
+                val live = com.familyhub.app.data.remote.ChatMedia.wave(recorder.samples.takeLast(120), 30)
+                Row(Modifier.weight(1f).height(26.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    live.forEach { v -> Box(Modifier.width(3.dp).fillMaxHeight(v / 100f).clip(CircleShape).background(MaterialTheme.colorScheme.primary)) }
+                }
+                Spacer(Modifier.width(8.dp))
+                FilledIconButton(onClick = { finishRecording(true) }) { Icon(Icons.Rounded.Send, "Send voice message") }
+            }
+        } else Row(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.Bottom) {
             IconButton(onClick = { showEmoji = !showEmoji }) { Icon(if (showEmoji) Icons.Rounded.Keyboard else Icons.Rounded.EmojiEmotions, "Emoji") }
-            if (text.isEmpty() && editing == null) IconButton(onClick = { showPoll = true }) { Icon(Icons.Rounded.Poll, "Create a poll") }
+            if (text.isEmpty() && editing == null) IconButton(onClick = { showAttach = true }) { Icon(Icons.Rounded.AddCircleOutline, "Attach a photo, file or poll") }
             GlassInputField(
                 value = text, onValueChange = { if (it.length <= ChatRepository.MAX_TEXT) text = it },
                 placeholder = { Text("Message") }, maxLines = 5, shape = RoundedCornerShape(22.dp), modifier = Modifier.weight(1f)
             )
             Spacer(Modifier.width(6.dp))
-            FilledIconButton(onClick = { send() }, enabled = text.isNotBlank()) { Icon(if (editing != null) Icons.Rounded.Check else Icons.Rounded.Send, "Send") }
+            if (text.isBlank() && editing == null) {
+                FilledTonalIconButton(onClick = {
+                    if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) startRecording()
+                    else micPermission.launch(android.Manifest.permission.RECORD_AUDIO)
+                }) { Icon(Icons.Rounded.Mic, "Record a voice message") }
+            } else {
+                FilledIconButton(onClick = { send() }, enabled = text.isNotBlank()) { Icon(if (editing != null) Icons.Rounded.Check else Icons.Rounded.Send, "Send") }
+            }
         }
     }
+
+    if (showAttach) com.familyhub.app.core.theme.GlassActionSheet(
+        title = "Send",
+        actions = listOf(
+            com.familyhub.app.core.theme.GlassAction("Photo", icon = Icons.Rounded.Image) {
+                photoPicker.launch(androidx.activity.result.PickVisualMediaRequest(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            com.familyhub.app.core.theme.GlassAction("Document or file", icon = Icons.Rounded.AttachFile) { filePicker.launch(arrayOf("*/*")) },
+            com.familyhub.app.core.theme.GlassAction("Poll", icon = Icons.Rounded.Poll) { showPoll = true }
+        ),
+        onDismiss = { showAttach = false }
+    )
+    if (showGallery) GlassBottomSheet(onDismissRequest = { showGallery = false }) {
+        MediaGallery(env.familyId, chatId, shown) { viewing = it }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            var share by remember { mutableStateOf(ChatPrefs.shareTyping(context)) }
+            Column(Modifier.weight(1f)) {
+                Text("Show when I'm typing", style = MaterialTheme.typography.bodyMedium)
+                Text("Others see \"typing…\" while you write. Applies to all chats.", style = MaterialTheme.typography.labelSmall)
+            }
+            Switch(checked = share, onCheckedChange = { share = it; ChatPrefs.setShareTyping(context, it); if (!it) ChatRepository.clearTyping(env.familyId, chatId, env.uid) })
+        }
+        Spacer(Modifier.height(16.dp))
+    }
+    viewing?.let { a -> PhotoViewer(env.familyId, chatId, a) { viewing = null } }
 
     if (showPoll) PollDialog(onDismiss = { showPoll = false }) { question, options ->
         showPoll = false
@@ -638,11 +772,11 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
                     SheetItem(close, Icons.Rounded.PushPin, if (chat?.pinnedMessageId == m.id) "Unpin" else "Pin in this chat") {
                         scope.launch { try { ChatRepository.pin(env.familyId, chatId, if (chat?.pinnedMessageId == m.id) null else m.id) } catch (e: Exception) { } }
                     }
-                    if (mine && !m.pending) SheetItem(close, Icons.Rounded.Edit, "Edit") { editing = m; replyTo = null; text = m.text }
+                    if (mine && !m.pending && m.attachment == null) SheetItem(close, Icons.Rounded.Edit, "Edit") { editing = m; replyTo = null; text = m.text }
                 }
                 SheetItem(close, Icons.Rounded.VisibilityOff, "Delete for me") { ChatPrefs.hide(context, m.id); tick++ }
                 if (mine && !m.deletedForAll && !m.pending) SheetItem(close, Icons.Rounded.Delete, "Delete for everyone") {
-                    scope.launch { try { ChatRepository.deleteForEveryone(env.familyId, chatId, m.id) } catch (e: Exception) { Toast.makeText(context, "Could not delete: ${e.message}", Toast.LENGTH_LONG).show() } }
+                    scope.launch { try { ChatRepository.deleteForEveryone(env.familyId, chatId, m.id, m.attachment) } catch (e: Exception) { Toast.makeText(context, "Could not delete: ${e.message}", Toast.LENGTH_LONG).show() } }
                 }
             }
         }
@@ -668,8 +802,18 @@ fun ChatScreen(env: AppEnv, chatId: String, onBack: () -> Unit) {
                     targets.forEach { c ->
                         TextButton(onClick = {
                             forwardOf = null
-                            try { ChatRepository.send(env.familyId, c.id, env.uid, myName, m.text, forwarded = true); Toast.makeText(context, "Forwarded", Toast.LENGTH_SHORT).show() }
-                            catch (e: Exception) { Toast.makeText(context, "Could not forward: ${e.message}", Toast.LENGTH_LONG).show() }
+                            val a = m.attachment
+                            if (a != null) scope.launch {
+                                // A photo, voice message or file is sent again to the other chat (its bytes are copied there).
+                                try {
+                                    val bytes = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { ChatFileCache.get(context, env.familyId, chatId, a).readBytes() }
+                                    ChatRepository.sendAttachment(env.familyId, c.id, env.uid, myName, bytes, a.kind, a.name, a.mime, a.durationMs, a.wave, a.w, a.h)
+                                    Toast.makeText(context, "Forwarded", Toast.LENGTH_SHORT).show()
+                                } catch (e: Exception) { Toast.makeText(context, "Could not forward: ${e.message}", Toast.LENGTH_LONG).show() }
+                            } else {
+                                try { ChatRepository.send(env.familyId, c.id, env.uid, myName, m.text, forwarded = true); Toast.makeText(context, "Forwarded", Toast.LENGTH_SHORT).show() }
+                                catch (e: Exception) { Toast.makeText(context, "Could not forward: ${e.message}", Toast.LENGTH_LONG).show() }
+                            }
                         }) { Text(chatTitle(c, env)) }
                     }
                 }
@@ -695,7 +839,8 @@ private fun Bubble(
     m: Message, mine: Boolean, showName: Boolean, tail: Boolean, starred: Boolean, failed: Boolean, seen: String,
     onLong: () -> Unit, onSwipeReply: () -> Unit, onRetry: () -> Unit, onReact: (String) -> Unit, myUid: String,
     handles: List<String> = emptyList(),
-    onVote: (Int) -> Unit = {}
+    onVote: (Int) -> Unit = {},
+    attachment: (@Composable (Color) -> Unit)? = null
 ) {
     var drag by remember { mutableFloatStateOf(0f) }
     val emojiOnly = !m.deletedForAll && m.pollOptions.isEmpty() && isEmojiOnly(m.text)
@@ -744,6 +889,7 @@ private fun Bubble(
                     m.deletedForAll -> Text("This message was deleted", color = fg.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium)
                     emojiOnly -> Text(m.text, fontSize = 44.sp, lineHeight = 52.sp)
                     m.pollOptions.size >= 2 -> PollBody(m, fg, myUid, onVote)
+                    attachment != null -> attachment(fg)
                     else -> Text(mentionText(m.text, handles), color = fg, style = MaterialTheme.typography.bodyLarge)
                 }
                 Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {

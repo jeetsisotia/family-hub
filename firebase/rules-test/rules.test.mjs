@@ -226,6 +226,56 @@ test('chat: anyone in the chat may set only their own reaction', async () => {
   await assertSucceeds(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.owner': '👍' }));
   await assertFails(updateDoc(doc(as('owner'), `families/${F}/chats/family/messages/g1`), { 'reactions.member': '👍' }));
 });
+// ---------- chat attachments and typing (28 Nov) ----------
+const att = { id: 'a1', kind: 'photo', name: 'photo.jpg', mime: 'image/jpeg', size: 1200, parts: 1, w: 10, h: 10 };
+const amsg = { senderUid: 'member', senderName: 'M', text: '📷 Photo', at: 2, clientAt: 2, attachment: att };
+test('chat attachment: a member can send a photo (description plus its part) in the family chat', async () => {
+  const b = writeBatch(as('member'));
+  b.set(doc(as('member'), `families/${F}/chats/family/parts/a1_0`), { senderUid: 'member', data: 'AAAA', at: 2 });
+  b.set(doc(as('member'), `families/${F}/chats/family/messages/m-a1`), amsg);
+  await assertSucceeds(b.commit());
+  await assertSucceeds(getDoc(doc(as('owner'), `families/${F}/chats/family/parts/a1_0`)));
+});
+test('chat attachment: parts of a direct chat are private to its two people (admins included)', async () => {
+  await assertSucceeds(setDoc(doc(as('admin'), `families/${F}/chats/${DM}/parts/x_0`), { senderUid: 'admin', data: 'AAAA', at: 1 }));
+  await assertSucceeds(getDoc(doc(as('member'), `families/${F}/chats/${DM}/parts/x_0`)));
+  await assertFails(getDoc(doc(as('owner'), `families/${F}/chats/${DM}/parts/x_0`)));
+  await assertFails(getDoc(doc(as('stranger'), `families/${F}/chats/family/parts/x_0`)));
+  await assertFails(setDoc(doc(as('owner'), `families/${F}/chats/${DM}/parts/y_0`), { senderUid: 'owner', data: 'AAAA', at: 1 }));
+});
+test('chat attachment: a part cannot pretend to be someone else, carry extra fields, be too big or change', async () => {
+  const p = (id) => doc(as('member'), `families/${F}/chats/family/parts/${id}`);
+  await assertFails(setDoc(p('b_0'), { senderUid: 'owner', data: 'AAAA', at: 1 }));
+  await assertFails(setDoc(p('b_1'), { senderUid: 'member', data: 'AAAA', at: 1, extra: true }));
+  await assertFails(setDoc(p('b_2'), { senderUid: 'member', data: 'A'.repeat(850001), at: 1 }));
+  await assertFails(setDoc(p('b_3'), { senderUid: 'member', data: '', at: 1 }));
+  await assertSucceeds(setDoc(p('b_4'), { senderUid: 'member', data: 'AAAA', at: 1 }));
+  await assertFails(updateDoc(p('b_4'), { data: 'BBBB' }));
+  await assertFails(deleteDoc(doc(as('owner'), `families/${F}/chats/family/parts/b_4`)));
+  await assertSucceeds(deleteDoc(p('b_4')));
+  await assertFails(setDoc(doc(as('pending'), `families/${F}/chats/family/parts/b_5`), { senderUid: 'pending', data: 'AAAA', at: 1 }));
+});
+test('chat attachment: the description is checked (kind, size, parts, fields)', async () => {
+  const m = (id, a) => setDoc(doc(as('member'), `families/${F}/chats/family/messages/${id}`), { ...amsg, attachment: a });
+  await assertSucceeds(m('ok1', { ...att, kind: 'voice', durationMs: 4000, wave: [1, 2, 3] }));
+  await assertSucceeds(m('ok2', { ...att, kind: 'file', name: 'policy.pdf', mime: 'application/pdf', parts: 8, size: 4800000 }));
+  await assertFails(m('bad1', { ...att, kind: 'video' }));
+  await assertFails(m('bad2', { ...att, parts: 9 }));
+  await assertFails(m('bad3', { ...att, size: 6000000 }));
+  await assertFails(m('bad4', { ...att, url: 'https://example.com/x' }));
+  await assertFails(m('bad5', 'not a map'));
+  await assertFails(m('bad6', { ...att, wave: Array(65).fill(1) }));
+});
+test('chat typing: each person sets only their own "typing" time; only people in the chat see it', async () => {
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/family/typing/member`), { at: serverTimestamp() }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/typing/owner`), { at: serverTimestamp() }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/chats/family/typing/member`), { at: serverTimestamp(), text: 'secret draft' }));
+  await assertSucceeds(getDoc(doc(as('owner'), `families/${F}/chats/family/typing/member`)));
+  await assertFails(getDoc(doc(as('owner'), `families/${F}/chats/${DM}/typing/admin`)));
+  await assertFails(getDoc(doc(as('stranger'), `families/${F}/chats/family/typing/member`)));
+  await assertSucceeds(deleteDoc(doc(as('member'), `families/${F}/chats/family/typing/member`)));
+});
+
 test('chat: a poll needs 2 to 6 answers', async () => {
   const base = { senderUid: 'member', senderName: 'M', text: 'Dinner?', at: 2, clientAt: 2 };
   await assertSucceeds(setDoc(doc(as('member'), `families/${F}/chats/family/messages/p1`), { ...base, pollOptions: ['Pizza', 'Dosa'] }));

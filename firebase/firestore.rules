@@ -157,6 +157,20 @@ service cloud.firestore {
           (inChat() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pinnedMessageId']));
         allow delete: if false;
 
+        function validAttachment(a) {
+          return a is map &&
+            a.keys().hasOnly(['id', 'kind', 'name', 'mime', 'size', 'parts', 'durationMs', 'wave', 'w', 'h']) &&
+            a.id is string && a.id.size() > 0 && a.id.size() <= 64 &&
+            a.kind in ['photo', 'voice', 'file'] &&
+            a.parts is int && a.parts >= 1 && a.parts <= 8 &&
+            a.size is int && a.size > 0 && a.size <= 5000000 &&
+            (!('wave' in a) || (a.wave is list && a.wave.size() <= 64));
+        }
+        function inChatAfter() {
+          return isFamilyMember(familyId) && (chatId == 'family' ||
+            request.auth.uid in getAfter(/databases/$(database)/documents/families/$(familyId)/chats/$(chatId)).data.get('memberUids', []));
+        }
+
         match /messages/{msgId} {
           function inThisChat() {
             return isFamilyMember(familyId) && (chatId == 'family' ||
@@ -168,7 +182,9 @@ service cloud.firestore {
             request.resource.data.text is string &&
             request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 4000 &&
             request.resource.data.keys().hasOnly(['senderUid', 'senderName', 'text', 'at', 'clientAt',
-              'replyToId', 'replyToText', 'replyToName', 'forwarded', 'pollOptions']) &&
+              'replyToId', 'replyToText', 'replyToName', 'forwarded', 'pollOptions', 'attachment']) &&
+            // A photo, voice message or file: a short description here; its bytes are in parts/ (see below).
+            (!('attachment' in request.resource.data) || validAttachment(request.resource.data.attachment)) &&
             // A poll has 2 to 6 answers; the message text is its question.
             (!('pollOptions' in request.resource.data) ||
               (request.resource.data.pollOptions is list &&
@@ -190,6 +206,27 @@ service cloud.firestore {
                   request.resource.data.votes[request.auth.uid] < resource.data.pollOptions.size())))
           );
           allow delete: if false;
+        }
+
+        // Attachment bytes (Spark plan: no Cloud Storage), in parts of at most ~600 KB, readable only by the
+        // people in this chat. Written once by the sender; only the sender may remove them.
+        match /parts/{partId} {
+          allow read: if inChat();
+          allow create: if inChatAfter() &&
+            request.resource.data.senderUid == request.auth.uid &&
+            request.resource.data.keys().hasOnly(['senderUid', 'data', 'at']) &&
+            request.resource.data.data is string && request.resource.data.data.size() > 0 &&
+            request.resource.data.data.size() <= 850000;
+          allow update: if false;
+          allow delete: if inChat() && resource.data.senderUid == request.auth.uid;
+        }
+
+        // "Typing…": each person sets only their own, and only the time.
+        match /typing/{typerUid} {
+          allow read: if inChat();
+          allow create, update: if inChat() && request.auth.uid == typerUid &&
+            request.resource.data.keys().hasOnly(['at']);
+          allow delete: if inChat() && request.auth.uid == typerUid;
         }
 
         // When each person last read the chat: everyone in the chat may see them, each sets only their own.

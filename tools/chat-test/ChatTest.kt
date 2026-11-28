@@ -22,5 +22,6 @@ fun main() {
     check("a longer name is not a mention", !Mentions.mentions("@Ashaben hi", "Asha"))
     check("no mention, no alert", !Mentions.mentions("Dinner at 8", "Asha"))
     check("Hindi names work", Mentions.mentions("@अमित चलो", "अमित कुमार"))
+    failures += mediaTests()
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }
