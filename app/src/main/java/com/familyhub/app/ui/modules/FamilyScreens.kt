@@ -483,6 +483,20 @@ fun SettingsScreen(
                 }
             }
             item {
+                var privateWidgets by remember { mutableStateOf(com.familyhub.app.widget.HomeWidgets.isPrivate(ctx)) }
+                com.familyhub.app.core.theme.GroupedSection(
+                    title = "Home screen widgets",
+                    footer = "Add \"Family overview\" or \"Shopping list\" from your phone's widget picker. Health items are never shown. Private widgets show only counts, no names."
+                ) {
+                    com.familyhub.app.core.theme.GroupedSwitchRow(
+                        title = "Private widgets",
+                        checked = privateWidgets,
+                        onChange = { privateWidgets = it; com.familyhub.app.widget.HomeWidgets.setPrivate(ctx, it) },
+                        divider = false
+                    )
+                }
+            }
+            item {
                 com.familyhub.app.core.theme.GroupedSection(title = "Family") {
                     com.familyhub.app.core.theme.GroupedRow("Name", value = family.name, divider = true)
                     com.familyhub.app.core.theme.GroupedRow("Invite code", value = family.inviteCode, divider = true)

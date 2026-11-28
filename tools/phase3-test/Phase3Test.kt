@@ -1,4 +1,5 @@
 // Phase 3 logic: savings goals, budget plan, spending insights, report files (run by the Unit tests workflow).
+import com.familyhub.app.money.Challenges
 import com.familyhub.app.money.BudgetPlan
 import com.familyhub.app.money.Goals
 import com.familyhub.app.money.Intel
@@ -62,5 +63,27 @@ fun main() {
     check("reports: member CSV", Reports.memberCsv(ex, BudgetPlan.monthStart(now, 0), now).lines()[1].startsWith("Asha,9000.00"))
     check("reports: commas are quoted", Reports.goalsCsv(listOf(g + ("title" to "Car, new"))).contains("\"Car, new\""))
     check("reports: budget CSV", Reports.budgetCsv(lines.values.toList()).lines().size == 4)
+
+    // ---------- savings challenges (28 Nov) ----------
+    val start = at(2026, 11, 2)   // a Monday
+    val w52 = mapOf<String, Any?>("kind" to Challenges.WEEK52, "stepInr" to 10.0, "startMillis" to start, "savedInr" to 0.0)
+    check("challenge: 52-week total is 1,378 × the base", Challenges.target(w52) == 13_780.0, Challenges.target(w52))
+    check("challenge: week 1 saves the base, week 3 saves 3 ×", Challenges.stepAmount(w52, 1) == 10.0 && Challenges.stepAmount(w52, 3) == 30.0)
+    check("challenge: week number from the start date", Challenges.step(w52, at(2026, 11, 2)) == 1 && Challenges.step(w52, at(2026, 11, 9)) == 2 && Challenges.step(w52, at(2026, 11, 27)) == 4, Challenges.step(w52, at(2026, 11, 27)))
+    check("challenge: due so far after 4 weeks is 10+20+30+40", Challenges.dueSoFar(w52, at(2026, 11, 27)) == 100.0)
+    check("challenge: behind plan when nothing saved", Challenges.versusPlan(w52, at(2026, 11, 27)) == -100.0)
+    check("challenge: not started yet → step 0", Challenges.step(w52, at(2026, 10, 30)) == 0)
+    val saved = Challenges.saveFields(w52, at(2026, 11, 27), "Jeet", 100.0, "Weeks 1-4")
+    check("challenge: saving adds to the total and keeps the history", saved["savedInr"] == 100.0 && (saved["contributions"] as List<*>).size == 1 && saved["amountInr"] == 13_780.0)
+    val daily = mapOf<String, Any?>("kind" to Challenges.DAILY, "stepInr" to 50.0, "length" to 30.0, "startMillis" to start, "savedInr" to 300.0)
+    check("challenge: daily total and day number", Challenges.target(daily) == 1500.0 && Challenges.step(daily, at(2026, 11, 7)) == 6)
+    check("challenge: daily on track", Challenges.versusPlan(daily, at(2026, 11, 7)) == 0.0)
+    check("challenge: finished after its length", Challenges.finished(daily, at(2026, 12, 2)) && !Challenges.finished(daily, at(2026, 11, 30)))
+    val ns = mapOf<String, Any?>("kind" to Challenges.NO_SPEND, "length" to 10.0, "startMillis" to start)
+    val spent = setOf(at(2026, 11, 3), at(2026, 11, 6)).map(Challenges::startOfDay).toSet()
+    val r = Challenges.noSpend(ns, spent, at(2026, 11, 8))
+    check("no-spend: counts clean days, the current run and spent days", r.days == 5 && r.streak == 2 && r.spentDays == 2 && r.goal == 10, r)
+    check("no-spend: stops at its last day", Challenges.noSpend(ns, emptySet(), at(2026, 12, 25)).days == 10)
+    check("no-spend: before the start nothing counts", Challenges.noSpend(ns, emptySet(), at(2026, 10, 1)).days == 0)
     println(if (failures == 0) "ALL PASSED" else "$failures FAILED")
 }

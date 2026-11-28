@@ -101,6 +101,10 @@ Spark plan: no Cloud Storage, so files are cut into Base64 parts of 600 KB in `c
 
 Free STUN only (Jeet's choice): no relay server, so some mobile networks cannot connect; calls ring only while Family Hub is running on the other phone (no server push on the free plan). Added: group calls of up to 4 (mesh; `groupcalls/{id}` + pair signals `{from}__{to}__offer|answer`, rules: invited only, join/leave only yourself, host or last person ends, pair-only signals); smaller video for groups (480×360, 15 fps); per-person connection state, network quality (round-trip time and loss from WebRTC stats), active speaker outline, two automatic retries when a connection fails; host can "End for everyone" or just leave; incoming-call heads-up / full-screen notification while ringing (1:1 and group); missed-call notifications once per call (1:1 and group); a phone in one kind of call answers "busy" to the other. Not verifiable on the emulator: actual audio/video between phones. Tests: call-test 22, rules-test +5, emulator +7.
 
+### Savings challenges and widgets (bundle p74)
+
+Savings challenges (module `challenges`, items type `challenge`, Finance hub): 52-week (week n saves n × base; total 1,378 × base), same amount every day or week, and no-spend days worked out from Finance. On track / behind plan, one tap "I saved ₹X for Week n" (goal-style contribution history). Home screen widgets (`widget/HomeWidgets.kt`): Family overview (overdue first, due this week) and Shopping list (still to buy); the app writes a summary on the phone after data changes; health items never shown; Settings → Private widgets shows counts only. Not done: configurable per-module permissions (would change rules for every collection; left for a session with Jeet), update checker (needs a GitHub Release to point at; publishing was ruled out). Rules test fix: one test built its batch from two Firestore instances.
+
 ### Phone tests to give at the end (collect here)
 
 1. Mukul-style category change on your own data, in both AI screens.

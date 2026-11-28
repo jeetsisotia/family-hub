@@ -630,6 +630,26 @@ val GoalsModule = ModuleDef(
     constants = mapOf("done" to false)
 )
 
+/** Savings challenges: 52-week, a fixed amount every day or week, or no-spend days (worked out from Finance). */
+val ChallengesModule = ModuleDef(
+    route = "challenges", title = "Savings Challenges", icon = Icons.Rounded.EmojiEvents,
+    collection = "items", typeValue = "challenge",
+    subtitleKeys = listOf("kind", "savedInr"),
+    fields = listOf(
+        FieldDef("title", "Name (for example Holiday fund)", required = true),
+        FieldDef("kind", "Challenge", FieldType.CHOICE, options = com.familyhub.app.money.Challenges.KINDS, required = true),
+        FieldDef("stepInr", "Amount (₹): week 1 for the 52-week challenge, or each day or week", FieldType.NUMBER,
+            showIf = { it["kind"] != com.familyhub.app.money.Challenges.NO_SPEND }),
+        FieldDef("length", "How many days or weeks (not for 52-week)", FieldType.NUMBER,
+            showIf = { it["kind"] != com.familyhub.app.money.Challenges.WEEK52 }),
+        FieldDef("startMillis", "Start date", FieldType.DATE, required = true),
+        FieldDef("savedInr", "Saved so far (₹)", FieldType.NUMBER, showIf = { it["kind"] != com.familyhub.app.money.Challenges.NO_SPEND }),
+        FieldDef("notes", "Notes", FieldType.MULTILINE)
+    ),
+    amountKey = "savedInr", doneKey = "done", doneLabel = "Completed", alertOverdue = false,
+    constants = mapOf("done" to false)
+)
+
 // ---------- daily life: medicines, reminders, vitals, habits, cards ----------
 
 val MedicinesModule = ModuleDef(
@@ -847,7 +867,7 @@ val AllModules: List<ModuleDef> = listOf(
     SubscriptionsModule, LoansModule, StaffModule, EmergencyModule, NoticesModule,
     SettleModule, MemoriesModule,
     MaintenanceModule, NotesModule, MealsModule, ChoresModule, BirthdaysModule,
-    PetsModule, SchoolModule, GoalsModule,
+    PetsModule, SchoolModule, GoalsModule, ChallengesModule,
     MedicinesModule, RemindersModule, VitalsModule, HabitsModule, CardsModule, WorkoutsModule, FoodModule,
     PoliciesModule, AccountsModule, DebitCardsModule, CategoriesModule
 )

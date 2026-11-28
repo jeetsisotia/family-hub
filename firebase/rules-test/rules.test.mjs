@@ -230,9 +230,10 @@ test('chat: anyone in the chat may set only their own reaction', async () => {
 const att = { id: 'a1', kind: 'photo', name: 'photo.jpg', mime: 'image/jpeg', size: 1200, parts: 1, w: 10, h: 10 };
 const amsg = { senderUid: 'member', senderName: 'M', text: '📷 Photo', at: 2, clientAt: 2, attachment: att };
 test('chat attachment: a member can send a photo (description plus its part) in the family chat', async () => {
-  const b = writeBatch(as('member'));
-  b.set(doc(as('member'), `families/${F}/chats/family/parts/a1_0`), { senderUid: 'member', data: 'AAAA', at: 2 });
-  b.set(doc(as('member'), `families/${F}/chats/family/messages/m-a1`), amsg);
+  const db = as('member');
+  const b = writeBatch(db);
+  b.set(doc(db, `families/${F}/chats/family/parts/a1_0`), { senderUid: 'member', data: 'AAAA', at: 2 });
+  b.set(doc(db, `families/${F}/chats/family/messages/m-a1`), amsg);
   await assertSucceeds(b.commit());
   await assertSucceeds(getDoc(doc(as('owner'), `families/${F}/chats/family/parts/a1_0`)));
 });

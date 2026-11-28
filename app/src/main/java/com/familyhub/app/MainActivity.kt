@@ -266,6 +266,11 @@ class MainActivity : FragmentActivity() {
                     val alerts = remember(recordData, userDoc, members) {
                         (allAlerts(recordData) + profileAlerts(userDoc) + memberAlerts(members, uid)).sortedBy { it.dateMillis }
                     }
+                    // Home screen widgets read a small summary kept on the phone (updated a moment after data changes).
+                    LaunchedEffect(alerts, recordData) {
+                        kotlinx.coroutines.delay(1_500)
+                        runCatching { com.familyhub.app.widget.HomeWidgets.publish(context, alerts, recordData) }
+                    }
 
                     // Exact-time alarms for medicines and reminders follow the records.
                     LaunchedEffect(itemRecs, eventRecs, activeFamilyId, profile.name) {

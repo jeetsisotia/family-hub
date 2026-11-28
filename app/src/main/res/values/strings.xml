@@ -2,4 +2,6 @@
 <resources>
     <string name="shortcut_sos_short">SOS</string>
     <string name="shortcut_sos_long">Family SOS</string>
+    <string name="widget_overview_desc">What is due and overdue in your family</string>
+    <string name="widget_shopping_desc">What is still to buy</string>
 </resources>

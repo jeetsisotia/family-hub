@@ -202,5 +202,14 @@
                 <action android:name="android.intent.action.TIME_SET" />
             </intent-filter>
         </receiver>
+        <!-- Home screen widgets: they only show a summary the app keeps on this phone. -->
+        <receiver android:name=".widget.FamilyOverviewWidget" android:exported="false" android:label="Family overview">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_overview_info" />
+        </receiver>
+        <receiver android:name=".widget.ShoppingWidget" android:exported="false" android:label="Shopping list">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_shopping_info" />
+        </receiver>
     </application>
 </manifest>

@@ -82,6 +82,7 @@ object Hubs {
             HubItem("categories", "Categories", Icons.Rounded.Category),
             HubItem("duplicates", "Duplicates", Icons.Rounded.ContentCopy),
             HubItem("goals", "Savings goals", Icons.Rounded.Savings),
+            HubItem("challenges", "Savings challenges", Icons.Rounded.EmojiEvents),
             HubItem("settle", "Settle up", Icons.Rounded.Groups),
             HubItem("policies", "Insurance", Icons.Rounded.Shield)
         )

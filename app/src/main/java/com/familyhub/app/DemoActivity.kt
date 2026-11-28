@@ -438,6 +438,12 @@ object DemoData {
             rec("title" to "Yoga", "category" to "Family", "startTimeMillis" to now - 3 * d, "time" to "07:00", "ownerName" to "Demo User",
                 "recurrence" to "WEEKLY", "isDeleted" to false)
         )
+        fun challengeItems(t: Long) = listOf(
+            rec("type" to "challenge", "title" to "Holiday fund", "kind" to com.familyhub.app.money.Challenges.WEEK52, "stepInr" to 50.0,
+                "startMillis" to t - 25 * d, "savedInr" to 300.0, "done" to false, "isDeleted" to false),
+            rec("type" to "challenge", "title" to "No-spend fortnight", "kind" to com.familyhub.app.money.Challenges.NO_SPEND, "length" to 14.0,
+                "startMillis" to t - 6 * d, "done" to false, "isDeleted" to false)
+        )
         val p2Items = listOf(
             rec("type" to "maintenance", "title" to "Bedroom AC", "category" to "AC service", "vendor" to "CoolCare", "repeat" to "Quarterly",
                 "nextDueMillis" to now + 10 * d, "warrantyExpiryMillis" to now + 40 * d, "costInr" to 600.0,
@@ -492,7 +498,7 @@ object DemoData {
             members = members,
             memberNames = members.map { it.name },
             isOwner = true,
-            data = mapOf("items" to items + docs + p2Items, "events" to events + p2Events, "expenses" to expenses, "tasks" to tasks + p2Shop, "trips" to trips),
+            data = mapOf("items" to items + docs + p2Items + challengeItems(now), "events" to events + p2Events, "expenses" to expenses, "tasks" to tasks + p2Shop, "trips" to trips),
             repo = repo,
             familyRepository = families,
             scope = scope,

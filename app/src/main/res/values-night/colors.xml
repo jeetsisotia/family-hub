@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="fh_window">#FF000000</color>
+    <color name="widget_bg">#E61C1C1F</color>
+    <color name="widget_edge">#33FFFFFF</color>
+    <color name="widget_text">#FFF2F2F7</color>
+    <color name="widget_text_soft">#FFAEAEB2</color>
 </resources>

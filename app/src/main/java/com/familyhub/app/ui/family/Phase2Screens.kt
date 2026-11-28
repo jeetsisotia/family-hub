@@ -62,10 +62,11 @@ fun ModuleOverview(route: String, env: AppEnv) {
         "subscriptions" -> SubscriptionsOverview(env)
         "maintenance", "vehicles" -> ServiceOverview(env, route)
         "goals" -> GoalsOverview(env)
+        "challenges" -> ChallengesOverview(env)
     }
 }
 
-val ModuleOverviewRoutes = setOf("documents", "calendar", "subscriptions", "maintenance", "vehicles", "goals")
+val ModuleOverviewRoutes = setOf("documents", "calendar", "subscriptions", "maintenance", "vehicles", "goals", "challenges")
 
 // ---------------------------------------------------------------------------------------------------------------
 // Smart shopping and household lists
