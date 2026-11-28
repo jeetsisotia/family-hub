@@ -79,6 +79,8 @@ jobs:
           run "Expense splitting (split-test)" $W/split.jar
           (cd tools/memory-test && kotlinc $A/family/MemoryMath.kt MemoryTest.kt -include-runtime -d $W/mem.jar 2>&1 | grep -v warning || true)
           run "Memories (memory-test)" $W/mem.jar
+          (cd tools/sync-test && kotlinc $A/data/remote/SyncMath.kt Stub.kt SyncTest.kt -include-runtime -d $W/sync.jar 2>&1 | grep -v warning || true)
+          run "Offline and sync (sync-test)" $W/sync.jar
 
           (cd tools/health-test && kotlinc $A/health/HealthMath.kt $A/core/ai/AiLimiter.kt HealthTest.kt -include-runtime -d $W/health.jar 2>&1 | grep -v warning || true)
           run "Health and AI limits (health-test)" $W/health.jar
