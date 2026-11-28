@@ -44,7 +44,7 @@ fun GroupCallOverlay(env: AppEnv?) {
     val ui by GroupCallManager.ui.collectAsState()
     when (ui.phase) {
         GroupPhase.IDLE -> Unit
-        GroupPhase.RINGING -> GroupRinging(ui)
+        GroupPhase.RINGING -> GroupRinging(ui, env?.uid.orEmpty())
         GroupPhase.IN_CALL -> GroupInCall(ui, env?.uid.orEmpty())
         GroupPhase.ENDED -> Box(Modifier.fillMaxSize().background(CallBg), contentAlignment = Alignment.Center) {
             Text(ui.message, color = Color.White, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.padding(32.dp))
@@ -53,8 +53,9 @@ fun GroupCallOverlay(env: AppEnv?) {
 }
 
 @Composable
-private fun GroupRinging(ui: GroupUi) {
-    val others = ui.invited.mapNotNull { ui.names[it] }.filter { it != ui.hostName }
+private fun GroupRinging(ui: GroupUi, me: String) {
+    // The other people invited (not the host, who is named above, and not me).
+    val others = ui.invited.filter { it != me && it != ui.hostUid }.mapNotNull { ui.names[it] }
     val start = rememberCallStarter { _, _, _ -> GroupCallManager.accept() }
     Column(
         Modifier.fillMaxSize().background(CallBg).systemBarsPadding().padding(28.dp),
