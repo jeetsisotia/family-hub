@@ -996,14 +996,15 @@ private fun TripHeader(records: List<Rec>) {
     val budget = next.num("estimatedBudgetInr")
     val packing = next.str("packingNotes").lines().map { it.trim() }.filter { it.isNotBlank() }
     val packed = packing.count { it.startsWith("[x]", ignoreCase = true) || it.startsWith("✓") }
+    // At most two numbers side by side (long values would push the rest off a narrow screen); the rest as lines.
     SummaryCard(
-        stats = listOfNotNull(
-            "Next trip" to next.str("destination"),
-            "When" to status,
-            budget?.let { "Budget" to money(it) },
-            if (packing.isNotEmpty()) "Packed" to "$packed of ${packing.size}" else null
-        ),
-        footer = "Add shared trip costs in Finance → Settle up with this trip's name to split them and see who owes whom."
+        stats = listOfNotNull("Next trip" to next.str("destination"), budget?.let { "Budget" to money(it) }),
+        footer = listOfNotNull(
+            status,
+            next.str("travellers").takeIf { it.isNotBlank() }?.let { "Going: $it" },
+            if (packing.isNotEmpty()) "Packed $packed of ${packing.size}" else null,
+            "Split shared trip costs in Finance → Settle up using this trip's name."
+        ).joinToString("\n")
     )
 }
 

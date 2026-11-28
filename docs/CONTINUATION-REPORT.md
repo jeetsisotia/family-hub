@@ -258,3 +258,12 @@ Checked:
   refused by GitHub ("Resource not accessible by integration", HTTP 403 on creating the release) although the job had
   Contents: write. The release step now pushes the `build-N` tag with git first (the same way the screenshots
   branch is pushed, which works) and then creates the release from that tag.
+- Verified: Build APK run 46117925125 (build 114, commit c790247): no crash, 121 checks passed, 4 failed
+  (3 known check-only + travel packing line), Settings widgets check passes again, and **release `build-114` was
+  published** — pushing the tag with git first fixed the 403.
+- Unit tests run 46118334148 (commit af5a884): Success — all suites, including perms, update, split, memory and sync.
+
+## 28 Nov — Travel header fix (bundle p86)
+
+- The trip summary had four numbers side by side; on a phone the last one (packing) was pushed off screen.
+  Now two numbers (trip, budget) and the rest as lines: when, who is going, packed N of M.
