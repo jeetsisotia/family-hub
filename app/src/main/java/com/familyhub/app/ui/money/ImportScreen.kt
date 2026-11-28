@@ -410,6 +410,9 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     }
                 }
             }
+            // The result of a scan, share or paste, right under the buttons so it is seen without scrolling.
+            if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
+            message?.let { m -> item { Text(m, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) } }
             item {
                 OutlinedButton(onClick = { env.navigate("statement_import") }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Rounded.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -448,8 +451,6 @@ fun ImportScreen(env: AppEnv, demoTexts: List<String>? = null) {
                     )
                 }
             }
-            if (busy) item { LinearProgressIndicator(modifier = Modifier.fillMaxWidth()) }
-            message?.let { m -> item { Text(m, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium) } }
 
             if (freshAlerts.isNotEmpty() || freshEvents.isNotEmpty() || fresh.isNotEmpty()) {
                 item {

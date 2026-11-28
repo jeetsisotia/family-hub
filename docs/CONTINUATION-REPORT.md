@@ -310,3 +310,16 @@ Reported: Samsung Galaxy Note 8, Play Protect "App blocked to protect your devic
 - Tests: `tools/import-test` +6 checks for shared/pasted SMS (all pass locally).
 - Docs: PLAY_PROTECT_INVESTIGATION, ANDROID_COMPATIBILITY, FIREBASE_SECURITY_REVIEW, PRODUCTION_READINESS,
   PHONE_TEST_CHECKLIST (new); INSTALL, LIMITATIONS, AI-SETUP updated.
+- Verified (p88): Build APK run 46130855769 (commit b495f56, **2.1.118**):
+  - Permission audit PASS: the merged APK has no READ_SMS/RECEIVE_SMS/notification listener/accessibility
+    (SEND_SMS, READ_CALENDAR, camera, microphone, location, Health Connect reads remain).
+  - APK SHA-256 `13a2acaafefd8004c2e72ea369da68f7f9401f3fe1adfe482cf5e7a679caa415`; versionCode 118.
+  - Signing certificate SHA-256 `cb209779bc63fc76c9e064b02045f11e6372a5183d889f0b5974bdbe686d576a` — same as 2.1.116 (PASS).
+  - Android 9 (API 28) emulator: installs, sign-in screen, home, settle up, import (Paste SMS), update checker,
+    offline notice — 7/7 PASS, no crash.
+  - Main emulator: 126 PASS, 2 FAIL, no crash; release `build-118` published. "Several matches" and "Google chip" now PASS.
+  - Failures: (a) import of shared SMS — the result text was below the visible part of the screen (the list showed only
+    the top); fixed in p89 by showing the result right under the buttons. (b) Typing indicator — the screenshot shows
+    "Asha is typing…", but two screen reads (8 s and 5 s after opening) did not include that line, so this is **not
+    resolved**; it stays on the phone checklist (open a chat while the other person types).
+  - Unit tests run 46131189787 (b495f56): Success, all suites incl. the new shared-SMS checks.
