@@ -191,8 +191,8 @@ jobs:
             echo "NOT FOUND ON SCREEN: $1"
             return 1
           }
-          seen() { grep -q "$1" "shots/$2.xml" && echo "CHECK $3: PASS" || echo "CHECK $3: FAIL"; }
-          notseen() { if [ -s "shots/$2.xml" ] && ! grep -q "$1" "shots/$2.xml"; then echo "CHECK $3: PASS"; else echo "CHECK $3: FAIL"; fi; }
+          seen() { if grep -q "$1" "shots/$2.xml"; then r=PASS; else r=FAIL; fi; echo "CHECK $3: $r"; echo "CHECK $3: $r" >> shots/checks.txt; }
+          notseen() { if [ -s "shots/$2.xml" ] && ! grep -q "$1" "shots/$2.xml"; then r=PASS; else r=FAIL; fi; echo "CHECK $3: $r"; echo "CHECK $3: $r" >> shots/checks.txt; }
           ASK="Change_the_category_of_Swiggy_order_from_Meghana_Foods_to_Shopping"
           recat() { adb shell am start -W -n $PKG/.DemoActivity --es route ai_recat --es store "$1" --es ask "$2" >/dev/null 2>&1; sleep "$3"; }
           echo "==== AI category change (test database) ===="
@@ -523,6 +523,18 @@ jobs:
         with:
           name: family-hub-apk
           path: apk
+      - name: Download emulator check results
+        uses: actions/download-artifact@v4
+        with:
+          name: smoke-test-results
+          path: smoke
+      # Publish only when the screen checks really ran and almost all passed (a few known check-only failures).
+      - name: Check the emulator results
+        run: |
+          pass=$(grep -c ': PASS' smoke/checks.txt || true); fail=$(grep -c ': FAIL' smoke/checks.txt || true)
+          echo "Emulator checks: $pass passed, $fail failed"
+          grep ': FAIL' smoke/checks.txt || true
+          [ "$pass" -ge 90 ] && [ "$fail" -le 5 ] || { echo "RESULT: not publishing (too few checks passed)"; exit 1; }
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
