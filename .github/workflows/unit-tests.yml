@@ -47,7 +47,7 @@ jobs:
           run "Money engine (ledger-test)" $W/ledger.jar
 
           (cd tools/import-test && \
-            kotlinc $A/money/TxnParser.kt $A/money/AlertParser.kt $A/money/StatementImport.kt $A/money/StatementParser.kt $A/money/Ledger.kt TxnTest.kt -include-runtime -d $W/txn.jar 2>&1 | grep -v warning || true; \
+            kotlinc $A/money/TxnParser.kt $A/money/AlertParser.kt $A/money/SmsText.kt $A/money/StatementImport.kt $A/money/StatementParser.kt $A/money/Ledger.kt TxnTest.kt -include-runtime -d $W/txn.jar 2>&1 | grep -v warning || true; \
             kotlinc $A/money/StatementParser.kt $A/money/StatementImport.kt $A/money/TxnParser.kt $A/money/AlertParser.kt $A/money/Ledger.kt StmtTest.kt -include-runtime -d $W/stmt.jar 2>&1 | grep -v warning || true)
           run "SMS and email alerts (import-test)" $W/txn.jar
           pushd tools/import-test >/dev/null; run "Statement import (import-test)" $W/stmt.jar; popd >/dev/null

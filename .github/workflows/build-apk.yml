@@ -62,6 +62,33 @@ jobs:
           [ "$APK_SHA1" = "$EXPECTED_SHA1" ] && echo "SHA-1 MATCH" || echo "SHA-1 MISMATCH -> register the APK SHA-1 in Firebase"
           [ "$(echo -n "$GOOGLE_WEB_CLIENT_ID" | tr -d '[:space:]')" = "$EXPECTED_WEB" ] && echo "WEB CLIENT ID MATCH" || echo "WEB CLIENT ID MISMATCH or EMPTY -> fix the GOOGLE_WEB_CLIENT_ID secret"
 
+      # Play Protect blocks downloaded APKs that declare these (see docs/PLAY_PROTECT_INVESTIGATION.md).
+      # Fails the build if the final, merged APK manifest has any of them; prints the full list and the signature.
+      - name: Permission and signature audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          BT=$ANDROID_HOME/build-tools/35.0.0
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          echo "== Permissions in the built APK (merged manifest):"
+          $BT/aapt2 dump permissions "$APK" | tee perms.txt
+          echo "== Exported components and services needing review:"
+          $BT/aapt2 dump xmltree --file AndroidManifest.xml "$APK" | grep -E "BIND_ACCESSIBILITY_SERVICE|BIND_NOTIFICATION_LISTENER_SERVICE" || echo "none"
+          bad=$(grep -oE "android.permission.(READ_SMS|RECEIVE_SMS|RECEIVE_MMS|RECEIVE_WAP_PUSH|BIND_NOTIFICATION_LISTENER_SERVICE|BIND_ACCESSIBILITY_SERVICE)" perms.txt | sort -u || true)
+          bad2=$($BT/aapt2 dump xmltree --file AndroidManifest.xml "$APK" | grep -oE "BIND_ACCESSIBILITY_SERVICE|BIND_NOTIFICATION_LISTENER_SERVICE" | sort -u || true)
+          if [ -n "$bad$bad2" ]; then echo "CHECK sensitive permissions: FAIL ($bad $bad2)"; exit 1; else echo "CHECK no SMS-reading, notification-listener or accessibility permission: PASS"; fi
+          echo "== APK"
+          sha256sum "$APK"
+          $BT/aapt2 dump badging "$APK" | grep -E "^package:|sdkVersion|targetSdkVersion"
+          $BT/apksigner verify --print-certs "$APK" | grep -E "SHA-256|SHA-1|DN" | tee cert-new.txt
+          echo "== Same signer as the published FamilyHub 2.1.116 (so it updates without uninstalling)?"
+          if gh release download build-116 --repo "$GITHUB_REPOSITORY" --pattern "*.apk" --dir old 2>/dev/null; then
+            $BT/apksigner verify --print-certs old/*.apk | grep -E "SHA-256" | tee cert-old.txt
+            [ "$(grep -m1 SHA-256 cert-new.txt | awk '{print $NF}')" = "$(grep -m1 SHA-256 cert-old.txt | awk '{print $NF}')" ] \
+              && echo "CHECK same signing certificate as 2.1.116: PASS" || { echo "CHECK same signing certificate as 2.1.116: FAIL"; exit 1; }
+          else echo "Could not download build-116 to compare (skipped)"; fi
+
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
@@ -220,6 +247,11 @@ jobs:
           recat emulator "change_category_of_swiggy_to_shopping" 25
           shot demo_ai_recat_5_choose; screen_text ai_recat_5
           seen 'Which one do you mean' ai_recat_5 "several matches: the question is shown first"
+          # The long question can push the first card's Change button below the visible part: scroll the conversation a little.
+          if ! grep -q 'text="Change"' shots/ai_recat_5.xml; then
+            adb shell input swipe $((SW / 2)) $((SH * 55 / 100)) $((SW / 2)) $((SH * 30 / 100)) 500; sleep 2; screen_text ai_recat_5b
+            cp shots/ai_recat_5b.xml shots/ai_recat_5.xml
+          fi
           grep -q 'text="Change"' shots/ai_recat_5.xml && echo "CHECK several matches: a card to pick is on screen: PASS" || echo "CHECK several matches: a card to pick is on screen: FAIL"
           adb shell am force-stop $PKG
           # Database unreachable: the card must not say Changed.
@@ -264,7 +296,9 @@ jobs:
           adb shell settings put system font_scale 1.0
           adb shell wm size 720x1520; adb shell wm density 320
           demo universal_connected "" 6 no; mv shots/demo_universal_connected-full.png shots/demo_universal_connected_narrow-full.png
-          screen_text chips_narrow
+          # demo() closes the app after its screenshot, so open the screen again to read its text.
+          adb shell am start -W -n $PKG/.DemoActivity --es route universal_connected >/dev/null 2>&1; sleep 6
+          screen_text chips_narrow; adb shell am force-stop $PKG
           grep -q 'text="Google"' shots/chips_narrow.xml && echo "CHECK Google chip on one line at 360dp: PASS" || echo "CHECK Google chip on one line at 360dp: FAIL"
           adb shell wm size reset; adb shell wm density reset
           demo universal_connected "" 6 no
@@ -332,7 +366,13 @@ jobs:
           srch dark:search_q Netflix search_dark; seen 'All (' search_dark "search: dark theme"
           srch dark:home none home_dark_glass; seen 'Search FamilyHub' home_dark_glass "home: dark theme with search"
           # ---- Chat: photos, voice messages, files, typing (28 Nov) ----
-          srch "chat:dm_asha_demo-user" none chat_dm; seen 'Asha is typing' chat_dm "chat: typing indicator shows who is typing"
+          srch "chat:dm_asha_demo-user" none chat_dm
+          if ! grep -q 'Asha is typing' shots/chat_dm.xml; then
+            echo "typing line not in the first screen read; lines mentioning typing:"; grep -o '[a-z-]*="[^"]*yping[^"]*"' shots/chat_dm.xml || echo "(none)"
+            adb shell am start -W -n $PKG/.DemoActivity --es route "chat:dm_asha_demo-user" >/dev/null 2>&1; sleep 5; screen_text chat_dm_typing; adb shell am force-stop $PKG
+            cp shots/chat_dm_typing.xml shots/chat_dm_t.xml
+          else cp shots/chat_dm.xml shots/chat_dm_t.xml; fi
+          seen 'Asha is typing' chat_dm_t "chat: typing indicator shows who is typing"
           seen 'content-desc="Photo"' chat_dm "chat: a photo shows in the chat"
           seen 'Play voice message' chat_dm "chat: a voice message has a play button"
           seen '0:07' chat_dm "chat: voice message length shown"
@@ -398,6 +438,10 @@ jobs:
           # ---- Offline and sync (28 Nov) ----
           srch sync_offline none sync_off; seen '2 changes will sync' sync_off "sync: offline notice with waiting changes"
           srch sync_saved none sync_ok; seen 'All changes saved' sync_ok "sync: all changes saved"
+          # ---- Bank SMS by share or paste (no SMS-reading permission) ----
+          srch import none imp_screen; seen 'Paste SMS' imp_screen "import: paste bank SMS button"
+          seen 'cannot read your SMS inbox' imp_screen "import: says the app cannot read the SMS inbox"
+          srch import_shared none imp_shared; seen 'new transaction' imp_shared "import: shared SMS text finds transactions"
           adb shell am start -W -n $PKG/.DemoActivity --es route settings >/dev/null 2>&1; sleep 8
           # Scroll down in small steps until the widgets section is on screen (Settings grows as sections are added).
           : > shots/set_w2.xml
@@ -510,6 +554,64 @@ jobs:
           git add -A
           git commit -qm "Demo screenshots from ${GITHUB_SHA::7}"
           git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" demo-screenshots
+
+  # Android 9 (API 28), the newest Android a Samsung Galaxy Note 8 gets, to check the app installs and its main
+  # screens open on an older system. An emulator, not the real phone (that stays on the phone checklist).
+  android9-check:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: family-hub-apk
+          path: apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Write test script
+        run: |
+          mkdir -p a9
+          cat > a9.sh <<'SCRIPT'
+          #!/bin/bash
+          PKG=com.familyhub.app
+          echo "Android version: $(adb shell getprop ro.build.version.release) (API $(adb shell getprop ro.build.version.sdk))"
+          adb install -r apk/app-debug.apk && echo "CHECK Android 9: installs: PASS" || echo "CHECK Android 9: installs: FAIL"
+          adb logcat -c
+          dump() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "a9/$1.xml" >/dev/null 2>&1; adb shell screencap -p /sdcard/s.png; adb pull /sdcard/s.png "a9/$1.png" >/dev/null 2>&1; }
+          seen() { grep -q "$1" "a9/$2.xml" && echo "CHECK Android 9: $3: PASS" || echo "CHECK Android 9: $3: FAIL"; }
+          adb shell am start -W -n $PKG/.MainActivity >/dev/null 2>&1; sleep 12; dump launch
+          seen 'Continue with Google' launch "sign-in screen opens"
+          for r in home finance chat_list memories travel settle import settings update_available sync_offline; do
+            adb shell am start -W -n $PKG/.DemoActivity --es route "$r" >/dev/null 2>&1; sleep 7; dump "r_$r"; adb shell am force-stop $PKG
+          done
+          seen 'Search FamilyHub' r_home "home"
+          seen 'Shared spending' r_settle "settle up"
+          seen 'Paste SMS' r_import "import: paste bank SMS"
+          seen 'Download update' r_update_available "update checker"
+          seen 'changes will sync' r_sync_offline "offline notice"
+          if adb logcat -d | grep -q "FATAL EXCEPTION"; then echo "RESULT: APP CRASHED ON ANDROID 9"; adb logcat -d | grep -A 30 "FATAL EXCEPTION" | head -60; exit 1; fi
+          echo "RESULT: NO CRASH ON ANDROID 9"
+          SCRIPT
+          chmod +x a9.sh
+      - name: Run on Android 9 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 28
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: ./a9.sh
+      - name: Upload Android 9 screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android9-results
+          path: a9
 
   # After the emulator run finds no crash, publish the APK as a GitHub Release ("build-<number>").
   # The app's update checker reads the latest release; the person downloads and installs it themselves.
