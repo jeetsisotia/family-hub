@@ -329,6 +329,22 @@ jobs:
           srch search_q zorbing search_none; seen 'No results' search_none "search: nothing found is said plainly"
           srch dark:search_q Netflix search_dark; seen 'All (' search_dark "search: dark theme"
           srch dark:home none home_dark_glass; seen 'Search FamilyHub' home_dark_glass "home: dark theme with search"
+          # ---- Chat: photos, voice messages, files, typing (28 Nov) ----
+          srch "chat:dm_asha_demo-user" none chat_dm; seen 'Asha is typing' chat_dm "chat: typing indicator shows who is typing"
+          seen 'content-desc="Photo"' chat_dm "chat: a photo shows in the chat"
+          seen 'Play voice message' chat_dm "chat: a voice message has a play button"
+          seen '0:07' chat_dm "chat: voice message length shown"
+          seen 'Record a voice message' chat_dm "chat: mic button when nothing is typed"
+          srch "dark:chat:dm_asha_demo-user" none chat_dm_dark; seen 'Play voice message' chat_dm_dark "chat: voice message in dark theme"
+          adb shell am start -W -n $PKG/.DemoActivity --es route "chat:family" >/dev/null 2>&1; sleep 8; shot demo_chat_family_file; screen_text chat_file
+          seen 'Car insurance 2026.pdf' chat_file "chat: a file shows its name"
+          seen '1.2 MB' chat_file "chat: a file shows its size"
+          tap_desc "Attach a photo, file or poll" chat_att; sleep 3; shot demo_chat_attach_sheet; screen_text chat_att2
+          seen 'Document or file' chat_att2 "chat: attach sheet offers photo, file and poll"
+          adb shell input keyevent KEYCODE_BACK; sleep 2
+          tap_desc "Photos, voice messages and files" chat_gal; sleep 3; shot demo_chat_gallery; screen_text chat_gal2
+          seen 'Show when I' chat_gal2 "chat: shared media with the typing privacy switch"
+          adb shell am force-stop $PKG
           askq "Show_our_upcoming_bills" bills; seen 'Due in the next 30 days' ask_bills "planner: upcoming bills with the total"
           askq "What_do_we_have_scheduled_this_week?" week; seen 'Planned for this week' ask_week "planner: this week's schedule"
           seen 'Clash' ask_week "planner: the clash is pointed out"

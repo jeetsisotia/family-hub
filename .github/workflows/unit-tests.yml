@@ -52,8 +52,8 @@ jobs:
           run "SMS and email alerts (import-test)" $W/txn.jar
           pushd tools/import-test >/dev/null; run "Statement import (import-test)" $W/stmt.jar; popd >/dev/null
 
-          (cd tools/chat-test && kotlinc $A/ui/chat/Mentions.kt ChatTest.kt -include-runtime -d $W/chat.jar 2>&1 | grep -v warning || true)
-          run "Chat mentions (chat-test)" $W/chat.jar
+          (cd tools/chat-test && kotlinc $A/ui/chat/Mentions.kt $A/data/remote/ChatMedia.kt ChatTest.kt ChatMediaTest.kt -include-runtime -d $W/chat.jar 2>&1 | grep -v warning || true)
+          run "Chat mentions and attachments (chat-test)" $W/chat.jar
 
           (cd tools/ai-test && python3 extract.py && kotlinc Regexes.kt AiTest.kt -include-runtime -d $W/ai.jar 2>&1 | grep -v warning || true)
           run "Assistant questions (ai-test)" $W/ai.jar
