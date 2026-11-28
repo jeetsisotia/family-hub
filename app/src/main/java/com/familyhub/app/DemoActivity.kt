@@ -161,6 +161,10 @@ class DemoActivity : FragmentActivity() {
                                 }
                                 Column(Modifier.fillMaxSize().padding(16.dp)) { com.familyhub.app.update.UpdateSection() }
                             }
+                            route.startsWith("memory:") -> {
+                                androidx.compose.runtime.LaunchedEffect(route) { com.familyhub.app.data.remote.MemoryRepository.seedDemo(route.removePrefix("memory:")) }
+                                com.familyhub.app.ui.modules.MemoryDetailScreen(env, route.removePrefix("memory:"))
+                            }
                             // The Family Admin's access sheet for one member.
                             route == "access_sheet" -> com.familyhub.app.ui.modules.MemberAccessSheet(
                                 com.familyhub.app.data.model.FamilyMember(uid = "ravi", name = "Ravi", perms = mapOf("health" to "none", "finance" to "view")),
@@ -465,6 +469,15 @@ object DemoData {
             rec("title" to "Yoga", "category" to "Family", "startTimeMillis" to now - 3 * d, "time" to "07:00", "ownerName" to "Demo User",
                 "recurrence" to "WEEKLY", "isDeleted" to false)
         )
+        // A memory with photos (generated pictures), from exactly one and two years ago, for the memory checks.
+        fun memoryItems(t: Long) = listOf(
+            rec("id" to "mem-goa", "type" to "memory", "title" to "Goa beach day", "category" to "Trip", "album" to "Goa trips",
+                "dateMillis" to t - 365L * d, "notes" to "Sunset at Palolem, everyone in the water.",
+                "photos" to listOf(mapOf("id" to "demo-photo-1", "parts" to 1, "w" to 320, "h" to 200, "by" to "asha"),
+                    mapOf("id" to "demo-photo-2", "parts" to 1, "w" to 320, "h" to 200, "by" to UID))),
+            rec("type" to "memory", "title" to "Baby's first steps", "category" to "Milestone", "album" to "Baby's first year",
+                "dateMillis" to t - 730L * d, "notes" to "")
+        )
         // Shared costs for Settle up: equal, exact and shares, one Jaipur trip.
         fun settleItems(t: Long) = listOf(
             rec("type" to "settle", "title" to "Hotel", "amountInr" to 9000.0, "paidBy" to "Asha", "trip" to "Jaipur",
@@ -536,7 +549,7 @@ object DemoData {
             members = members,
             memberNames = members.map { it.name },
             isOwner = true,
-            data = mapOf("items" to items + docs + p2Items + challengeItems(now) + settleItems(now), "events" to events + p2Events, "expenses" to expenses, "tasks" to tasks + p2Shop, "trips" to trips),
+            data = mapOf("items" to items + docs + p2Items + challengeItems(now) + settleItems(now) + memoryItems(now), "events" to events + p2Events, "expenses" to expenses, "tasks" to tasks + p2Shop, "trips" to trips),
             repo = repo,
             familyRepository = families,
             scope = scope,

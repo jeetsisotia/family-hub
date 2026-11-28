@@ -294,6 +294,39 @@ test('perms: admins always have full access and set access for others; nobody ch
   await assertFails(updateDoc(doc(as('member'), `families/${F}/members/member`), { canEditFinance: false }));
 });
 
+// ---------- memory photos, comments and reactions (28 Nov) ----------
+test('memories: photo parts — members with access add and read; nobody changes them; others cannot', async () => {
+  const part = { ownerUid: 'member', memoryId: 'm1', data: 'QUJD', at: 1 };
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/memoryParts/p_0`), part));
+  await assertSucceeds(getDoc(doc(as('admin'), `families/${F}/memoryParts/p_0`)));
+  await assertFails(updateDoc(doc(as('member'), `families/${F}/memoryParts/p_0`), { data: 'WFla' }));
+  await assertFails(setDoc(doc(as('admin'), `families/${F}/memoryParts/p_1`), { ...part }));
+  await assertFails(getDoc(doc(as('stranger'), `families/${F}/memoryParts/p_0`)));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/memoryParts/p_2`), { ...part, extra: 1 }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/memoryParts/p_3`), { ...part, data: 'x'.repeat(850001) }));
+  await assertSucceeds(deleteDoc(doc(as('admin'), `families/${F}/memoryParts/p_0`)));
+});
+test('memories: Memories "None" or "View" limits photos', async () => {
+  await restrict('member', { memories: 'view' });
+  await assertFails(setDoc(doc(as('member'), `families/${F}/memoryParts/v_0`), { ownerUid: 'member', memoryId: 'm1', data: 'QUJD', at: 1 }));
+  await restrict('member', { memories: 'none' });
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), `families/${F}/memoryParts/q_0`), { ownerUid: 'admin', memoryId: 'm1', data: 'QUJD', at: 1 }); });
+  await assertFails(getDoc(doc(as('member'), `families/${F}/memoryParts/q_0`)));
+});
+test('memories: comments and one reaction per person', async () => {
+  const c = { memoryId: 'm1', uid: 'member', name: 'M', kind: 'comment', text: 'Lovely', clientAt: 1, at: 1 };
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/memoryNotes/c1`), c));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/memoryNotes/c2`), { ...c, uid: 'admin' }));
+  await assertFails(updateDoc(doc(as('admin'), `families/${F}/memoryNotes/c1`), { text: 'changed' }));
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/memoryNotes/m1_member_r`), { ...c, kind: 'reaction', text: '❤️' }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/memoryNotes/m1_admin_r`), { ...c, kind: 'reaction', text: '❤️' }));
+  await assertFails(setDoc(doc(as('member'), `families/${F}/memoryNotes/c3`), { ...c, kind: 'other' }));
+  await assertSucceeds(deleteDoc(doc(as('admin'), `families/${F}/memoryNotes/c1`)));
+  await assertFails(getDoc(doc(as('stranger'), `families/${F}/memoryNotes/m1_member_r`)));
+  await restrict('member', { memories: 'view' });
+  await assertSucceeds(setDoc(doc(as('member'), `families/${F}/memoryNotes/c4`), c));
+});
+
 // ---------- chat attachments and typing (28 Nov) ----------
 const att = { id: 'a1', kind: 'photo', name: 'photo.jpg', mime: 'image/jpeg', size: 1200, parts: 1, w: 10, h: 10 };
 const amsg = { senderUid: 'member', senderName: 'M', text: '📷 Photo', at: 2, clientAt: 2, attachment: att };

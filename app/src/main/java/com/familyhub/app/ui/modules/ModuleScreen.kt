@@ -172,6 +172,12 @@ fun ModuleScreen(
             else emptySet<String>()
         )
     }
+    // A detail screen's Edit button: open that record's form once it is in the list.
+    val editId by EditRequest.id.collectAsState()
+    LaunchedEffect(editId, records) {
+        val id = editId ?: return@LaunchedEffect
+        records.firstOrNull { it.str("id") == id }?.let { r -> EditRequest.id.value = null; if (mayChange(r)) { editing = r; showForm = true } }
+    }
     var sheetKey by remember {
         mutableStateOf(
             if (previewState == "sheet") sortRecords(def, recordsFor(def, all)).firstOrNull()?.let { com.familyhub.app.ui.money.recKey(it) } else null
@@ -331,6 +337,7 @@ fun ModuleScreen(
                 item {
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(bottom = 10.dp)) {
                         overview?.invoke()
+                        if (def.typeValue == "memory") MemoriesHeader(records, onOpen)
                         ModuleHeader(def, records, monthlyBudget, isOwner, memberNames, onSaveBudget,
                             onRecordPayment = if (viewOnly) null else { t, trip ->
                                 save(
@@ -405,7 +412,10 @@ fun ModuleScreen(
                         rec = rec,
                         first = index == 0,
                         last = index == shown.lastIndex,
-                        onClick = { if (mayChange(rec)) { editing = rec; showForm = true } else error = VIEW_ONLY_TEXT },
+                        onClick = {
+                            if (def.typeValue == "memory" && onOpen != null) onOpen("memory:" + rec.str("id"))
+                            else if (mayChange(rec)) { editing = rec; showForm = true } else error = VIEW_ONLY_TEXT
+                        },
                         onToggle = { checked -> if (mayChange(rec)) toggle(rec, checked) else error = VIEW_ONLY_TEXT },
                         onDelete = { toDelete = rec },
                         onCall = { phone ->
@@ -899,7 +909,7 @@ private fun SettleHeader(records: List<Rec>, memberNames: List<String>, onRecord
         .map { it.trim() }.filter { it.isNotBlank() }.distinctBy { it.lowercase() }
     if (records.isEmpty()) return
     val expenses = shown.map { r ->
-        S.Expense(
+        com.familyhub.app.money.Split.Expense(
             id = r.str("id"), amount = r.num("amountInr") ?: 0.0, paidBy = r.str("paidBy"),
             with = S.names(r.str("splitWith"), people), mode = r.str("splitMode").ifBlank { S.EQUAL },
             detail = r.str("splitDetail"), group = r.str("trip")

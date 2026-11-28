@@ -158,6 +158,34 @@ service cloud.firestore {
       }
 
       // Vault, documents, health, vehicles, loans, subscriptions, accounts, cards and more.
+      // Memory photos (Spark plan: bytes in Firestore parts of at most ~600 KB) for people with Memories access.
+      // Written once by the person adding the photo; removed by them or a Family Admin.
+      match /memoryParts/{partId} {
+        allow read: if isFamilyMember(familyId) && canSee(familyId, 'memories');
+        allow create: if isFamilyMember(familyId) && canEdit(familyId, 'memories') &&
+          request.resource.data.ownerUid == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['ownerUid', 'memoryId', 'data', 'at']) &&
+          request.resource.data.memoryId is string &&
+          request.resource.data.data is string && request.resource.data.data.size() > 0 &&
+          request.resource.data.data.size() <= 850000;
+        allow update: if false;
+        allow delete: if isFamilyMember(familyId) && (resource.data.ownerUid == request.auth.uid || isFamilyAdmin(familyId));
+      }
+
+      // Comments and reactions on memories: anyone who can see Memories may add their own; one reaction each
+      // (id memoryId_uid_r). People remove their own; Family Admins may remove any.
+      match /memoryNotes/{noteId} {
+        allow read: if isFamilyMember(familyId) && canSee(familyId, 'memories');
+        allow create, update: if isFamilyMember(familyId) && canSee(familyId, 'memories') &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['memoryId', 'uid', 'name', 'kind', 'text', 'clientAt', 'at']) &&
+          request.resource.data.kind in ['comment', 'reaction'] &&
+          request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 500 &&
+          (request.resource.data.kind == 'comment' || noteId == request.resource.data.memoryId + '_' + request.auth.uid + '_r') &&
+          (resource == null || resource.data.uid == request.auth.uid);
+        allow delete: if isFamilyMember(familyId) && (resource.data.uid == request.auth.uid || isFamilyAdmin(familyId));
+      }
+
       match /items/{docId} {
         // Each kind of item belongs to a section (Finance, Health, Documents…); someone with no access to a
         // section loads the others by type ("type in [...]"), so their queries never touch it.

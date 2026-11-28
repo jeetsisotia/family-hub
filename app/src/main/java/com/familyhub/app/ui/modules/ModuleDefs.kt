@@ -492,16 +492,17 @@ val SettleModule = ModuleDef(
 val MemoriesModule = ModuleDef(
     route = "memories", title = "Memories", icon = Icons.Rounded.PhotoLibrary,
     collection = "items", typeValue = "memory",
-    subtitleKeys = listOf("category", "notes"),
+    subtitleKeys = listOf("album", "category", "notes"),
     fields = listOf(
         FieldDef("title", "Title", required = true),
         FieldDef("category", "Type", FieldType.CHOICE,
             listOf("Milestone", "Birthday", "Anniversary", "Trip", "Festival", "Other")),
+        FieldDef("album", "Album (e.g. Goa 2026, Baby's first year)"),
         FieldDef("dateMillis", "Date", FieldType.DATE, required = true),
         FieldDef("notes", "The story", FieldType.MULTILINE)
     ),
     dateKeys = listOf(DateKey("dateMillis", "On")), newestFirst = true, alerts = false,
-    emptyText = "Write down your family's special moments. (Text only, photo uploads need a paid Firebase plan.)"
+    emptyText = "Save your family's special moments. Open one to add photos, reactions and comments."
 )
 
 val MaintenanceModule = ModuleDef(

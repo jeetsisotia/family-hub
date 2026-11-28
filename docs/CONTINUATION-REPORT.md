@@ -201,3 +201,17 @@ Bundles are uploaded through the upload page and applied by `apply-bundle.yml`. 
 - Travel: Who is going, Documents to carry, packing list with [x] ticks; header with the next trip's countdown or
   "day N of M", budget and packing progress.
 - Tests: `tools/split-test` (16 checks), emulator checks "split: …" and "travel: …".
+- p81 compile error (Build APK run 46114751261: nested class through a value alias) fixed in p82.
+
+## 28 Nov — Memories: photo albums, reactions, comments (bundle p82)
+
+- Open a memory to see its story, a photo album (up to 12 photos), reactions (❤️ 😂 😮 🎉 🙏, one per person) and comments.
+- Free plan: photo bytes are stored in Firestore parts (≤600 KB each) like chat attachments —
+  family memories in `families/{f}/memoryParts`, "Only me" memories in `users/{uid}/memoryParts`.
+  Comments and reactions in `families/{f}/memoryNotes`.
+- Rules (new): parts readable with Memories access, added only with Memories "Full", owner fixed, size ≤ 850 000 chars,
+  never changed, removed by the adder or an admin. Notes: own uid only, comment or reaction (reaction id
+  `memoryId_uid_r`), ≤ 500 chars, only the author edits, author or admin deletes. View-only Memories may still comment.
+- Memories list header: "On this day" (earlier years) and albums with counts; new Album field.
+- Safety already had SOS, check-ins, safe-arrival and low-battery alerts (no change needed in this phase).
+- Tests: `tools/memory-test` (6 checks), rules tests "memories: …", emulator checks "memories: …".

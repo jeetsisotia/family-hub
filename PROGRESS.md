@@ -886,3 +886,4 @@ From bundle p23, the bundle workflow can tag the version before each bundle (`.f
 - 28 Nov (p78–p79): access rules fixed and verified (rules tests 100/100).
 - 28 Nov (p80): Update checker + GitHub Releases per passing build.
 - 28 Nov (p81): Expense splitting (equal / exact / % / shares, fewest payments, record payment, per trip) and trip planner header.
+- 28 Nov (p82): Memories photo albums, reactions and comments on the free plan; split compile fix.
